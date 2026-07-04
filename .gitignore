@@ -1,0 +1,88 @@
+# =====================================================================
+# UNIFIED GITIGNORE - SYSTEM FACTORY
+# =====================================================================
+
+# ---------------------------------------------------------------------
+# System / OS Files
+# ---------------------------------------------------------------------
+.DS_Store
+.DS_Store?
+Thumbs.db
+Ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+*.cab
+*.msi
+*.msix
+*.deb
+*.key
+
+# ---------------------------------------------------------------------
+# IDEs & Editors (VS Code, PhpStorm, WebStorm, etc.)
+# ---------------------------------------------------------------------
+.idea/
+.vscode/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+.classpath
+.project
+.settings/
+.buildpath
+
+# ---------------------------------------------------------------------
+# Root Environment
+# ---------------------------------------------------------------------
+.env
+!.env.example
+
+# ---------------------------------------------------------------------
+# FRONTEND (Next.js / Node.js)
+# ---------------------------------------------------------------------
+/frontend/node_modules/
+/frontend/.next/
+/frontend/out/
+/frontend/build/
+/frontend/.env*.local
+/frontend/npm-debug.log*
+/frontend/yarn-debug.log*
+/frontend/yarn-error.log*
+/frontend/.pnp*
+/frontend/.yarn/
+
+# ---------------------------------------------------------------------
+# BACKEND (Laravel 11 / PHP)
+# ---------------------------------------------------------------------
+/backend/laravel/vendor/
+/backend/laravel/.env
+/backend/laravel/.env.backup
+/backend/laravel/.phpunit.result.cache
+
+# Laravel Storage & Cache
+/backend/laravel/bootstrap/cache/*
+!/backend/laravel/bootstrap/cache/.gitignore
+
+/backend/laravel/storage/app/*
+!/backend/laravel/storage/app/.gitignore
+
+/backend/laravel/storage/framework/cache/*
+!/backend/laravel/storage/framework/cache/.gitignore
+
+/backend/laravel/storage/framework/sessions/*
+!/backend/laravel/storage/framework/sessions/.gitignore
+
+/backend/laravel/storage/framework/views/*
+!/backend/laravel/storage/framework/views/.gitignore
+
+/backend/laravel/storage/logs/*
+!/backend/laravel/storage/logs/.gitignore
+
+# Local databases (SQLite, etc.)
+/backend/laravel/database/*.sqlite
+/backend/laravel/database/*.sqlite-journal
+
+# Compiled assets / Symlinks
+/backend/laravel/public/storage
+/backend/laravel/public/hot

@@ -1,0 +1,113 @@
+services:
+  # ─────────────────────────────────────────────────────────────────
+  # FRONTEND — Next.js 14
+  # ─────────────────────────────────────────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: factory-frontend
+    ports:
+      - "${FRONTEND_PORT:-3000}:3000"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+      - /app/.next
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:${BACKEND_PORT:-8000}/api
+      - NODE_ENV=development
+      - WATCHPACK_POLLING=true
+    depends_on:
+      - backend
+    networks:
+      - factory-network
+    restart: unless-stopped
+
+  # ─────────────────────────────────────────────────────────────────
+  # BACKEND — Laravel 11 (PHP 8.3) + Nginx
+  # ─────────────────────────────────────────────────────────────────
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: factory-backend
+    ports:
+      - "${BACKEND_PORT:-8000}:80"
+    volumes:
+      - ./backend/laravel:/var/www/html
+    environment:
+      - DB_HOST=db
+      - DB_PORT=5432
+      - DB_DATABASE=${DB_DATABASE:-factory_db}
+      - DB_USERNAME=${DB_USERNAME:-factory_user}
+      - DB_PASSWORD=${DB_PASSWORD:-factory_secret}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - APP_ENV=local
+      - APP_DEBUG=true
+      - CORS_ALLOWED_ORIGINS=http://localhost:${FRONTEND_PORT:-3000}
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    networks:
+      - factory-network
+    restart: unless-stopped
+
+  # ─────────────────────────────────────────────────────────────────
+  # DATABASE — PostgreSQL 16
+  # ─────────────────────────────────────────────────────────────────
+  db:
+    image: postgres:16-alpine
+    container_name: factory-db
+    ports:
+      - "${DB_PORT:-5432}:5432"
+    environment:
+      - POSTGRES_DB=${DB_DATABASE:-factory_db}
+      - POSTGRES_USER=${DB_USERNAME:-factory_user}
+      - POSTGRES_PASSWORD=${DB_PASSWORD:-factory_secret}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME:-factory_user} -d ${DB_DATABASE:-factory_db}"]
+      interval: 5s
+      timeout: 5s
+      retries: 15
+    networks:
+      - factory-network
+    restart: unless-stopped
+
+  # ─────────────────────────────────────────────────────────────────
+  # DATABASE UI — Adminer
+  # ─────────────────────────────────────────────────────────────────
+  adminer:
+    image: adminer
+    container_name: factory-adminer
+    ports:
+      - "8080:8080"
+    depends_on:
+      - db
+    networks:
+      - factory-network
+    restart: unless-stopped
+
+  # ─────────────────────────────────────────────────────────────────
+  # CACHE / QUEUE — Redis 7
+  # ─────────────────────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: factory-redis
+    ports:
+      - "6379:6379"
+    networks:
+      - factory-network
+    restart: unless-stopped
+
+networks:
+  factory-network:
+    driver: bridge
+
+volumes:
+  postgres-data:
+    driver: local
