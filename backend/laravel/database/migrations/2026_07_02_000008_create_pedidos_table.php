@@ -16,6 +16,8 @@ return new class extends Migration
             $table->string('estado')->default('pendiente');
             $table->string('prioridad')->default('normal');
             $table->date('fecha_entrega')->nullable();
+            $table->integer('dias_vencimiento')->nullable();
+            $table->text('observaciones')->nullable();
             $table->timestamps();
             $table->softDeletes();
         });

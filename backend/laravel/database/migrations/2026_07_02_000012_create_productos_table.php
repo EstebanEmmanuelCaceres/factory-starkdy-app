@@ -13,7 +13,6 @@ return new class extends Migration
             $table->foreignId('pedido_id')->constrained('pedidos')->cascadeOnDelete();
             $table->string('nombre');
             $table->string('sku')->nullable();
-            $table->unsignedInteger('cantidad')->default(1);
             $table->text('descripcion')->nullable();
             $table->string('estado')->default('pendiente');
             $table->timestamps();

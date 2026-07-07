@@ -21,6 +21,8 @@ class Pedido extends Model
         'estado',
         'prioridad',
         'fecha_entrega',
+        'dias_vencimiento',
+        'observaciones',
     ];
 
     /**
@@ -46,6 +48,15 @@ class Pedido extends Model
     {
         return $this->belongsToMany(Producto::class, 'pedido_productos', 'pedido_id', 'producto_id')
                     ->using(PedidoProducto::class)
+                    ->withPivot('cantidad')
                     ->withTimestamps();
+    }
+
+    /**
+     * Relación Uno a Uno con Pago.
+     */
+    public function pago(): \Illuminate\Database\Eloquent\Relations\HasOne
+    {
+        return $this->hasOne(Pago::class, 'pedido_id');
     }
 }

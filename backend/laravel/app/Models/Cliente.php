@@ -14,9 +14,10 @@ class Cliente extends Model
     protected $table = 'clientes';
 
     protected $fillable = [
-        'razon_social',
-        'email',
+        'nombre_cliente',
+        'nombre_empresa',
         'telefono',
+        'email',
     ];
 
     /**

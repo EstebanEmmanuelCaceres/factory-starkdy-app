@@ -28,9 +28,10 @@ export default function ClientesPage() {
 
   // Datos de Formulario
   const [formData, setFormData] = useState<CreateClienteInput>({
-    razon_social: '',
-    email: '',
-    telefono: ''
+    nombre_cliente: '',
+    nombre_empresa: '',
+    telefono: '',
+    email: ''
   })
 
   const loadClientes = async (search?: string) => {
@@ -65,9 +66,10 @@ export default function ClientesPage() {
 
   const handleOpenCreateModal = () => {
     setFormData({
-      razon_social: '',
-      email: '',
-      telefono: ''
+      nombre_cliente: '',
+      nombre_empresa: '',
+      telefono: '',
+      email: ''
     })
     setIsCreateModalOpen(true)
   }
@@ -75,9 +77,10 @@ export default function ClientesPage() {
   const handleOpenEditModal = (cliente: Cliente) => {
     setSelectedCliente(cliente)
     setFormData({
-      razon_social: cliente.razon_social,
-      email: cliente.email || '',
-      telefono: cliente.telefono || ''
+      nombre_cliente: cliente.nombre_cliente,
+      nombre_empresa: cliente.nombre_empresa,
+      telefono: cliente.telefono,
+      email: cliente.email || ''
     })
     setIsEditModalOpen(true)
   }
@@ -88,9 +91,10 @@ export default function ClientesPage() {
     try {
       // Ajustar campos vacíos a nulos
       const payload = {
-        razon_social: formData.razon_social,
-        email: formData.email?.trim() || null,
-        telefono: formData.telefono?.trim() || null
+        nombre_cliente: formData.nombre_cliente.trim(),
+        nombre_empresa: formData.nombre_empresa.trim(),
+        telefono: formData.telefono.trim(),
+        email: formData.email?.trim() || null
       }
       await createCliente(payload)
       setIsCreateModalOpen(false)
@@ -109,17 +113,22 @@ export default function ClientesPage() {
     // Construir payload con cambios parciales (PATCH)
     const payload: UpdateClienteInput = {}
 
+    const nombreClienteValue = formData.nombre_cliente.trim()
+    const nombreEmpresaValue = formData.nombre_empresa.trim()
+    const telefonoValue = formData.telefono.trim()
     const emailValue = formData.email?.trim() || null
-    const telefonoValue = formData.telefono?.trim() || null
 
-    if (formData.razon_social !== selectedCliente.razon_social) {
-      payload.razon_social = formData.razon_social
+    if (nombreClienteValue !== selectedCliente.nombre_cliente) {
+      payload.nombre_cliente = nombreClienteValue
     }
-    if (emailValue !== selectedCliente.email) {
-      payload.email = emailValue
+    if (nombreEmpresaValue !== selectedCliente.nombre_empresa) {
+      payload.nombre_empresa = nombreEmpresaValue
     }
     if (telefonoValue !== selectedCliente.telefono) {
       payload.telefono = telefonoValue
+    }
+    if (emailValue !== selectedCliente.email) {
+      payload.email = emailValue
     }
 
     // Si no hay cambios, simplemente cerrar el modal
@@ -253,9 +262,10 @@ export default function ClientesPage() {
                 <thead>
                   <tr className="border-b border-slate-800 bg-slate-950/40 text-slate-400 font-semibold text-xs uppercase tracking-wider">
                     <th className="px-6 py-4">ID</th>
-                    <th className="px-6 py-4">Razón Social / Nombre</th>
-                    <th className="px-6 py-4">Correo Electrónico</th>
+                    <th className="px-6 py-4">Nombre Cliente</th>
+                    <th className="px-6 py-4">Nombre Empresa</th>
                     <th className="px-6 py-4">Teléfono</th>
+                    <th className="px-6 py-4">Correo Electrónico</th>
                     <th className="px-6 py-4">Registrado</th>
                     <th className="px-6 py-4 text-right">Acciones</th>
                   </tr>
@@ -265,18 +275,17 @@ export default function ClientesPage() {
                     <tr key={cliente.id} className="hover:bg-slate-800/40 text-slate-300 transition duration-100">
                       <td className="px-6 py-4 font-mono text-xs text-slate-500">#{cliente.id}</td>
                       <td className="px-6 py-4">
-                        <span className="font-semibold text-white">{cliente.razon_social}</span>
+                        <span className="font-semibold text-white">{cliente.nombre_cliente}</span>
+                      </td>
+                      <td className="px-6 py-4 text-slate-300">
+                        {cliente.nombre_empresa}
+                      </td>
+                      <td className="px-6 py-4 text-slate-300">
+                        {cliente.telefono}
                       </td>
                       <td className="px-6 py-4">
                         {cliente.email ? (
                           <span className="text-slate-300">{cliente.email}</span>
-                        ) : (
-                          <span className="text-slate-600 italic">No especificado</span>
-                        )}
-                      </td>
-                      <td className="px-6 py-4">
-                        {cliente.telefono ? (
-                          <span className="text-slate-300">{cliente.telefono}</span>
                         ) : (
                           <span className="text-slate-600 italic">No especificado</span>
                         )}
@@ -322,15 +331,41 @@ export default function ClientesPage() {
               <form onSubmit={handleCreateSubmit} className="space-y-4 text-slate-300">
                 <div>
                   <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
-                    Razón Social / Nombre *
+                    Nombre Cliente *
                   </label>
                   <input
                     type="text"
                     required
-                    value={formData.razon_social}
-                    onChange={(e) => setFormData({ ...formData, razon_social: e.target.value })}
+                    value={formData.nombre_cliente}
+                    onChange={(e) => setFormData({ ...formData, nombre_cliente: e.target.value })}
                     className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition"
-                    placeholder="Ej. Juan Pérez o Empresa S.A."
+                    placeholder="Ej. Juan Pérez"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
+                    Nombre Empresa *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={formData.nombre_empresa}
+                    onChange={(e) => setFormData({ ...formData, nombre_empresa: e.target.value })}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition"
+                    placeholder="Ej. Empresa S.A."
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
+                    Teléfono *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={formData.telefono}
+                    onChange={(e) => setFormData({ ...formData, telefono: e.target.value })}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition"
+                    placeholder="Ej. +54 9 11 1234-5678"
                   />
                 </div>
                 <div>
@@ -343,18 +378,6 @@ export default function ClientesPage() {
                     onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                     className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition"
                     placeholder="ejemplo@correo.com"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
-                    Teléfono
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.telefono || ''}
-                    onChange={(e) => setFormData({ ...formData, telefono: e.target.value })}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition"
-                    placeholder="Ej. +54 9 11 1234-5678"
                   />
                 </div>
 
@@ -386,13 +409,37 @@ export default function ClientesPage() {
               <form onSubmit={handleEditSubmit} className="space-y-4 text-slate-300">
                 <div>
                   <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
-                    Razón Social / Nombre *
+                    Nombre Cliente *
                   </label>
                   <input
                     type="text"
                     required
-                    value={formData.razon_social}
-                    onChange={(e) => setFormData({ ...formData, razon_social: e.target.value })}
+                    value={formData.nombre_cliente}
+                    onChange={(e) => setFormData({ ...formData, nombre_cliente: e.target.value })}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
+                    Nombre Empresa *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={formData.nombre_empresa}
+                    onChange={(e) => setFormData({ ...formData, nombre_empresa: e.target.value })}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
+                    Teléfono *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={formData.telefono}
+                    onChange={(e) => setFormData({ ...formData, telefono: e.target.value })}
                     className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition"
                   />
                 </div>
@@ -404,17 +451,6 @@ export default function ClientesPage() {
                     type="email"
                     value={formData.email || ''}
                     onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
-                    Teléfono
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.telefono || ''}
-                    onChange={(e) => setFormData({ ...formData, telefono: e.target.value })}
                     className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition"
                   />
                 </div>

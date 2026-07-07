@@ -16,7 +16,6 @@ class Producto extends Model
     protected $fillable = [
         'nombre',
         'sku',
-        'cantidad',
         'descripcion',
     ];
 
@@ -27,6 +26,7 @@ class Producto extends Model
     {
         return $this->belongsToMany(Pedido::class, 'pedido_productos', 'producto_id', 'pedido_id')
                     ->using(PedidoProducto::class)
+                    ->withPivot('cantidad')
                     ->withTimestamps();
     }
 

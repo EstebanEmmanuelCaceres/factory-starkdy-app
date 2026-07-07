@@ -17,15 +17,46 @@ class PedidoController extends Controller
      */
     public function index(Request $request): JsonResponse
     {
-        $query = Pedido::with(['cliente', 'user', 'productos']);
+        $query = Pedido::with(['cliente', 'user', 'productos', 'pago']);
 
-        // Búsqueda opcional por nombre (razón social) o correo del cliente relacionado
-        if ($request->has('search')) {
+        // Búsqueda opcional por nombre de cliente, empresa o correo del cliente relacionado
+        if ($request->filled('search')) {
             $searchTerm = $request->input('search');
             $query->whereHas('cliente', function ($q) use ($searchTerm) {
-                $q->where('razon_social', 'like', '%' . $searchTerm . '%')
+                $q->where('nombre_cliente', 'like', '%' . $searchTerm . '%')
+                  ->orWhere('nombre_empresa', 'like', '%' . $searchTerm . '%')
                   ->orWhere('email', 'like', '%' . $searchTerm . '%');
             });
+        }
+
+        // Filtro por estado del pedido
+        if ($request->filled('estado')) {
+            $query->where('estado', $request->input('estado'));
+        }
+
+        // Filtro por prioridad
+        if ($request->filled('prioridad')) {
+            $query->where('prioridad', $request->input('prioridad'));
+        }
+
+        // Filtros por fechas de entrega
+        if ($request->filled('fecha_desde')) {
+            $query->whereDate('fecha_entrega', '>=', $request->input('fecha_desde'));
+        }
+        if ($request->filled('fecha_hasta')) {
+            $query->whereDate('fecha_entrega', '<=', $request->input('fecha_hasta'));
+        }
+
+        // Filtro por estado del pago
+        if ($request->filled('pago_estado')) {
+            $pagoEstado = $request->input('pago_estado');
+            if ($pagoEstado === 'sin_pago') {
+                $query->whereDoesntHave('pago');
+            } else {
+                $query->whereHas('pago', function ($q) use ($pagoEstado) {
+                    $q->where('estado', $pagoEstado);
+                });
+            }
         }
 
         $pedidos = $query->latest()->get();
@@ -46,8 +77,13 @@ class PedidoController extends Controller
             'codigo' => 'required|string|max:255|unique:pedidos,codigo',
             'prioridad' => 'required|string|in:baja,normal,alta,critica',
             'fecha_entrega' => 'nullable|date',
+            'dias_vencimiento' => 'nullable|integer|min:0',
+            'observaciones' => 'nullable|string',
+            'pago_monto' => 'nullable|numeric|min:0',
+            'pago_estado' => 'nullable|string|in:pagado,pendiente',
             'productos' => 'nullable|array',
-            'productos.*' => 'exists:productos,id',
+            'productos.*.id' => 'required|exists:productos,id',
+            'productos.*.cantidad' => 'required|integer|min:1',
         ]);
 
         if ($validator->fails()) {
@@ -58,7 +94,7 @@ class PedidoController extends Controller
             ], 422);
         }
 
-        $data = $request->only(['cliente_id', 'codigo', 'prioridad', 'fecha_entrega']);
+        $data = $request->only(['cliente_id', 'codigo', 'prioridad', 'fecha_entrega', 'dias_vencimiento', 'observaciones']);
         $data['user_id'] = Auth::id() ?? 1; // Asocia el usuario autenticado
         $data['estado'] = 'pendiente';      // Por defecto al crear
 
@@ -66,11 +102,32 @@ class PedidoController extends Controller
 
         // Sincronizar productos si se especifican
         if ($request->has('productos')) {
-            $pedido->productos()->sync($request->input('productos'));
+            $syncData = [];
+            foreach ($request->input('productos') as $prod) {
+                $syncData[$prod['id']] = ['cantidad' => $prod['cantidad']];
+            }
+            $pedido->productos()->sync($syncData);
+        }
+
+        // Crear pago si se especificó un monto
+        if ($request->has('pago_monto') && $request->input('pago_monto') !== null && $request->input('pago_monto') > 0) {
+            $pagoEstado = $request->input('pago_estado', 'pendiente');
+            $pago = $pedido->pago()->create([
+                'registrado_por' => Auth::id() ?? 1,
+                'medio' => 'transferencia',
+                'estado' => $pagoEstado,
+                'monto' => $request->input('pago_monto'),
+                'moneda' => 'ARS',
+                'pagado_at' => $pagoEstado === 'pagado' ? now() : null,
+            ]);
+            $pago->intentos()->create([
+                'medio' => 'transferencia',
+                'estado' => $pagoEstado === 'pagado' ? 'exitoso' : 'pendiente',
+            ]);
         }
 
         // Cargar relaciones para la respuesta
-        $pedido->load(['cliente', 'user', 'productos']);
+        $pedido->load(['cliente', 'user', 'productos', 'pago']);
 
         return response()->json([
             'status' => 'success',
@@ -84,7 +141,7 @@ class PedidoController extends Controller
      */
     public function show($id): JsonResponse
     {
-        $pedido = Pedido::with(['cliente', 'user', 'productos'])->find($id);
+        $pedido = Pedido::with(['cliente', 'user', 'productos', 'pago'])->find($id);
 
         if (!$pedido) {
             return response()->json([
@@ -119,8 +176,13 @@ class PedidoController extends Controller
             'estado' => 'sometimes|required|string',
             'prioridad' => 'sometimes|required|string|in:baja,normal,alta,critica',
             'fecha_entrega' => 'sometimes|nullable|date',
+            'dias_vencimiento' => 'sometimes|nullable|integer|min:0',
+            'observaciones' => 'sometimes|nullable|string',
+            'pago_monto' => 'sometimes|nullable|numeric|min:0',
+            'pago_estado' => 'sometimes|nullable|string|in:pagado,pendiente',
             'productos' => 'sometimes|array',
-            'productos.*' => 'exists:productos,id',
+            'productos.*.id' => 'required_with:productos|exists:productos,id',
+            'productos.*.cantidad' => 'required_with:productos|integer|min:1',
         ]);
 
         if ($validator->fails()) {
@@ -131,14 +193,68 @@ class PedidoController extends Controller
             ], 422);
         }
 
-        $pedido->update($request->only(['cliente_id', 'codigo', 'estado', 'prioridad', 'fecha_entrega']));
+        $pedido->update($request->only(['cliente_id', 'codigo', 'estado', 'prioridad', 'fecha_entrega', 'dias_vencimiento', 'observaciones']));
 
         // Sincronizar productos si se enviaron
         if ($request->has('productos')) {
-            $pedido->productos()->sync($request->input('productos'));
+            $syncData = [];
+            foreach ($request->input('productos') as $prod) {
+                $syncData[$prod['id']] = ['cantidad' => $prod['cantidad']];
+            }
+            $pedido->productos()->sync($syncData);
         }
 
-        $pedido->load(['cliente', 'user', 'productos']);
+        // Crear o actualizar pago
+        if ($request->has('pago_monto')) {
+            $monto = $request->input('pago_monto');
+            $pagoEstado = $request->input('pago_estado', 'pendiente');
+            if ($monto !== null && $monto > 0) {
+                $pago = $pedido->pago;
+                if ($pago) {
+                    $pago->update([
+                        'monto' => $monto,
+                        'estado' => $pagoEstado,
+                        'registrado_por' => Auth::id() ?? 1,
+                        'pagado_at' => $pagoEstado === 'pagado' ? ($pago->pagado_at ?? now()) : null,
+                    ]);
+                    $pago->intentos()->create([
+                        'medio' => 'transferencia',
+                        'estado' => $pagoEstado === 'pagado' ? 'exitoso' : 'pendiente',
+                    ]);
+                } else {
+                    $pago = $pedido->pago()->create([
+                        'registrado_por' => Auth::id() ?? 1,
+                        'medio' => 'transferencia',
+                        'estado' => $pagoEstado,
+                        'monto' => $monto,
+                        'moneda' => 'ARS',
+                        'pagado_at' => $pagoEstado === 'pagado' ? now() : null,
+                    ]);
+                    $pago->intentos()->create([
+                        'medio' => 'transferencia',
+                        'estado' => $pagoEstado === 'pagado' ? 'exitoso' : 'pendiente',
+                    ]);
+                }
+            } else {
+                if ($pedido->pago) {
+                    $pedido->pago->intentos()->delete();
+                    $pedido->pago->delete();
+                }
+            }
+        } elseif ($request->has('pago_estado') && $pedido->pago) {
+            // Si solo se cambia el estado del pago
+            $pagoEstado = $request->input('pago_estado');
+            $pedido->pago->update([
+                'estado' => $pagoEstado,
+                'pagado_at' => $pagoEstado === 'pagado' ? ($pedido->pago->pagado_at ?? now()) : null,
+            ]);
+            $pedido->pago->intentos()->create([
+                'medio' => 'transferencia',
+                'estado' => $pagoEstado === 'pagado' ? 'exitoso' : 'pendiente',
+            ]);
+        }
+
+        $pedido->load(['cliente', 'user', 'productos', 'pago']);
 
         return response()->json([
             'status' => 'success',

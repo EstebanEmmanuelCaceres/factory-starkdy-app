@@ -30,7 +30,6 @@ export default function ProductosPage() {
   const [formData, setFormData] = useState<CreateProductInput>({
     nombre: '',
     sku: '',
-    cantidad: 1,
     descripcion: ''
   })
 
@@ -64,7 +63,6 @@ export default function ProductosPage() {
     setFormData({
       nombre: '',
       sku: '',
-      cantidad: 1,
       descripcion: ''
     })
     setIsCreateModalOpen(true)
@@ -75,7 +73,6 @@ export default function ProductosPage() {
     setFormData({
       nombre: product.nombre,
       sku: product.sku || '',
-      cantidad: product.cantidad,
       descripcion: product.descripcion || ''
     })
     setIsEditModalOpen(true)
@@ -103,7 +100,6 @@ export default function ProductosPage() {
     const payload: UpdateProductInput = {}
     if (formData.nombre !== selectedProduct.nombre) payload.nombre = formData.nombre
     if (formData.sku !== selectedProduct.sku) payload.sku = formData.sku || null
-    if (formData.cantidad !== selectedProduct.cantidad) payload.cantidad = formData.cantidad
     if (formData.descripcion !== selectedProduct.descripcion) payload.descripcion = formData.descripcion || null
 
     try {
@@ -216,7 +212,6 @@ export default function ProductosPage() {
                     <th className="px-6 py-4">ID</th>
                     <th className="px-6 py-4">Producto</th>
                     <th className="px-6 py-4">SKU</th>
-                    <th className="px-6 py-4 text-center">Cantidad</th>
                     <th className="px-6 py-4">Descripción</th>
                     <th className="px-6 py-4 text-right">Acciones</th>
                   </tr>
@@ -233,7 +228,6 @@ export default function ProductosPage() {
                           {product.sku || 'N/A'}
                         </span>
                       </td>
-                      <td className="px-6 py-4 text-center font-medium">{product.cantidad}</td>
                       <td className="px-6 py-4 max-w-xs truncate text-slate-400" title={product.descripcion || ''}>
                         {product.descripcion || <span className="text-slate-600 italic">Sin descripción</span>}
                       </td>
@@ -281,7 +275,7 @@ export default function ProductosPage() {
                     className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition"
                   />
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 gap-4">
                   <div>
                     <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
                       SKU / Código
@@ -290,18 +284,6 @@ export default function ProductosPage() {
                       type="text"
                       value={formData.sku || ''}
                       onChange={(e) => setFormData({ ...formData, sku: e.target.value })}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
-                      Cantidad
-                    </label>
-                    <input
-                      type="number"
-                      min="1"
-                      value={formData.cantidad}
-                      onChange={(e) => setFormData({ ...formData, cantidad: parseInt(e.target.value) || 1 })}
                       className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition"
                     />
                   </div>
@@ -355,7 +337,7 @@ export default function ProductosPage() {
                     className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition"
                   />
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 gap-4">
                   <div>
                     <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
                       SKU / Código
@@ -364,18 +346,6 @@ export default function ProductosPage() {
                       type="text"
                       value={formData.sku || ''}
                       onChange={(e) => setFormData({ ...formData, sku: e.target.value })}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
-                      Cantidad
-                    </label>
-                    <input
-                      type="number"
-                      min="1"
-                      value={formData.cantidad}
-                      onChange={(e) => setFormData({ ...formData, cantidad: parseInt(e.target.value) || 1 })}
                       className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition"
                     />
                   </div>

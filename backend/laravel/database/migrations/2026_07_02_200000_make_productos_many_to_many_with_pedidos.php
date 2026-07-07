@@ -20,6 +20,7 @@ return new class extends Migration
             $table->id();
             $table->foreignId('pedido_id')->constrained('pedidos')->cascadeOnDelete();
             $table->foreignId('producto_id')->constrained('productos')->cascadeOnDelete();
+            $table->unsignedInteger('cantidad')->default(1);
             $table->timestamps();
 
             $table->unique(['pedido_id', 'producto_id']);

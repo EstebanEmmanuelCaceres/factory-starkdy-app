@@ -2,26 +2,29 @@ import api from '../api'
 
 export interface Cliente {
   id: number
-  razon_social: string
+  nombre_cliente: string
+  nombre_empresa: string
+  telefono: string
   email: string | null
-  telefono: string | null
   created_at: string
   updated_at: string
 }
 
 export interface CreateClienteInput {
-  razon_social: string
+  nombre_cliente: string
+  nombre_empresa: string
+  telefono: string
   email?: string | null
-  telefono?: string | null
 }
 
 export interface UpdateClienteInput {
-  razon_social?: string
+  nombre_cliente?: string
+  nombre_empresa?: string
+  telefono?: string
   email?: string | null
-  telefono?: string | null
 }
 
-export async function fetchClientes(filters?: { razon_social?: string }): Promise<Cliente[]> {
+export async function fetchClientes(filters?: { nombre_cliente?: string; nombre_empresa?: string }): Promise<Cliente[]> {
   const { data } = await api.get<{ status: string; data: Cliente[] }>('/clientes', { params: filters })
   return data.data
 }
