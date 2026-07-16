@@ -30,7 +30,7 @@ export default function PedidosPage() {
   const [operarios, setOperarios] = useState<User[]>([])
   const [allStages, setAllStages] = useState<Etapa[]>([])
   const [taskAssignments, setTaskAssignments] = useState<ResponsableEtapa[]>([])
-  
+
   const [currentUser, setCurrentUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -92,7 +92,7 @@ export default function PedidosPage() {
     setError('')
     try {
       const filters: { search?: string; prioridad?: string; estado?: string } = {}
-      
+
       if (search !== undefined) {
         if (search) filters.search = search
       } else if (searchQuery) {
@@ -152,10 +152,10 @@ export default function PedidosPage() {
   const handleAddStage = (productId: number) => {
     const name = newStageNames[productId]?.trim()
     if (!name) return
-    
+
     const productStages = localEtapas.filter(s => s.producto_id === productId)
     const nextOrden = productStages.length > 0 ? Math.max(...productStages.map(s => s.orden || 0)) + 1 : 1
-    
+
     const tempId = `temp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
     const newStage = {
       temp_id: tempId,
@@ -163,7 +163,7 @@ export default function PedidosPage() {
       nombre: name,
       orden: nextOrden
     }
-    
+
     setLocalEtapas(prev => [...prev, newStage])
     setNewStageNames(prev => ({ ...prev, [productId]: '' }))
   }
@@ -174,7 +174,7 @@ export default function PedidosPage() {
       if (s.temp_id && s.temp_id === stageIdOrTempId) return false
       return true
     }))
-    
+
     const key = stageIdOrTempId.toString()
     setLocalAssignments(prev => {
       const copy = { ...prev }
@@ -210,21 +210,21 @@ export default function PedidosPage() {
     })
     setClientSearchText('')
     setProductSearchQuery('')
-    
+
     // Reset wizard steps
     setWizardStep('select_client')
     setSelectedWizardClient(null)
     setCreatedPedidoResult(null)
     setClientMode('search')
     setWizardNewClient(null)
-    
+
     setIsCreateModalOpen(true)
   }
 
   const handleOpenEditModal = async (pedido: Pedido) => {
     setSelectedPedido(pedido)
     const productIds = pedido.productos?.map((p) => p.id) || []
-    
+
     // Cargar etapas locales desde la plantilla global
     const initialStages = allStages.filter((s) => productIds.includes(s.producto_id))
     setLocalEtapas(initialStages)
@@ -271,7 +271,7 @@ export default function PedidosPage() {
       const updatedIds = alreadySelected
         ? prev.selectedProductIds.filter((id) => id !== productId)
         : [...prev.selectedProductIds, productId]
-      
+
       const updatedQuantities = { ...prev.productQuantities }
       if (alreadySelected) {
         delete updatedQuantities[productId]
@@ -341,11 +341,11 @@ export default function PedidosPage() {
       const newClient = await createNewClient(payload)
       setIsCreateClienteModalOpen(false)
       showNotification('Cliente registrado correctamente')
-      
+
       // Recargar clientes
       const updatedClients = await fetchClientes()
       setClientes(updatedClients)
-      
+
       // Auto seleccionar
       setFormData((prev) => ({
         ...prev,
@@ -376,9 +376,9 @@ export default function PedidosPage() {
       saldo: Number(clienteFormData.saldo) || 0,
       observaciones: clienteFormData.observaciones?.trim() || null
     }
-    
+
     setWizardNewClient(payload)
-    
+
     const tempClient: Cliente = {
       id: 0,
       nombre_cliente: payload.nombre_cliente,
@@ -397,21 +397,21 @@ export default function PedidosPage() {
       created_at: '',
       updated_at: ''
     }
-    
+
     setSelectedWizardClient(tempClient)
     setFormData((prev) => ({
       ...prev,
       cliente_id: 'new'
     }))
     setClientSearchText(`${payload.nombre_cliente} - ${payload.nombre_empresa}`)
-    
+
     setWizardStep('order_details')
   }
 
   const handleCreateSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
-    
+
     if (!formData.cliente_id) {
       setError('Por favor, selecciona un cliente')
       return
@@ -448,10 +448,10 @@ export default function PedidosPage() {
       const newPedido = await createPedido(payload)
       showNotification('Pedido creado correctamente')
       setCreatedPedidoResult(newPedido)
-      
+
       // Recargar la lista de pedidos en segundo plano para cuando se cierre el wizard
       loadData()
-      
+
       // Pasar al paso final del wizard
       setWizardStep('order_confirmation')
     } catch (err: unknown) {
@@ -822,56 +822,50 @@ export default function PedidosPage() {
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 backdrop-blur-sm p-4">
             <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-xl shadow-2xl p-6 relative animate-in fade-in zoom-in-95 duration-150 max-h-[90vh] overflow-y-auto">
               <h2 className="text-xl font-bold text-white mb-4">Registrar Nuevo Pedido</h2>
-              
+
               {/* Stepper Indicator */}
               <div className="flex items-center justify-between mb-6 pb-4 border-b border-slate-800">
                 <div className="flex items-center gap-2">
-                  <span className={`flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold transition-all ${
-                    wizardStep === 'select_client' || wizardStep === 'client_confirmation'
+                  <span className={`flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold transition-all ${wizardStep === 'select_client' || wizardStep === 'client_confirmation'
                       ? 'bg-blue-600 text-white shadow-[0_0_8px_rgba(37,99,235,0.6)]'
                       : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
-                  }`}>
+                    }`}>
                     {['order_details', 'order_confirmation'].includes(wizardStep) ? '✓' : '1'}
                   </span>
-                  <span className={`text-xs font-semibold ${
-                    wizardStep === 'select_client' || wizardStep === 'client_confirmation' ? 'text-blue-400' : 'text-slate-400'
-                  }`}>
+                  <span className={`text-xs font-semibold ${wizardStep === 'select_client' || wizardStep === 'client_confirmation' ? 'text-blue-400' : 'text-slate-400'
+                    }`}>
                     Cliente
                   </span>
                 </div>
-                
+
                 <div className="flex-1 h-px bg-slate-800 mx-4" />
-                
+
                 <div className="flex items-center gap-2">
-                  <span className={`flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold transition-all ${
-                    wizardStep === 'order_details'
+                  <span className={`flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold transition-all ${wizardStep === 'order_details'
                       ? 'bg-blue-600 text-white shadow-[0_0_8px_rgba(37,99,235,0.6)]'
                       : wizardStep === 'order_confirmation'
                         ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
                         : 'bg-slate-800 text-slate-500 border border-slate-700/30'
-                  }`}>
+                    }`}>
                     {wizardStep === 'order_confirmation' ? '✓' : '2'}
                   </span>
-                  <span className={`text-xs font-semibold ${
-                    wizardStep === 'order_details' ? 'text-blue-450' : 'text-slate-500'
-                  }`}>
+                  <span className={`text-xs font-semibold ${wizardStep === 'order_details' ? 'text-blue-450' : 'text-slate-500'
+                    }`}>
                     Pedido
                   </span>
                 </div>
-                
+
                 <div className="flex-1 h-px bg-slate-800 mx-4" />
-                
+
                 <div className="flex items-center gap-2">
-                  <span className={`flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold transition-all ${
-                    wizardStep === 'order_confirmation'
+                  <span className={`flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold transition-all ${wizardStep === 'order_confirmation'
                       ? 'bg-blue-600 text-white shadow-[0_0_8px_rgba(37,99,235,0.6)]'
                       : 'bg-slate-800 text-slate-500 border border-slate-700/30'
-                  }`}>
+                    }`}>
                     3
                   </span>
-                  <span className={`text-xs font-semibold ${
-                    wizardStep === 'order_confirmation' ? 'text-blue-450' : 'text-slate-500'
-                  }`}>
+                  <span className={`text-xs font-semibold ${wizardStep === 'order_confirmation' ? 'text-blue-450' : 'text-slate-500'
+                    }`}>
                     Resumen
                   </span>
                 </div>
@@ -889,7 +883,7 @@ export default function PedidosPage() {
               {wizardStep === 'select_client' && (
                 <div className="space-y-4">
                   <h3 className="text-sm font-semibold text-slate-400 uppercase tracking-wider">Seleccionar o Registrar Cliente</h3>
-                  
+
                   {/* Selector de modo */}
                   <div className="flex bg-slate-950/80 p-1 rounded-lg border border-slate-800">
                     <button
@@ -898,11 +892,10 @@ export default function PedidosPage() {
                         setClientMode('search')
                         setError('')
                       }}
-                      className={`flex-1 py-1.5 text-center text-xs font-semibold rounded-md transition ${
-                        clientMode === 'search'
+                      className={`flex-1 py-1.5 text-center text-xs font-semibold rounded-md transition ${clientMode === 'search'
                           ? 'bg-blue-600 text-white shadow'
                           : 'text-slate-400 hover:text-slate-200'
-                      }`}
+                        }`}
                     >
                       🔍 Buscar Cliente Existente
                     </button>
@@ -912,11 +905,10 @@ export default function PedidosPage() {
                         setClientMode('create')
                         setError('')
                       }}
-                      className={`flex-1 py-1.5 text-center text-xs font-semibold rounded-md transition ${
-                        clientMode === 'create'
+                      className={`flex-1 py-1.5 text-center text-xs font-semibold rounded-md transition ${clientMode === 'create'
                           ? 'bg-blue-600 text-white shadow'
                           : 'text-slate-400 hover:text-slate-200'
-                      }`}
+                        }`}
                     >
                       ➕ Registrar Nuevo Cliente
                     </button>
@@ -938,7 +930,7 @@ export default function PedidosPage() {
                         onFocus={() => setIsClientDropdownOpen(true)}
                         className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition"
                       />
-                      
+
                       {isClientDropdownOpen && (
                         <>
                           <div className="fixed inset-0 z-40" onClick={() => setIsClientDropdownOpen(false)} />
@@ -978,10 +970,10 @@ export default function PedidosPage() {
                                 (c.email || '').toLowerCase().includes(query)
                               )
                             }).length === 0 && (
-                              <div className="px-3.5 py-2 text-xs text-slate-500 italic text-center">
-                                No se encontraron clientes con ese nombre.
-                              </div>
-                            )}
+                                <div className="px-3.5 py-2 text-xs text-slate-500 italic text-center">
+                                  No se encontraron clientes con ese nombre.
+                                </div>
+                              )}
                           </div>
                         </>
                       )}
@@ -1455,7 +1447,7 @@ export default function PedidosPage() {
                                   {productStages.length} {productStages.length === 1 ? 'etapa' : 'etapas'}
                                 </span>
                               </div>
-                              
+
                               {productStages.length === 0 ? (
                                 <div className="flex flex-col sm:flex-row items-center justify-between gap-2 py-2">
                                   <span className="text-xs text-slate-500 italic">No hay etapas configuradas.</span>
@@ -1470,7 +1462,7 @@ export default function PedidosPage() {
                                         <div>
                                           <span className="font-semibold block text-slate-200">{stage.orden}. {stage.nombre}</span>
                                         </div>
-                                        
+
                                         {currentUser && ['admin', 'supervisor', 'encargado'].includes(currentUser.role) ? (
                                           <select
                                             value={localAssignments[stageKey] || ''}
@@ -1546,7 +1538,7 @@ export default function PedidosPage() {
                       <span className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">Ficha de Pedido</span>
                       <span className="text-xs font-mono font-bold text-white bg-slate-900 border border-slate-800 px-2 py-0.5 rounded-lg">{createdPedidoResult.codigo}</span>
                     </div>
-                    
+
                     <div className="space-y-1">
                       <span className="text-[10px] text-slate-500 uppercase font-semibold">Cliente Asignado</span>
                       <span className="text-sm font-bold text-white block">{selectedWizardClient?.nombre_cliente || 'N/A'}</span>
@@ -1694,23 +1686,23 @@ export default function PedidosPage() {
                               (c.email || '').toLowerCase().includes(query)
                             )
                           }).length === 0 && (
-                            <div className="px-3.5 py-2.5 text-xs text-slate-500 italic text-center">
-                              No se encontraron clientes.{" "}
-                              <button
-                                type="button"
-                                onClick={handleOpenCreateClienteModal}
-                                className="text-blue-450 hover:underline font-semibold"
-                              >
-                                Crear nuevo cliente
-                              </button>
-                            </div>
-                          )}
+                              <div className="px-3.5 py-2.5 text-xs text-slate-500 italic text-center">
+                                No se encontraron clientes.{" "}
+                                <button
+                                  type="button"
+                                  onClick={handleOpenCreateClienteModal}
+                                  className="text-blue-450 hover:underline font-semibold"
+                                >
+                                  Crear nuevo cliente
+                                </button>
+                              </div>
+                            )}
                         </div>
                       </>
                     )}
                   </div>
                 </div>
- 
+
                 <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
                   <div>
                     <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
@@ -1771,11 +1763,11 @@ export default function PedidosPage() {
                     />
                   </div>
                 </div>
- 
+
                 {/* Selección de Productos */}
                 <div>
-                  <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
-                    Asociar Productos (Opcional)
+                  <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
+                    Observaciones
                   </label>
                   <div className="mb-2">
                     <input
@@ -1828,7 +1820,7 @@ export default function PedidosPage() {
                     </div>
                   )}
                 </div>
-                         {/* Etapas de Fabricación y Asignación */}
+                {/* Etapas de Fabricación y Asignación */}
                 <div className="border-t border-slate-800 pt-4 mt-4 space-y-3">
                   <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
                     Etapas de Fabricación y Asignación de Operarios
@@ -1850,14 +1842,14 @@ export default function PedidosPage() {
                         return (
                           <div key={prodId} className="space-y-2 bg-slate-900/60 p-3 rounded-lg border border-slate-800/40">
                             <div className="flex items-center justify-between border-b border-slate-850 pb-1.5">
-                                <span className="text-xs font-bold uppercase tracking-wider text-blue-400">
-                                  {product?.nombre}
-                                </span>
-                                <span className="text-[10px] bg-slate-850 text-slate-400 px-2 py-0.5 rounded-full">
-                                  {productStages.length} {productStages.length === 1 ? 'etapa' : 'etapas'}
-                                </span>
+                              <span className="text-xs font-bold uppercase tracking-wider text-blue-400">
+                                {product?.nombre}
+                              </span>
+                              <span className="text-[10px] bg-slate-850 text-slate-400 px-2 py-0.5 rounded-full">
+                                {productStages.length} {productStages.length === 1 ? 'etapa' : 'etapas'}
+                              </span>
                             </div>
-                            
+
                             {productStages.length === 0 ? (
                               <div className="flex flex-col sm:flex-row items-center justify-between gap-2 py-2">
                                 <span className="text-xs text-slate-500 italic">No hay etapas configuradas.</span>
@@ -1874,7 +1866,7 @@ export default function PedidosPage() {
                                           <span className="font-semibold block text-slate-200">{stage.orden}. {stage.nombre}</span>
                                         </div>
                                       </div>
-                                      
+
                                       {currentUser && ['admin', 'supervisor', 'encargado'].includes(currentUser.role) ? (
                                         <select
                                           value={localAssignments[stageKey] || ''}
@@ -1913,7 +1905,7 @@ export default function PedidosPage() {
                     </div>
                   )}
                 </div>
- 
+
                 <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-800">
                   <button
                     type="button"

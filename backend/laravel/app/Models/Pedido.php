@@ -49,9 +49,9 @@ class Pedido extends Model
     public function productos(): BelongsToMany
     {
         return $this->belongsToMany(Producto::class, 'pedido_productos', 'pedido_id', 'producto_id')
-                    ->using(PedidoProducto::class)
-                    ->withPivot('cantidad')
-                    ->withTimestamps();
+            ->using(PedidoProducto::class)
+            ->withPivot('cantidad')
+            ->withTimestamps();
     }
 
     /**
@@ -60,31 +60,31 @@ class Pedido extends Model
     public function generarTareas(): void
     {
         $productIds = $this->productos()->pluck('productos.id')->toArray();
-        
+
         // Obtener todas las etapas asociadas a estos productos
         $etapas = Etapa::whereIn('producto_id', $productIds)->get();
         $etapaIds = $etapas->pluck('id')->toArray();
-        
+
         // Obtener dependencias
         $dependencies = DB::table('etapa_dependencias')
             ->whereIn('etapa_id', $etapaIds)
             ->get()
             ->groupBy('etapa_id');
-            
+
         // Eliminar asignaciones viejas de etapas que ya no pertenecen a los productos asociados
         ResponsableEtapa::where('pedido_id', $this->id)
             ->whereNotIn('etapa_id', $etapaIds)
             ->delete();
-            
+
         foreach ($etapas as $etapa) {
             // Verificar si ya existe la tarea
             $tarea = ResponsableEtapa::where('pedido_id', $this->id)
                 ->where('etapa_id', $etapa->id)
                 ->first();
-                
+
             $tieneDependencias = isset($dependencies[$etapa->id]) && $dependencies[$etapa->id]->count() > 0;
             $estadoInicial = $tieneDependencias ? 'bloqueada' : 'pendiente';
-            
+
             if (!$tarea) {
                 ResponsableEtapa::create([
                     'pedido_id' => $this->id,

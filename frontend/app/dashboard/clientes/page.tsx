@@ -195,8 +195,8 @@ export default function ClientesPage() {
     if (formData.nombre_empresa !== selectedCliente.nombre_empresa) {
       payload.nombre_empresa = formData.nombre_empresa
     }
-    if (emailValue !== selectedCliente.email) {
-      payload.email = emailValue
+    if (nombreEmpresaValue !== selectedCliente.nombre_empresa) {
+      payload.nombre_empresa = nombreEmpresaValue
     }
     if (telefonoValue !== selectedCliente.telefono) {
       payload.telefono = telefonoValue
@@ -389,11 +389,10 @@ export default function ClientesPage() {
                       <tr
                         key={cliente.id}
                         onClick={() => setSelectedCliente(cliente)}
-                        className={`cursor-pointer transition duration-100 ${
-                          selectedCliente?.id === cliente.id
+                        className={`cursor-pointer transition duration-100 ${selectedCliente?.id === cliente.id
                             ? 'bg-blue-600/10 text-white border-l-2 border-l-blue-500'
                             : 'hover:bg-slate-800/40 text-slate-300'
-                        }`}
+                          }`}
                       >
                         <td className="px-6 py-4">
                           <div className="font-semibold text-white">{cliente.nombre_cliente}</div>
@@ -561,7 +560,7 @@ export default function ClientesPage() {
                     />
                   </div>
                 </div>
-                
+
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
@@ -708,6 +707,18 @@ export default function ClientesPage() {
                     placeholder="Notas sobre el cliente..."
                   />
                 </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
+                    Correo Electrónico
+                  </label>
+                  <input
+                    type="email"
+                    value={formData.email || ''}
+                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition"
+                    placeholder="ejemplo@correo.com"
+                  />
+                </div>
 
                 <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-800">
                   <button
@@ -761,7 +772,7 @@ export default function ClientesPage() {
                     />
                   </div>
                 </div>
-                
+
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
@@ -898,6 +909,17 @@ export default function ClientesPage() {
                     rows={2}
                     value={formData.observaciones || ''}
                     onChange={(e) => setFormData({ ...formData, observaciones: e.target.value })}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
+                    Correo Electrónico
+                  </label>
+                  <input
+                    type="email"
+                    value={formData.email || ''}
+                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                     className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition"
                   />
                 </div>

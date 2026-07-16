@@ -54,10 +54,10 @@ export default function LoginPage() {
       </div>
 
       <div className="login-container">
-        {/* Logotipo */}
+        {/* Logotipo
         <div className="login-logo">
           <img src="/logo.png" alt="Logo" className="login-logo-img" />
-        </div>
+        </div> */}
 
         {/* Tarjeta de login */}
         <div className="login-card">

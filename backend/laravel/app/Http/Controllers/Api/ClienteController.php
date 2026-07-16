@@ -22,8 +22,8 @@ class ClienteController extends Controller
             $searchTerm = $request->input('search');
             $query->where(function ($q) use ($searchTerm) {
                 $q->where('nombre_empresa', 'like', '%' . $searchTerm . '%')
-                  ->orWhere('nombre_cliente', 'like', '%' . $searchTerm . '%')
-                  ->orWhere('email', 'like', '%' . $searchTerm . '%');
+                    ->orWhere('nombre_cliente', 'like', '%' . $searchTerm . '%')
+                    ->orWhere('email', 'like', '%' . $searchTerm . '%');
             });
         } elseif ($request->has('nombre_empresa')) {
             $query->where('nombre_empresa', 'like', '%' . $request->input('nombre_empresa') . '%');

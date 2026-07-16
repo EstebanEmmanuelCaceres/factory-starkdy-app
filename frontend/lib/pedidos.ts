@@ -3,6 +3,21 @@ import { type Cliente } from './clientes'
 import { type Product } from './products'
 import { type User } from './auth'
 
+export interface Pago {
+  id: number
+  pedido_id: number
+  registrado_por: number
+  medio: string
+  estado: string
+  monto: number
+  moneda: string
+  referencia_externa: string | null
+  comprobante_url: string | null
+  pagado_at: string | null
+  created_at: string
+  updated_at: string
+}
+
 export interface Pedido {
   id: number
   cliente_id: number
@@ -16,7 +31,8 @@ export interface Pedido {
   updated_at: string
   cliente?: Cliente
   user?: User
-  productos?: Product[]
+  productos?: (Product & { pivot?: { cantidad: number } })[]
+  pago?: Pago
 }
 
 export interface CreatePedidoInput {

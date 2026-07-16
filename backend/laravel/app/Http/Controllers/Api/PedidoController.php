@@ -21,15 +21,15 @@ class PedidoController extends Controller
      */
     public function index(Request $request): JsonResponse
     {
-        $query = Pedido::with(['cliente', 'user', 'productos']);
+        $query = Pedido::with(['cliente', 'user', 'productos', 'pago']);
 
         // Búsqueda opcional por nombre de empresa, nombre de cliente o correo del cliente relacionado
         if ($request->has('search') && !empty($request->input('search'))) {
             $searchTerm = $request->input('search');
             $query->whereHas('cliente', function ($q) use ($searchTerm) {
                 $q->where('nombre_empresa', 'like', '%' . $searchTerm . '%')
-                  ->orWhere('nombre_cliente', 'like', '%' . $searchTerm . '%')
-                  ->orWhere('email', 'like', '%' . $searchTerm . '%');
+                    ->orWhere('nombre_cliente', 'like', '%' . $searchTerm . '%')
+                    ->orWhere('email', 'like', '%' . $searchTerm . '%');
             });
         }
 
@@ -103,17 +103,17 @@ class PedidoController extends Controller
         if ($request->has('cliente') && is_array($request->input('cliente'))) {
             $clienteData = $request->input('cliente');
             $existingCliente = null;
-            
+
             if (!empty($clienteData['email'])) {
                 $existingCliente = Cliente::where('email', $clienteData['email'])->first();
             }
-            
+
             if (!$existingCliente && !empty($clienteData['nombre_cliente']) && !empty($clienteData['nombre_empresa'])) {
                 $existingCliente = Cliente::where('nombre_cliente', $clienteData['nombre_cliente'])
                     ->where('nombre_empresa', $clienteData['nombre_empresa'])
                     ->first();
             }
-            
+
             if ($existingCliente) {
                 $clienteId = $existingCliente->id;
             } else {
@@ -144,7 +144,7 @@ class PedidoController extends Controller
         $this->syncEtapasYAsignaciones($pedido, $request);
 
         // Cargar relaciones para la respuesta
-        $pedido->load(['cliente', 'user', 'productos']);
+        $pedido->load(['cliente', 'user', 'productos', 'pago']);
 
         return response()->json([
             'status' => 'success',
@@ -158,7 +158,7 @@ class PedidoController extends Controller
      */
     public function show($id): JsonResponse
     {
-        $pedido = Pedido::with(['cliente', 'user', 'productos'])->find($id);
+        $pedido = Pedido::with(['cliente', 'user', 'productos', 'pago'])->find($id);
 
         if (!$pedido) {
             return response()->json([
@@ -233,7 +233,7 @@ class PedidoController extends Controller
         }
         $this->syncEtapasYAsignaciones($pedido, $request);
 
-        $pedido->load(['cliente', 'user', 'productos']);
+        $pedido->load(['cliente', 'user', 'productos', 'pago']);
 
         return response()->json([
             'status' => 'success',

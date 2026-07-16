@@ -472,7 +472,6 @@ export default function ProductosPage() {
                     className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition"
                   />
                 </div>
-
                 <div>
                   <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
                     Descripción
@@ -522,7 +521,6 @@ export default function ProductosPage() {
                     className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition"
                   />
                 </div>
-
                 <div>
                   <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
                     Descripción
@@ -558,7 +556,7 @@ export default function ProductosPage() {
         {isStagesModalOpen && selectedProductForStages && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 backdrop-blur-sm p-4">
             <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-5xl h-[85vh] shadow-2xl p-6 relative flex flex-col animate-in fade-in zoom-in-95 duration-150 text-slate-300">
-              
+
               {/* Header */}
               <div className="flex justify-between items-center pb-4 border-b border-slate-800 mb-4">
                 <div>
@@ -609,11 +607,10 @@ export default function ProductosPage() {
                     {stages.map((stage, idx) => (
                       <div key={stage.id} className="flex items-center gap-3">
                         <div
-                          className={`px-4 py-2 rounded-lg border text-sm font-semibold transition ${
-                            editingStage?.id === stage.id
+                          className={`px-4 py-2 rounded-lg border text-sm font-semibold transition ${editingStage?.id === stage.id
                               ? 'bg-blue-600/10 border-blue-500 text-white'
                               : 'bg-slate-950 border border-slate-300 text-white'
-                          }`}
+                            }`}
                         >
                           {stage.nombre}
                         </div>
@@ -628,13 +625,13 @@ export default function ProductosPage() {
 
               {/* Main content body (Two Panes) */}
               <div className="flex-1 min-h-0 flex flex-col md:flex-row gap-6 overflow-hidden">
-                
+
                 {/* Left Pane: List of Stages */}
                 <div className="flex-1 flex flex-col min-h-0 bg-slate-950/30 border border-slate-800/50 rounded-xl p-4 overflow-y-auto">
                   <h3 className="text-sm font-semibold text-slate-300 mb-3 flex items-center gap-2">
                     <span>📋</span> Listado de Etapas ({stages.length})
                   </h3>
-                  
+
                   {loadingStages ? (
                     <div className="flex-1 flex flex-col items-center justify-center text-slate-400 gap-2">
                       <div className="animate-spin rounded-full h-6 w-6 border-2 border-blue-500 border-t-transparent"></div>
@@ -653,11 +650,10 @@ export default function ProductosPage() {
                         return (
                           <div
                             key={stage.id}
-                            className={`p-3 rounded-lg border transition ${
-                              editingStage?.id === stage.id
+                            className={`p-3 rounded-lg border transition ${editingStage?.id === stage.id
                                 ? 'bg-blue-600/10 border-blue-500/50'
                                 : 'bg-slate-900 border-slate-800 hover:border-slate-700'
-                            }`}
+                              }`}
                           >
                             <div className="flex justify-between items-start gap-3">
                               <div className="flex items-center gap-2.5">
@@ -736,7 +732,7 @@ export default function ProductosPage() {
                         <label className="block text-xs font-semibold text-slate-400 mb-2">
                           Selecciona qué etapas deben completarse primero:
                         </label>
-                        
+
                         {stages.filter(s => !editingStage || s.id !== editingStage.id).length === 0 ? (
                           <p className="text-xs text-slate-500 italic py-2">No hay otras etapas disponibles para establecer dependencias.</p>
                         ) : (
@@ -748,11 +744,10 @@ export default function ProductosPage() {
                                 return (
                                   <label
                                     key={s.id}
-                                    className={`flex items-center gap-3 p-3.5 rounded-lg border cursor-pointer select-none transition ${
-                                      isChecked
+                                    className={`flex items-center gap-3 p-3.5 rounded-lg border cursor-pointer select-none transition ${isChecked
                                         ? 'bg-slate-950 border-blue-500 text-white'
                                         : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-slate-200'
-                                    }`}
+                                      }`}
                                   >
                                     <input
                                       type="checkbox"
