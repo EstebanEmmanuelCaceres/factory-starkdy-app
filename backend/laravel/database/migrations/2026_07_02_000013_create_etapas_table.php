@@ -12,10 +12,7 @@ return new class extends Migration
             $table->id();
             $table->foreignId('producto_id')->constrained('productos')->cascadeOnDelete();
             $table->string('nombre');
-            $table->unsignedSmallInteger('posicion')->default(0);
-            $table->string('estado')->default('pendiente');
-            $table->date('fecha_inicio')->nullable();
-            $table->date('fecha_fin')->nullable();
+            $table->unsignedSmallInteger('orden')->default(0);
             $table->timestamps();
         });
     }

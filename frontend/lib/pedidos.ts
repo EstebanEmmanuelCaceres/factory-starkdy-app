@@ -11,6 +11,7 @@ export interface Pedido {
   estado: string
   prioridad: 'baja' | 'normal' | 'alta' | 'critica'
   fecha_entrega: string | null
+  precio: number | null
   created_at: string
   updated_at: string
   cliente?: Cliente
@@ -19,11 +20,15 @@ export interface Pedido {
 }
 
 export interface CreatePedidoInput {
-  cliente_id: number
+  cliente_id?: number | null
+  cliente?: any
   codigo: string
   prioridad: 'baja' | 'normal' | 'alta' | 'critica'
   fecha_entrega?: string | null
-  productos?: number[]
+  precio?: number | null
+  productos?: { id: number; cantidad: number }[]
+  etapas?: { id?: number; producto_id: number; nombre: string; orden: number; temp_id?: string }[]
+  asignaciones?: { etapa_id?: number; etapa_temp_id?: string; user_id: number | null }[]
 }
 
 export interface UpdatePedidoInput {
@@ -32,10 +37,13 @@ export interface UpdatePedidoInput {
   estado?: string
   prioridad?: 'baja' | 'normal' | 'alta' | 'critica'
   fecha_entrega?: string | null
-  productos?: number[]
+  precio?: number | null
+  productos?: { id: number; cantidad: number }[]
+  etapas?: { id?: number; producto_id: number; nombre: string; orden: number; temp_id?: string }[]
+  asignaciones?: { etapa_id?: number; etapa_temp_id?: string; user_id: number | null }[]
 }
 
-export async function fetchPedidos(filters?: { search?: string }): Promise<Pedido[]> {
+export async function fetchPedidos(filters?: { search?: string; prioridad?: string; estado?: string }): Promise<Pedido[]> {
   const { data } = await api.get<{ status: string; data: Pedido[] }>('/pedidos', { params: filters })
   return data.data
 }
@@ -57,4 +65,8 @@ export async function updatePedido(id: number, input: UpdatePedidoInput): Promis
 
 export async function deletePedido(id: number): Promise<void> {
   await api.delete(`/pedidos/${id}`)
+}
+
+export async function generatePedidoTasks(id: number): Promise<void> {
+  await api.post(`/pedidos/${id}/generar-tareas`)
 }

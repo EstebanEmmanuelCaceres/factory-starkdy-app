@@ -3,8 +3,6 @@ import api from './api'
 export interface Product {
   id: number
   nombre: string
-  sku: string | null
-  cantidad: number
   descripcion: string | null
   created_at: string
   updated_at: string
@@ -12,15 +10,11 @@ export interface Product {
 
 export interface CreateProductInput {
   nombre: string
-  sku?: string | null
-  cantidad?: number
   descripcion?: string | null
 }
 
 export interface UpdateProductInput {
   nombre?: string
-  sku?: string | null
-  cantidad?: number
   descripcion?: string | null
 }
 

@@ -1224,3 +1224,9 @@ textarea {
 .error-state {
   color: var(--error);
 }
+
+/* Custom date picker calendar icon style */
+input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: invert(1);
+  cursor: pointer;
+}

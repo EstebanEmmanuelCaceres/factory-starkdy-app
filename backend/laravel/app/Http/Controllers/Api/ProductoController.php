@@ -37,8 +37,6 @@ class ProductoController extends Controller
     {
         $validator = Validator::make($request->all(), [
             'nombre' => 'required|string|max:255',
-            'sku' => 'nullable|string|max:100',
-            'cantidad' => 'nullable|integer|min:1',
             'descripcion' => 'nullable|string',
         ]);
 
@@ -95,8 +93,6 @@ class ProductoController extends Controller
 
         $validator = Validator::make($request->all(), [
             'nombre' => 'sometimes|required|string|max:255',
-            'sku' => 'sometimes|nullable|string|max:100',
-            'cantidad' => 'sometimes|nullable|integer|min:1',
             'descripcion' => 'sometimes|nullable|string',
         ]);
 

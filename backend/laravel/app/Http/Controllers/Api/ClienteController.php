@@ -17,15 +17,22 @@ class ClienteController extends Controller
     {
         $query = Cliente::query();
 
-        // Búsqueda opcional por razón social, email o término general (search)
+        // Búsqueda opcional por nombre de empresa, nombre de cliente, email o término general (search)
         if ($request->has('search')) {
             $searchTerm = $request->input('search');
             $query->where(function ($q) use ($searchTerm) {
-                $q->where('razon_social', 'like', '%' . $searchTerm . '%')
+                $q->where('nombre_empresa', 'like', '%' . $searchTerm . '%')
+                  ->orWhere('nombre_cliente', 'like', '%' . $searchTerm . '%')
                   ->orWhere('email', 'like', '%' . $searchTerm . '%');
             });
-        } elseif ($request->has('razon_social')) {
-            $query->where('razon_social', 'like', '%' . $request->input('razon_social') . '%');
+        } elseif ($request->has('nombre_empresa')) {
+            $query->where('nombre_empresa', 'like', '%' . $request->input('nombre_empresa') . '%');
+        } elseif ($request->has('nombre_cliente')) {
+            $query->where('nombre_cliente', 'like', '%' . $request->input('nombre_cliente') . '%');
+        }
+
+        if ($request->has('with_pedidos') && ($request->input('with_pedidos') === 'true' || $request->input('with_pedidos') == 1 || $request->input('with_pedidos') === true)) {
+            $query->with('pedidos');
         }
 
         $clientes = $query->get();
@@ -42,9 +49,19 @@ class ClienteController extends Controller
     public function store(Request $request): JsonResponse
     {
         $validator = Validator::make($request->all(), [
-            'razon_social' => 'required|string|max:255',
+            'nombre_cliente' => 'required|string|max:255',
+            'nombre_empresa' => 'required|string|max:255',
             'email' => 'nullable|email|max:255|unique:clientes,email',
-            'telefono' => 'nullable|string|max:50',
+            'telefono' => 'required|string|max:50',
+            'dni' => 'nullable|string|max:50',
+            'direccion' => 'nullable|string|max:255',
+            'provincia' => 'nullable|string|max:100',
+            'cp' => 'nullable|string|max:20',
+            'localidad' => 'nullable|string|max:100',
+            'ingreso' => 'nullable|numeric|min:0',
+            'valor_total' => 'nullable|numeric|min:0',
+            'saldo' => 'nullable|numeric',
+            'observaciones' => 'nullable|string',
         ]);
 
         if ($validator->fails()) {
@@ -99,9 +116,19 @@ class ClienteController extends Controller
         }
 
         $validator = Validator::make($request->all(), [
-            'razon_social' => 'sometimes|required|string|max:255',
+            'nombre_cliente' => 'sometimes|required|string|max:255',
+            'nombre_empresa' => 'sometimes|required|string|max:255',
             'email' => 'sometimes|nullable|email|max:255|unique:clientes,email,' . $cliente->id,
-            'telefono' => 'sometimes|nullable|string|max:50',
+            'telefono' => 'sometimes|required|string|max:50',
+            'dni' => 'sometimes|nullable|string|max:50',
+            'direccion' => 'sometimes|nullable|string|max:255',
+            'provincia' => 'sometimes|nullable|string|max:100',
+            'cp' => 'sometimes|nullable|string|max:20',
+            'localidad' => 'sometimes|nullable|string|max:100',
+            'ingreso' => 'sometimes|nullable|numeric|min:0',
+            'valor_total' => 'sometimes|nullable|numeric|min:0',
+            'saldo' => 'sometimes|nullable|numeric',
+            'observaciones' => 'sometimes|nullable|string',
         ]);
 
         if ($validator->fails()) {
