@@ -13,13 +13,16 @@ class DatabaseSeeder extends Seeder
     {
         // ── Llamar a RoleSeeder para los nuevos roles ────────────────────
         $this->call(RoleSeeder::class);
+        $this->call(ProductoCatalogSeeder::class);
 
         // ── Crear o buscar los roles del sistema ─────────────────────────
         $roles = [
             'admin'      => Role::firstOrCreate(['slug' => 'admin'], ['name' => 'Administrador']),
             'supervisor' => Role::firstOrCreate(['slug' => 'supervisor'], ['name' => 'Supervisor']),
-            'operator'   => Role::firstOrCreate(['slug' => 'operator'], ['name' => 'Operador']),
-            'user'       => Role::firstOrCreate(['slug' => 'user'], ['name' => 'Usuario']),
+            'vendedor'   => Role::firstOrCreate(['slug' => 'vendedor'], ['name' => 'Vendedor']),
+            'disenador'  => Role::firstOrCreate(['slug' => 'disenador'], ['name' => 'Diseñador']),
+            'encargado'  => Role::firstOrCreate(['slug' => 'encargado'], ['name' => 'Encargado']),
+            'operario'   => Role::firstOrCreate(['slug' => 'operario'], ['name' => 'Operario']),
         ];
 
         $this->command->info('✅ Roles creados.');
@@ -39,10 +42,28 @@ class DatabaseSeeder extends Seeder
                 'role_id'  => $roles['supervisor']->id,
             ],
             [
-                'name'     => 'Operador 1',
-                'email'    => 'operador@fabrica.com',
+                'name'     => 'Vendedor Demo',
+                'email'    => 'vendedor@fabrica.com',
                 'password' => Hash::make('password'),
-                'role_id'  => $roles['operator']->id,
+                'role_id'  => $roles['vendedor']->id,
+            ],
+            [
+                'name'     => 'Diseñador Demo',
+                'email'    => 'disenador@fabrica.com',
+                'password' => Hash::make('password'),
+                'role_id'  => $roles['disenador']->id,
+            ],
+            [
+                'name'     => 'Encargado Demo',
+                'email'    => 'encargado@fabrica.com',
+                'password' => Hash::make('password'),
+                'role_id'  => $roles['encargado']->id,
+            ],
+            [
+                'name'     => 'Operario Demo',
+                'email'    => 'operario@fabrica.com',
+                'password' => Hash::make('password'),
+                'role_id'  => $roles['operario']->id,
             ],
         ];
 

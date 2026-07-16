@@ -5,7 +5,7 @@ export interface User {
   id: number
   name: string
   email: string
-  role: 'admin' | 'supervisor' | 'operator' | 'user'
+  role: 'admin' | 'supervisor' | 'operator' | 'user' | 'vendedor' | 'disenador' | 'encargado' | 'operario'
   role_label: string
   created_at: string
 }
@@ -100,8 +100,12 @@ export function isAuthenticated(): boolean {
 }
 
 export const ROLE_COLORS: Record<string, string> = {
-  admin: '#D41515',
+  admin: '#EF4444',
   supervisor: '#B91C1C',
   operator: '#16A34A',
   user: '#475569',
+  vendedor: '#3B82F6',   // Azul
+  disenador: '#EC4899',  // Rosa
+  encargado: '#8B5CF6',  // Violeta
+  operario: '#10B981',   // Esmeralda
 }

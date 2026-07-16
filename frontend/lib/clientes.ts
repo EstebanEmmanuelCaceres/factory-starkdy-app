@@ -1,30 +1,59 @@
 import api from './api'
+import { type Pedido } from './pedidos'
 
 export interface Cliente {
   id: number
   nombre_cliente: string
   nombre_empresa: string
-  telefono: string
   email: string | null
+  telefono: string | null
+  dni: string | null
+  direccion: string | null
+  provincia: string | null
+  cp: string | null
+  localidad: string | null
+  ingreso: number
+  valor_total: number
+  saldo: number
+  observaciones: string | null
   created_at: string
   updated_at: string
+  pedidos?: Pedido[]
 }
 
 export interface CreateClienteInput {
   nombre_cliente: string
   nombre_empresa: string
-  telefono: string
   email?: string | null
+  telefono: string
+  dni?: string | null
+  direccion?: string | null
+  provincia?: string | null
+  cp?: string | null
+  localidad?: string | null
+  ingreso?: number
+  valor_total?: number
+  saldo?: number
+  observaciones?: string | null
 }
 
 export interface UpdateClienteInput {
   nombre_cliente?: string
   nombre_empresa?: string
-  telefono?: string
   email?: string | null
+  telefono?: string
+  dni?: string | null
+  direccion?: string | null
+  provincia?: string | null
+  cp?: string | null
+  localidad?: string | null
+  ingreso?: number
+  valor_total?: number
+  saldo?: number
+  observaciones?: string | null
 }
 
-export async function fetchClientes(filters?: { search?: string; nombre_cliente?: string; nombre_empresa?: string }): Promise<Cliente[]> {
+export async function fetchClientes(filters?: { search?: string; nombre_empresa?: string; nombre_cliente?: string; with_pedidos?: boolean }): Promise<Cliente[]> {
   const { data } = await api.get<{ status: string; data: Cliente[] }>('/clientes', { params: filters })
   return data.data
 }

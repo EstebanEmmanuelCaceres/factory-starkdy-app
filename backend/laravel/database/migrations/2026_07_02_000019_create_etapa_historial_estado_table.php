@@ -12,8 +12,6 @@ return new class extends Migration
             $table->id();
             $table->foreignId('etapa_id')->constrained('etapas')->cascadeOnDelete();
             $table->foreignId('user_id')->nullable()->constrained('users')->nullOnDelete();
-            $table->string('estado_anterior')->nullable();
-            $table->string('estado_nuevo');
             $table->text('comentario')->nullable();
             $table->timestamp('created_at')->useCurrent();
         });

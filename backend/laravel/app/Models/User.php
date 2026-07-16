@@ -51,12 +51,11 @@ class User extends Authenticatable
     }
 
     /**
-     * Relación Muchos a Muchos con Etapas (asignado como operario).
+     * Relación: Tareas (etapas de pedidos) asignadas a este operario.
      */
-    public function etapas(): BelongsToMany
+    public function tareasAsignadas()
     {
-        return $this->belongsToMany(Etapa::class, 'etapa_operarios', 'user_id', 'etapa_id')
-                    ->withPivot('asignado_at');
+        return $this->hasMany(ResponsableEtapa::class, 'user_id');
     }
 
     // ── Helpers de rol ────────────────────────────────────────────
@@ -72,7 +71,7 @@ class User extends Authenticatable
 
     public function isOperator(): bool
     {
-        return $this->role?->slug === 'operator';
+        return in_array($this->role?->slug, ['operario', 'operator']);
     }
 
     public function hasRole(string $roleSlug): bool

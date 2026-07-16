@@ -15,8 +15,8 @@ class Producto extends Model
 
     protected $fillable = [
         'nombre',
-        'sku',
         'descripcion',
+        'precio',
     ];
 
     /**
@@ -25,9 +25,19 @@ class Producto extends Model
     public function pedidos(): BelongsToMany
     {
         return $this->belongsToMany(Pedido::class, 'pedido_productos', 'producto_id', 'pedido_id')
-                    ->using(PedidoProducto::class)
-                    ->withPivot('cantidad')
-                    ->withTimestamps();
+            ->using(PedidoProducto::class)
+            ->withTimestamps();
+    }
+
+    /**
+     * Relación Muchos a Muchos con Materias Primas (Receta / BOM).
+     */
+    public function materiasPrimas(): BelongsToMany
+    {
+        return $this->belongsToMany(MateriaPrima::class, 'producto_materias_primas', 'producto_id', 'materia_prima_id')
+            ->using(ProductoMateriaPrima::class)
+            ->withPivot('cantidad_necesaria')
+            ->withTimestamps();
     }
 
     /**

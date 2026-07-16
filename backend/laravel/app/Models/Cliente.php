@@ -16,8 +16,17 @@ class Cliente extends Model
     protected $fillable = [
         'nombre_cliente',
         'nombre_empresa',
-        'telefono',
         'email',
+        'telefono',
+        'dni',
+        'direccion',
+        'provincia',
+        'cp',
+        'localidad',
+        'ingreso',
+        'valor_total',
+        'saldo',
+        'observaciones',
     ];
 
     /**

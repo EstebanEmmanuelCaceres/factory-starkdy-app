@@ -15,19 +15,19 @@ class EtapaHistorialEstado extends Model
     public $timestamps = false; // Manejado a nivel base de datos (created_at useCurrent)
 
     protected $fillable = [
-        'etapa_id',
+        'responsable_etapa_id',
         'user_id',
         'estado_anterior',
         'estado_nuevo',
-        'comentario',
+        'observacion',
     ];
 
     /**
-     * Relación: El registro pertenece a una etapa.
+     * Relación: El registro pertenece a una asignación de tarea.
      */
-    public function etapa(): BelongsTo
+    public function responsableEtapa(): BelongsTo
     {
-        return $this->belongsTo(Etapa::class);
+        return $this->belongsTo(ResponsableEtapa::class, 'responsable_etapa_id');
     }
 
     /**

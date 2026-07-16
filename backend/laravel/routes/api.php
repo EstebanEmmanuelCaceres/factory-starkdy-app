@@ -6,6 +6,9 @@ use App\Http\Controllers\Api\EtapaController;
 use App\Http\Controllers\Api\ClienteController;
 use App\Http\Controllers\Api\PedidoController;
 use App\Http\Controllers\Api\ResponsabilidadController;
+use App\Http\Controllers\Api\ResponsableEtapaController;
+use App\Http\Controllers\Api\OperarioTaskController;
+use App\Http\Controllers\Api\EtapaDependenciaController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -42,8 +45,12 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('etapas/{id}', [EtapaController::class, 'show']);
     Route::patch('etapas/{id}', [EtapaController::class, 'update']);
     Route::delete('etapas/{id}', [EtapaController::class, 'destroy']);
-    Route::post('etapas/{id}/operarios', [EtapaController::class, 'asignarOperario']);
-    Route::delete('etapas/{id}/operarios/{userId}', [EtapaController::class, 'desasignarOperario']);
+    Route::post('productos/{id}/etapas/sync', [EtapaController::class, 'syncEtapas']);
+
+    // ── Dependencias entre Etapas ──────────────────────────────────
+    Route::get('etapa-dependencias', [EtapaDependenciaController::class, 'index']);
+    Route::post('etapa-dependencias', [EtapaDependenciaController::class, 'store']);
+    Route::delete('etapa-dependencias/{id}', [EtapaDependenciaController::class, 'destroy']);
 
     // ── Clientes ──────────────────────────────────────────────────
     Route::get('clientes', [ClienteController::class, 'index']);
@@ -54,6 +61,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // ── Pedidos ───────────────────────────────────────────────────
     Route::apiResource('pedidos', PedidoController::class);
+    Route::post('pedidos/{id}/generar-tareas', [PedidoController::class, 'generarTareasManual']);
 
     // ── Responsabilidades ──────────────────────────────────────────
     Route::get('responsabilidades', [ResponsabilidadController::class, 'index']);
@@ -61,4 +69,17 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('responsabilidades/{id}', [ResponsabilidadController::class, 'show']);
     Route::patch('responsabilidades/{id}', [ResponsabilidadController::class, 'update']);
     Route::delete('responsabilidades/{id}', [ResponsabilidadController::class, 'destroy']);
+
+    // ── Gestión de Responsables de Etapa (Supervisor/Encargado) ───
+    Route::get('responsables-etapas', [ResponsableEtapaController::class, 'index']);
+    Route::post('responsables-etapas', [ResponsableEtapaController::class, 'store']);
+    Route::delete('responsables-etapas/{id}', [ResponsableEtapaController::class, 'destroy']);
+
+    // ── Panel del Operario ─────────────────────────────────────────
+    Route::prefix('operario')->group(function () {
+        Route::get('tasks', [OperarioTaskController::class, 'index']);
+        Route::post('tasks/{id}/start', [OperarioTaskController::class, 'start']);
+        Route::post('tasks/{id}/complete', [OperarioTaskController::class, 'complete']);
+        Route::get('historial', [OperarioTaskController::class, 'historial']);
+    });
 });

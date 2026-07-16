@@ -14,16 +14,16 @@ class RoleSeeder extends Seeder
     {
         $roles = [
             [
-                'slug' => 'vendedores',
-                'name' => 'Vendedores',
+                'slug' => 'vendedor',
+                'name' => 'Vendedor',
             ],
             [
-                'slug' => 'disenadoras',
-                'name' => 'Diseñadoras',
+                'slug' => 'disenador',
+                'name' => 'Diseñador',
             ],
             [
-                'slug' => 'encargada',
-                'name' => 'Encargada',
+                'slug' => 'encargado',
+                'name' => 'Encargado',
             ],
             [
                 'slug' => 'operario',
