@@ -32,7 +32,7 @@ class ClienteController extends Controller
         }
 
         if ($request->has('with_pedidos') && ($request->input('with_pedidos') === 'true' || $request->input('with_pedidos') == 1 || $request->input('with_pedidos') === true)) {
-            $query->with('pedidos');
+            $query->with(['pedidos', 'pedidos.pagos', 'pedidos.pagos.vendedor']);
         }
 
         $clientes = $query->get();

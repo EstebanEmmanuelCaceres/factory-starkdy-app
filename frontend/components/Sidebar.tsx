@@ -56,7 +56,7 @@ const NAV_SECTIONS = [
   {
     label: 'Principal',
     items: [
-      { id: 'dashboard', label: 'Dashboard', href: '/dashboard', Icon: Icons.dashboard, available: true },
+      { id: 'dashboard', label: 'Dashboard', href: '/dashboard', Icon: Icons.dashboard, available: true, roles: ['admin', 'supervisor', 'encargado', 'vendedor', 'disenador'] },
       { id: 'productos', label: 'Productos', href: '/dashboard/productos', Icon: Icons.products, available: true, roles: ['admin', 'encargado'] },
       { id: 'clientes', label: 'Clientes', href: '/dashboard/clientes', Icon: Icons.customers, available: true, roles: ['admin', 'encargado', 'vendedor', 'disenador'] },
       { id: 'pedidos', label: 'Pedidos', href: '/dashboard/pedidos', Icon: Icons.orders, available: true, roles: ['admin', 'supervisor', 'encargado', 'vendedor', 'disenador'] },

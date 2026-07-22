@@ -7,7 +7,7 @@ const api = axios.create({
     'Content-Type': 'application/json',
     Accept: 'application/json',
   },
-  timeout: 15000,
+  timeout: 30000,
 })
 
 // ── Interceptor de REQUEST: adjuntar token ──────────────────────

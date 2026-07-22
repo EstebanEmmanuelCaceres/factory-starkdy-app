@@ -16,6 +16,7 @@ export interface ResponsableEtapa {
   pedido?: Pedido
   etapa?: Etapa
   user?: User
+  dependencias_info?: { id: number; nombre: string; estado: string }[]
 }
 
 export interface AssignTaskInput {

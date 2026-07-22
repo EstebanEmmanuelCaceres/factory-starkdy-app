@@ -6,13 +6,12 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * Run the migrations.
-     */
     public function up(): void
     {
         Schema::table('pedido_productos', function (Blueprint $table) {
-            $table->integer('cantidad')->default(1)->after('producto_id');
+            if (!Schema::hasColumn('pedido_productos', 'cantidad')) {
+                $table->integer('cantidad')->default(1)->after('producto_id');
+            }
         });
     }
 
@@ -22,7 +21,9 @@ return new class extends Migration
     public function down(): void
     {
         Schema::table('pedido_productos', function (Blueprint $table) {
-            $table->dropColumn('cantidad');
+            if (Schema::hasColumn('pedido_productos', 'cantidad')) {
+                $table->dropColumn('cantidad');
+            }
         });
     }
 };

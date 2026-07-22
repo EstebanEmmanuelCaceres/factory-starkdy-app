@@ -12,7 +12,16 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('productos', function (Blueprint $table) {
-            $table->dropColumn(['sku', 'cantidad']);
+            $columnsToDrop = [];
+            if (Schema::hasColumn('productos', 'sku')) {
+                $columnsToDrop[] = 'sku';
+            }
+            if (Schema::hasColumn('productos', 'cantidad')) {
+                $columnsToDrop[] = 'cantidad';
+            }
+            if (!empty($columnsToDrop)) {
+                $table->dropColumn($columnsToDrop);
+            }
         });
     }
 
@@ -22,8 +31,12 @@ return new class extends Migration
     public function down(): void
     {
         Schema::table('productos', function (Blueprint $table) {
-            $table->string('sku')->nullable();
-            $table->integer('cantidad')->default(1);
+            if (!Schema::hasColumn('productos', 'sku')) {
+                $table->string('sku')->nullable();
+            }
+            if (!Schema::hasColumn('productos', 'cantidad')) {
+                $table->integer('cantidad')->default(1);
+            }
         });
     }
 };

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import RoleGuard from '@/components/RoleGuard'
+import Pagination from '@/components/Pagination'
 import {
   fetchProducts,
   createProduct,
@@ -23,6 +24,10 @@ export default function ProductosPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [successMessage, setSuccessMessage] = useState('')
+
+  // Paginación
+  const [currentPage, setCurrentPage] = useState(1)
+  const pageSize = 10
 
   // Filtros
   const [searchName, setSearchName] = useState('')
@@ -233,15 +238,19 @@ export default function ProductosPage() {
     }
   }
 
-  const loadProducts = async () => {
+  const loadProducts = async (resetPage = false, overrideName?: string) => {
     setLoading(true)
     setError('')
     try {
       const filters: { nombre?: string } = {}
-      if (searchName) filters.nombre = searchName
+      const nameToSearch = overrideName !== undefined ? overrideName : searchName
+      if (nameToSearch) filters.nombre = nameToSearch
 
       const data = await fetchProducts(filters)
       setProducts(data)
+      if (resetPage) {
+        setCurrentPage(1)
+      }
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Error al cargar los productos')
     } finally {
@@ -250,9 +259,16 @@ export default function ProductosPage() {
   }
 
   useEffect(() => {
-    loadProducts()
+    loadProducts(true)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  useEffect(() => {
+    const maxPage = Math.max(1, Math.ceil(products.length / pageSize))
+    if (currentPage > maxPage) {
+      setCurrentPage(maxPage)
+    }
+  }, [products.length, pageSize, currentPage])
 
   const showNotification = (message: string) => {
     setSuccessMessage(message)
@@ -321,7 +337,7 @@ export default function ProductosPage() {
   }
 
   return (
-    <RoleGuard allowedRoles={['admin']}>
+    <RoleGuard allowedRoles={['admin', 'encargado']}>
       <main className="page-content p-6 max-w-7xl mx-auto bg-[#1E293B]">
         {/* Notificación de Éxito */}
         {successMessage && (
@@ -363,13 +379,13 @@ export default function ProductosPage() {
                 placeholder="Buscar por nombre..."
                 value={searchName}
                 onChange={(e) => setSearchName(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && loadProducts()}
+                onKeyDown={(e) => e.key === 'Enter' && loadProducts(true)}
                 className="w-full sm:w-64 bg-slate-950 border border-slate-800 focus:border-blue-500 rounded-lg px-3.5 py-2 pl-9 text-sm text-white placeholder-slate-500 focus:outline-none transition duration-150"
               />
               <span className="absolute left-3.5 top-2.5 text-slate-500 text-sm">🔍</span>
             </div>
             <button
-              onClick={loadProducts}
+              onClick={() => loadProducts(true)}
               className="bg-slate-800 hover:bg-slate-700 text-white text-sm font-medium px-3.5 py-2 rounded-lg transition"
             >
               Filtrar
@@ -378,21 +394,21 @@ export default function ProductosPage() {
         </div>
 
         {/* Listado de Productos */}
-        <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-lg">
+        <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-lg flex flex-col h-[calc(100vh-360px)] md:h-[calc(100vh-310px)] min-h-[400px]">
           {loading ? (
-            <div className="py-20 flex flex-col items-center justify-center text-slate-400 gap-3">
+            <div className="flex-1 flex flex-col items-center justify-center text-slate-400 gap-3">
               <div className="animate-spin rounded-full h-8 w-8 border-2 border-blue-500 border-t-transparent"></div>
               <span className="text-sm">Cargando productos de la base de datos...</span>
             </div>
           ) : products.length === 0 ? (
-            <div className="py-20 flex flex-col items-center justify-center text-slate-400 gap-3">
+            <div className="flex-1 flex flex-col items-center justify-center text-slate-400 gap-3">
               <span className="text-4xl">📦</span>
               <span className="text-sm font-medium">No se encontraron productos registrados</span>
               {searchName && (
                 <button
                   onClick={() => {
                     setSearchName('')
-                    loadProducts()
+                    loadProducts(true, '')
                   }}
                   className="text-xs text-blue-500 hover:underline mt-1"
                 >
@@ -401,56 +417,64 @@ export default function ProductosPage() {
               )}
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse">
-                <thead>
-                  <tr className="border-b border-slate-800 bg-slate-950/40 text-slate-400 font-semibold text-xs uppercase tracking-wider">
-                    <th className="px-6 py-4">ID</th>
-                    <th className="px-6 py-4">Producto</th>
-                    <th className="px-6 py-4">Descripción</th>
-                    <th className="px-6 py-4 text-right">Acciones</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-800 text-sm">
-                  {products.map((product) => (
-                    <tr key={product.id} className="hover:bg-slate-800/40 text-slate-300 transition duration-100">
-                      <td className="px-6 py-4 font-mono text-xs text-slate-500">#{product.id}</td>
-                      <td className="px-6 py-4">
-                        <span className="font-semibold text-white">{product.nombre}</span>
-                      </td>
-                      <td className="px-6 py-4 max-w-xs truncate text-slate-400" title={product.descripcion || ''}>
-                        {product.descripcion || <span className="text-slate-600 italic">Sin descripción</span>}
-                      </td>
-                      <td className="px-6 py-4 text-right">
-                        <div className="flex justify-end gap-2.5">
-                          <button
-                            onClick={() => handleOpenStagesModal(product)}
-                            className="text-slate-400 hover:text-white p-1 hover:bg-slate-800 rounded transition flex items-center justify-center text-xs"
-                            title="Gestionar etapas"
-                          >
-                            ⚙️
-                          </button>
-                          <button
-                            onClick={() => handleOpenEditModal(product)}
-                            className="text-slate-400 hover:text-white p-1 hover:bg-slate-800 rounded transition"
-                            title="Editar producto"
-                          >
-                            ✏️
-                          </button>
-                          <button
-                            onClick={() => handleDelete(product.id)}
-                            className="text-rose-400 hover:text-rose-300 p-1 hover:bg-rose-500/10 rounded transition"
-                            title="Eliminar producto"
-                          >
-                            🗑️
-                          </button>
-                        </div>
-                      </td>
+            <>
+              <div className="overflow-auto flex-1">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="border-b border-slate-800 bg-slate-950/40 text-slate-400 font-semibold text-xs uppercase tracking-wider">
+                      <th className="px-6 py-4">ID</th>
+                      <th className="px-6 py-4">Producto</th>
+                      <th className="px-6 py-4">Descripción</th>
+                      <th className="px-6 py-4 text-right">Acciones</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800 text-sm">
+                    {products.slice((currentPage - 1) * pageSize, currentPage * pageSize).map((product) => (
+                      <tr key={product.id} className="hover:bg-slate-800/40 text-slate-300 transition duration-100">
+                        <td className="px-6 py-4 font-mono text-xs text-slate-500">#{product.id}</td>
+                        <td className="px-6 py-4">
+                          <span className="font-semibold text-white">{product.nombre}</span>
+                        </td>
+                        <td className="px-6 py-4 max-w-xs truncate text-slate-400" title={product.descripcion || ''}>
+                          {product.descripcion || <span className="text-slate-600 italic">Sin descripción</span>}
+                        </td>
+                        <td className="px-6 py-4 text-right">
+                          <div className="flex justify-end gap-2.5">
+                            <button
+                              onClick={() => handleOpenStagesModal(product)}
+                              className="text-slate-400 hover:text-white p-1 hover:bg-slate-800 rounded transition flex items-center justify-center text-xs"
+                              title="Gestionar etapas"
+                            >
+                              ⚙️
+                            </button>
+                            <button
+                              onClick={() => handleOpenEditModal(product)}
+                              className="text-slate-400 hover:text-white p-1 hover:bg-slate-800 rounded transition"
+                              title="Editar producto"
+                            >
+                              ✏️
+                            </button>
+                            <button
+                              onClick={() => handleDelete(product.id)}
+                              className="text-rose-400 hover:text-rose-300 p-1 hover:bg-rose-500/10 rounded transition"
+                              title="Eliminar producto"
+                            >
+                              🗑️
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <Pagination
+                currentPage={currentPage}
+                totalItems={products.length}
+                pageSize={pageSize}
+                onPageChange={setCurrentPage}
+              />
+            </>
           )}
         </div>
 
