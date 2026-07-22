@@ -13,6 +13,10 @@ class Pago extends Model
 
     protected $table = 'pagos';
 
+    protected $hidden = [
+        'pedido',
+    ];
+
     protected $fillable = [
         'pedido_id',
         'registrado_por',
@@ -23,6 +27,17 @@ class Pago extends Model
         'referencia_externa',
         'comprobante_url',
         'pagado_at',
+        'tipo_cobro',
+        'vendedor_id',
+        'medio_pago',
+        'observaciones',
+        'fecha_pago',
+    ];
+
+    protected $casts = [
+        'fecha_pago' => 'datetime',
+        'pagado_at' => 'datetime',
+        'monto' => 'decimal:2',
     ];
 
     /**
@@ -34,11 +49,19 @@ class Pago extends Model
     }
 
     /**
-     * Relación: El pago fue registrado por un usuario.
+     * Relación: El pago fue registrado por un usuario (historico).
      */
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class, 'registrado_por');
+    }
+
+    /**
+     * Relación: El cobro fue realizado por un vendedor.
+     */
+    public function vendedor(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'vendedor_id');
     }
 
     /**

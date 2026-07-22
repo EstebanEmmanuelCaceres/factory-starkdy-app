@@ -9,6 +9,8 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Pedido extends Model
@@ -25,6 +27,15 @@ class Pedido extends Model
         'prioridad',
         'fecha_entrega',
         'precio',
+        'comentario',
+        'tipo_pago',
+    ];
+
+    protected $appends = [
+        'monto_pagado',
+        'saldo_pendiente',
+        'porcentaje_pagado',
+        'estado_pago',
     ];
 
     /**
@@ -52,6 +63,62 @@ class Pedido extends Model
             ->using(PedidoProducto::class)
             ->withPivot('cantidad')
             ->withTimestamps();
+    }
+
+    /**
+     * Relación Uno a Muchos con Pagos.
+     */
+    public function pagos(): HasMany
+    {
+        return $this->hasMany(Pago::class, 'pedido_id');
+    }
+
+    public function pago(): HasOne
+    {
+        return $this->hasOne(Pago::class, 'pedido_id')->latestOfMany();
+    }
+
+    public function comentarios(): HasMany
+    {
+        return $this->hasMany(ComentarioPedido::class, 'pedido_id')->latest();
+    }
+
+    public function tareas(): HasMany
+    {
+        return $this->hasMany(ResponsableEtapa::class, 'pedido_id');
+    }
+
+    // Accessors para atributos dinámicos de pago
+    public function getMontoPagadoAttribute(): float
+    {
+        return (float) $this->pagos()->where('estado', 'pagado')->sum('monto');
+    }
+
+    public function getSaldoPendienteAttribute(): float
+    {
+        $precio = (float) ($this->precio ?? 0);
+        return (float) max(0, $precio - $this->monto_pagado);
+    }
+
+    public function getPorcentajePagadoAttribute(): float
+    {
+        $precio = (float) ($this->precio ?? 0);
+        if ($precio <= 0) {
+            return 0.0;
+        }
+        return round(($this->monto_pagado / $precio) * 100, 2);
+    }
+
+    public function getEstadoPagoAttribute(): string
+    {
+        if ($this->monto_pagado <= 0) {
+            return 'sin_pago';
+        }
+        $precio = (float) ($this->precio ?? 0);
+        if ($this->monto_pagado >= $precio) {
+            return 'pagado';
+        }
+        return 'parcial';
     }
 
     /**

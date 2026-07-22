@@ -18,11 +18,56 @@ class OperarioTaskController extends Controller
     {
         $userId = Auth::id();
 
-        $tasks = ResponsableEtapa::with(['pedido.cliente', 'etapa.producto'])
+        $tasks = ResponsableEtapa::with([
+            'pedido.cliente',
+            'etapa.producto',
+            'etapa.dependencias'
+        ])
             ->where('user_id', $userId)
-            ->whereIn('estado', ['pendiente', 'en_progreso'])
+            ->whereIn('estado', ['pendiente', 'en_progreso', 'bloqueada'])
             ->orderBy('estado', 'desc') // Muestra primero 'en_progreso' que 'pendiente'
             ->get();
+
+        foreach ($tasks as $task) {
+            $depsInfo = [];
+            if ($task->etapa) {
+                $deps = $task->etapa->dependencias;
+
+                if ($deps && $deps->count() > 0) {
+                    foreach ($deps as $dep) {
+                        $tareaPrevia = ResponsableEtapa::where('pedido_id', $task->pedido_id)
+                            ->where('etapa_id', $dep->id)
+                            ->first();
+
+                        $depsInfo[] = [
+                            'id' => $dep->id,
+                            'nombre' => $dep->nombre,
+                            'estado' => $tareaPrevia ? $tareaPrevia->estado : 'pendiente'
+                        ];
+                    }
+                } else {
+                    // Fallback si no hay dependencias explícitas en etapa_dependencias: buscar etapa anterior por 'orden'
+                    $etapaAnterior = \App\Models\Etapa::where('producto_id', $task->etapa->producto_id)
+                        ->where('orden', '<', $task->etapa->orden)
+                        ->orderBy('orden', 'desc')
+                        ->first();
+
+                    if ($etapaAnterior) {
+                        $tareaPrevia = ResponsableEtapa::where('pedido_id', $task->pedido_id)
+                            ->where('etapa_id', $etapaAnterior->id)
+                            ->first();
+
+                        $depsInfo[] = [
+                            'id' => $etapaAnterior->id,
+                            'nombre' => $etapaAnterior->nombre,
+                            'estado' => $tareaPrevia ? $tareaPrevia->estado : 'pendiente'
+                        ];
+                    }
+                }
+            }
+
+            $task->setAttribute('dependencias_info', $depsInfo);
+        }
 
         return response()->json([
             'status' => 'success',
@@ -45,6 +90,13 @@ class OperarioTaskController extends Controller
                 'status' => 'error',
                 'message' => 'Tarea no encontrada o no está asignada a tu usuario'
             ], 404);
+        }
+
+        if ($task->estado === 'bloqueada') {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Esta tarea se encuentra bloqueada porque requiere que se completen las etapas previas'
+            ], 422);
         }
 
         if ($task->estado !== 'pendiente') {

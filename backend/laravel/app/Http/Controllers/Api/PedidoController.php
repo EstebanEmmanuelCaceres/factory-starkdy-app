@@ -8,6 +8,7 @@ use App\Models\PedidoProducto;
 use App\Models\Etapa;
 use App\Models\ResponsableEtapa;
 use App\Models\Cliente;
+use App\Models\ComentarioPedido;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
@@ -21,7 +22,7 @@ class PedidoController extends Controller
      */
     public function index(Request $request): JsonResponse
     {
-        $query = Pedido::with(['cliente', 'user', 'productos', 'pago']);
+        $query = Pedido::with(['cliente', 'user', 'productos', 'pago', 'pagos', 'comentarios', 'comentarios.user']);
 
         // Búsqueda opcional por nombre de empresa, nombre de cliente o correo del cliente relacionado
         if ($request->has('search') && !empty($request->input('search'))) {
@@ -76,6 +77,8 @@ class PedidoController extends Controller
             'prioridad' => 'required|string|in:baja,normal,alta,critica',
             'fecha_entrega' => 'nullable|date',
             'precio' => 'nullable|numeric|min:0',
+            'comentario' => 'nullable|string',
+            'tipo_pago' => 'nullable|string|in:unico,parcial',
             'productos' => 'nullable|array',
             'productos.*.id' => 'required|exists:productos,id',
             'productos.*.cantidad' => 'required|integer|min:1',
@@ -122,10 +125,14 @@ class PedidoController extends Controller
             }
         }
 
-        $data = $request->only(['codigo', 'prioridad', 'fecha_entrega', 'precio']);
+        $data = $request->only(['codigo', 'prioridad', 'fecha_entrega', 'precio', 'comentario', 'tipo_pago']);
         $data['cliente_id'] = $clienteId;
         $data['user_id'] = Auth::id() ?? 1; // Asocia el usuario autenticado
         $data['estado'] = 'pendiente';      // Por defecto al crear
+
+        if (empty($data['fecha_entrega'])) {
+            $data['fecha_entrega'] = now()->addDays(15)->toDateString();
+        }
 
         $pedido = Pedido::create($data);
 
@@ -144,7 +151,7 @@ class PedidoController extends Controller
         $this->syncEtapasYAsignaciones($pedido, $request);
 
         // Cargar relaciones para la respuesta
-        $pedido->load(['cliente', 'user', 'productos', 'pago']);
+        $pedido->load(['cliente', 'user', 'productos', 'pago', 'pagos']);
 
         return response()->json([
             'status' => 'success',
@@ -158,7 +165,7 @@ class PedidoController extends Controller
      */
     public function show($id): JsonResponse
     {
-        $pedido = Pedido::with(['cliente', 'user', 'productos', 'pago'])->find($id);
+        $pedido = Pedido::with(['cliente', 'user', 'productos', 'pago', 'pagos', 'comentarios', 'comentarios.user'])->find($id);
 
         if (!$pedido) {
             return response()->json([
@@ -194,6 +201,8 @@ class PedidoController extends Controller
             'prioridad' => 'sometimes|required|string|in:baja,normal,alta,critica',
             'fecha_entrega' => 'sometimes|nullable|date',
             'precio' => 'sometimes|nullable|numeric|min:0',
+            'comentario' => 'sometimes|nullable|string',
+            'tipo_pago' => 'sometimes|nullable|string|in:unico,parcial',
             'productos' => 'sometimes|array',
             'productos.*.id' => 'required|exists:productos,id',
             'productos.*.cantidad' => 'required|integer|min:1',
@@ -217,7 +226,7 @@ class PedidoController extends Controller
             ], 422);
         }
 
-        $pedido->update($request->only(['cliente_id', 'codigo', 'estado', 'prioridad', 'fecha_entrega', 'precio']));
+        $pedido->update($request->only(['cliente_id', 'codigo', 'estado', 'prioridad', 'fecha_entrega', 'precio', 'comentario', 'tipo_pago']));
 
         // Sincronizar productos si se enviaron
         if ($request->has('productos')) {
@@ -233,7 +242,7 @@ class PedidoController extends Controller
         }
         $this->syncEtapasYAsignaciones($pedido, $request);
 
-        $pedido->load(['cliente', 'user', 'productos', 'pago']);
+        $pedido->load(['cliente', 'user', 'productos', 'pago', 'pagos']);
 
         return response()->json([
             'status' => 'success',
@@ -366,5 +375,52 @@ class PedidoController extends Controller
                 }
             }
         });
+    }
+
+    /**
+     * Obtener comentarios de un pedido.
+     */
+    public function getComentarios($id): JsonResponse
+    {
+        $pedido = Pedido::find($id);
+        if (!$pedido) {
+            return response()->json(['status' => 'error', 'message' => 'Pedido no encontrado'], 404);
+        }
+        $comentarios = $pedido->comentarios()->with('user')->get();
+        return response()->json(['status' => 'success', 'data' => $comentarios]);
+    }
+
+    /**
+     * Agregar un comentario a un pedido.
+     */
+    public function addComentario(Request $request, $id): JsonResponse
+    {
+        $pedido = Pedido::find($id);
+        if (!$pedido) {
+            return response()->json(['status' => 'error', 'message' => 'Pedido no encontrado'], 404);
+        }
+
+        $validator = Validator::make($request->all(), [
+            'cuerpo' => 'required|string|max:1000',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Error de validación',
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        $comentario = $pedido->comentarios()->create([
+            'user_id' => auth()->id() ?? 1,
+            'cuerpo' => $request->input('cuerpo')
+        ]);
+
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Comentario agregado correctamente',
+            'data' => $comentario->load('user')
+        ], 201);
     }
 }

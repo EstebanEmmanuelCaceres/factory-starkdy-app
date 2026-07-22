@@ -27,8 +27,9 @@ export default function TareasPage() {
   const [statusFilter, setStatusFilter] = useState<string>('todos')
   const [taskSearchQuery, setTaskSearchQuery] = useState<string>('')
 
-  // Modal para Completar
+  // Modal para Completar y Modal para Ver detalle
   const [completingTask, setCompletingTask] = useState<ResponsableEtapa | null>(null)
+  const [viewingTask, setViewingTask] = useState<ResponsableEtapa | null>(null)
 
   const loadData = async () => {
     setLoading(true)
@@ -120,7 +121,7 @@ export default function TareasPage() {
   const getStatusBadgeClass = (status: string) => {
     switch (status) {
       case 'bloqueada':
-        return 'bg-slate-800/80 text-slate-500 border border-slate-700/60'
+        return 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
       case 'completado':
         return 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
       case 'en_progreso':
@@ -302,99 +303,82 @@ export default function TareasPage() {
                   <p className="text-xs text-slate-500">Espera a que un supervisor te asigne nuevas etapas.</p>
                 </div>
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {tasks.map((task) => {
-                    // Filtrar otras tareas pendientes asociadas a esta misma etapa
-                    const pendingSameStage = allPendingTasks.filter(
-                      t => t.etapa?.nombre === task.etapa?.nombre && t.id !== task.id
-                    )
-
-                    return (
-                      <div
-                        key={task.id}
-                        className={`bg-slate-900 border ${
-                          task.estado === 'en_progreso' ? 'border-amber-500/40 bg-amber-500/[0.02]' : 'border-slate-800'
-                        } rounded-xl p-5 shadow-lg flex flex-col justify-between hover:scale-[1.01] transition-transform duration-150`}
-                      >
-                        <div className="space-y-3">
-                          {/* Badge de Estado */}
-                          <div className="flex items-center justify-between">
-                            <span className="text-xs font-mono font-bold text-slate-500">{task.pedido?.codigo || 'PED-????'}</span>
-                            <span
-                              className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${
-                                task.estado === 'en_progreso'
-                                  ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
-                                  : 'bg-slate-500/10 text-slate-400 border border-slate-800'
-                              }`}
-                            >
-                              {getStatusLabel(task.estado)}
-                            </span>
-                          </div>
-
-                          {/* Información Etapa y Producto */}
-                          <div>
-                            <h3 className="text-base font-bold text-white tracking-tight">{task.etapa?.nombre}</h3>
-                            <p className="text-xs text-slate-400 mt-1 flex items-center gap-1.5">
-                              <span className="w-1.5 h-1.5 rounded-full bg-blue-500"></span>
-                              Producto: {task.etapa?.producto?.nombre || 'Producto final'}
-                            </p>
-                            <p className="text-xs text-slate-400 mt-1">
-                              Cliente: <span className="text-slate-300 font-semibold">{task.pedido?.cliente ? `${task.pedido.cliente.nombre_cliente} (${task.pedido.cliente.nombre_empresa})` : 'N/A'}</span>
-                            </p>
-                          </div>
-
-                          {/* Fechas de inicio/fin */}
-                          {task.fecha_inicio && (
-                            <p className="text-[11px] text-slate-500 italic mt-2">
-                              Iniciada el: {new Date(task.fecha_inicio).toLocaleString('es-ES')}
-                            </p>
-                          )}
-
-                          {/* Otras tareas pendientes en esta etapa (Control Operario) */}
-                          <div className="border-t border-slate-800/80 pt-3 mt-3">
-                            <span className="text-[10px] font-bold uppercase tracking-wider text-blue-400 block mb-1.5">
-                              👀 Cola de Espera para "{task.etapa?.nombre}":
-                            </span>
-                            {pendingSameStage.length === 0 ? (
-                              <span className="text-[10px] text-slate-500 italic block">No hay otras tareas pendientes de esta etapa en cola.</span>
-                            ) : (
-                              <div className="space-y-1 max-h-24 overflow-y-auto bg-slate-950/60 p-2 rounded border border-slate-850">
-                                {pendingSameStage.map((pTask) => (
-                                  <div key={pTask.id} className="flex justify-between items-center text-[10px] border-b border-slate-900 pb-1 last:border-0 last:pb-0">
-                                    <span className="font-mono text-slate-300">{pTask.pedido?.codigo || 'PED-????'}</span>
-                                    <span className="text-slate-550 truncate max-w-[120px]">
-                                      {pTask.user ? `👤 ${pTask.user.name}` : '❌ Sin Asignar'}
-                                    </span>
-                                  </div>
-                                ))}
+                <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-lg">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse">
+                      <thead>
+                        <tr className="border-b border-slate-800 bg-slate-950/40 text-slate-400 font-semibold text-xs uppercase tracking-wider">
+                          <th className="px-6 py-4">Empresa</th>
+                          <th className="px-6 py-4">Fecha de Vencimiento</th>
+                          <th className="px-6 py-4">Tarea</th>
+                          <th className="px-6 py-4">Estado</th>
+                          <th className="px-6 py-4 text-right">Acciones</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-800 text-sm text-slate-300">
+                        {tasks.map((task) => (
+                          <tr key={task.id} className="hover:bg-slate-800/40 transition duration-100">
+                            <td className="px-6 py-4 font-semibold text-white">
+                              {task.pedido?.cliente?.nombre_empresa || task.pedido?.cliente?.nombre_cliente || 'N/A'}
+                            </td>
+                            <td className="px-6 py-4 text-xs font-medium text-slate-300">
+                              {task.pedido?.fecha_entrega ? (
+                                new Date(task.pedido.fecha_entrega).toLocaleDateString('es-ES')
+                              ) : (
+                                <span className="text-slate-500 italic">Sin fecha</span>
+                              )}
+                            </td>
+                            <td className="px-6 py-4">
+                              <span className="font-semibold text-white block">{task.etapa?.nombre}</span>
+                              <span className="text-xs text-slate-400">
+                                {task.pedido?.codigo ? `${task.pedido.codigo} • ` : ''}{task.etapa?.producto?.nombre || 'Producto final'}
+                              </span>
+                            </td>
+                            <td className="px-6 py-4">
+                              <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold uppercase tracking-wide ${getStatusBadgeClass(task.estado)}`}>
+                                {getStatusLabel(task.estado)}
+                              </span>
+                            </td>
+                            <td className="px-6 py-4 text-right">
+                              <div className="flex items-center justify-end gap-2">
+                                <button
+                                  onClick={() => setViewingTask(task)}
+                                  className="bg-slate-800 hover:bg-slate-700 text-blue-400 hover:text-blue-300 text-xs font-semibold px-3 py-1.5 rounded-lg border border-slate-700 transition flex items-center gap-1"
+                                >
+                                  👁️ Ver
+                                </button>
+                                {task.estado === 'bloqueada' ? (
+                                  <button
+                                    disabled
+                                    className="bg-rose-600/30 text-rose-300 border border-rose-500/40 text-xs font-semibold px-3 py-1.5 rounded-lg cursor-not-allowed opacity-80 flex items-center gap-1"
+                                    title="No se puede iniciar hasta que se completen las etapas anteriores"
+                                  >
+                                    🔒 Bloqueada
+                                  </button>
+                                ) : task.estado === 'pendiente' ? (
+                                  <button
+                                    onClick={() => handleStartTask(task.id)}
+                                    disabled={actionLoading !== null}
+                                    className="bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition hover:scale-[1.01] active:scale-[0.99]"
+                                  >
+                                    {actionLoading === task.id ? 'Iniciando...' : '🚀 Iniciar'}
+                                  </button>
+                                ) : (
+                                  <button
+                                    onClick={() => handleOpenCompleteModal(task)}
+                                    disabled={actionLoading !== null}
+                                    className="bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition hover:scale-[1.01] active:scale-[0.99]"
+                                  >
+                                    {actionLoading === task.id ? 'Cargando...' : '✅ Completar'}
+                                  </button>
+                                )}
                               </div>
-                            )}
-                          </div>
-                        </div>
-
-                        {/* Acciones */}
-                        <div className="mt-5 pt-4 border-t border-slate-800/80 flex items-center justify-end">
-                          {task.estado === 'pendiente' ? (
-                            <button
-                              onClick={() => handleStartTask(task.id)}
-                              disabled={actionLoading !== null}
-                              className="w-full bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white text-xs font-semibold py-2 rounded-lg transition hover:scale-[1.01] active:scale-[0.99]"
-                            >
-                              {actionLoading === task.id ? 'Iniciando...' : '🚀 Iniciar Tarea'}
-                            </button>
-                          ) : (
-                            <button
-                              onClick={() => handleOpenCompleteModal(task)}
-                              disabled={actionLoading !== null}
-                              className="w-full bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white text-xs font-semibold py-2 rounded-lg transition hover:scale-[1.01] active:scale-[0.99]"
-                            >
-                              {actionLoading === task.id ? 'Cargando...' : '✅ Completar Tarea'}
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    )
-                  })}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
               )}
             </div>
@@ -442,6 +426,153 @@ export default function TareasPage() {
                 </div>
               )}
             </div>
+
+            {/* Modal de Vista Detallada de Tarea (Tarjeta) */}
+            {viewingTask && (() => {
+              const depsInfo = viewingTask.dependencias_info || []
+              const isBlocked = viewingTask.estado === 'bloqueada'
+
+              return (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 backdrop-blur-sm p-4">
+                  <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-lg shadow-2xl p-6 relative animate-in fade-in zoom-in-95 duration-150">
+                    {/* Header del Modal */}
+                    <div className="flex items-center justify-between border-b border-slate-800 pb-4 mb-4">
+                      <div className="flex items-center gap-3">
+                        <span className="text-xs font-mono font-bold text-slate-300 bg-slate-800 px-2.5 py-1 rounded-md border border-slate-700">
+                          {viewingTask.pedido?.codigo || 'PED-????'}
+                        </span>
+                        <span
+                          className={`text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full ${getStatusBadgeClass(viewingTask.estado)}`}
+                        >
+                          {getStatusLabel(viewingTask.estado)}
+                        </span>
+                      </div>
+                      <button
+                        onClick={() => setViewingTask(null)}
+                        className="text-slate-400 hover:text-white text-lg font-bold w-8 h-8 flex items-center justify-center rounded-lg hover:bg-slate-800 transition"
+                      >
+                        ✕
+                      </button>
+                    </div>
+
+                    {/* Contenido de la Tarjeta */}
+                    <div className="space-y-4">
+                      <div>
+                        <h3 className="text-lg font-bold text-white tracking-tight">{viewingTask.etapa?.nombre}</h3>
+                        <p className="text-xs text-slate-400 mt-1 flex items-center gap-1.5">
+                          <span className="w-1.5 h-1.5 rounded-full bg-blue-500"></span>
+                          Producto: <span className="text-slate-200 font-medium">{viewingTask.etapa?.producto?.nombre || 'Producto final'}</span>
+                        </p>
+                        <p className="text-xs text-slate-400 mt-1">
+                          Cliente: <span className="text-slate-200 font-semibold">{viewingTask.pedido?.cliente ? `${viewingTask.pedido.cliente.nombre_cliente} (${viewingTask.pedido.cliente.nombre_empresa})` : 'N/A'}</span>
+                        </p>
+                        {viewingTask.pedido?.fecha_entrega && (
+                          <p className="text-xs text-slate-400 mt-1">
+                            Fecha de Vencimiento: <span className="text-amber-400 font-semibold">{new Date(viewingTask.pedido.fecha_entrega).toLocaleDateString('es-ES')}</span>
+                          </p>
+                        )}
+                      </div>
+
+                      {viewingTask.fecha_inicio && (
+                        <p className="text-[11px] text-slate-500 italic">
+                          Iniciada el: {new Date(viewingTask.fecha_inicio).toLocaleString('es-ES')}
+                        </p>
+                      )}
+
+                      {/* Información de Dependencias Directas */}
+                      <div className="border-t border-slate-800/80 pt-4 mt-2">
+                        {isBlocked ? (
+                          <div className="bg-rose-500/10 border border-rose-500/30 rounded-xl p-4 text-xs text-rose-200 space-y-2">
+                            <div className="font-bold text-rose-400 flex items-center gap-1.5 text-sm">
+                              <span>🔒</span> Tarea Bloqueada por Dependencias
+                            </div>
+                            <p className="text-slate-300">
+                              Esta tarea se encuentra bloqueada porque depende de la(s) siguiente(s) etapa(s):
+                            </p>
+                            <ul className="space-y-1.5 mt-2">
+                              {depsInfo.length > 0 ? (
+                                depsInfo.map((dep: any) => (
+                                  <li key={dep.id} className="flex items-center justify-between bg-slate-950/60 p-2.5 rounded-lg border border-slate-800">
+                                    <span className="font-semibold text-white">Etapa: {dep.nombre}</span>
+                                    <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${getStatusBadgeClass(dep.estado)}`}>
+                                      {getStatusLabel(dep.estado)}
+                                    </span>
+                                  </li>
+                                ))
+                              ) : (
+                                <li className="italic text-slate-400">Etapa previa requerida no completada</li>
+                              )}
+                            </ul>
+                          </div>
+                        ) : depsInfo.length > 0 ? (
+                          <div className="bg-slate-950/60 border border-slate-800 rounded-xl p-3.5 text-xs space-y-2">
+                            <span className="font-semibold text-slate-300 block">Dependencias previas:</span>
+                            <div className="space-y-1.5">
+                              {depsInfo.map((dep: any) => (
+                                <div key={dep.id} className="flex items-center justify-between text-slate-300 bg-slate-900/60 p-2 rounded border border-slate-800/60">
+                                  <span>Etapa &quot;{dep.nombre}&quot;</span>
+                                  <span className="text-emerald-400 font-semibold text-[11px] flex items-center gap-1">
+                                    ✅ Completada
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="bg-slate-950/40 border border-slate-800/60 rounded-xl p-3 text-xs text-slate-400 italic">
+                            Esta tarea no depende de ninguna otra etapa.
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Acciones */}
+                    <div className="mt-6 pt-4 border-t border-slate-800 flex items-center justify-between gap-3">
+                      <button
+                        type="button"
+                        onClick={() => setViewingTask(null)}
+                        className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold rounded-lg transition"
+                      >
+                        Cerrar
+                      </button>
+
+                      {viewingTask.estado === 'bloqueada' ? (
+                        <button
+                          disabled
+                          className="bg-rose-600/30 text-rose-300 border border-rose-500/40 text-xs font-semibold px-4 py-2 rounded-lg cursor-not-allowed opacity-80 flex items-center gap-1"
+                        >
+                          🔒 Tarea Bloqueada
+                        </button>
+                      ) : viewingTask.estado === 'pendiente' ? (
+                        <button
+                          onClick={async () => {
+                            const taskId = viewingTask.id
+                            setViewingTask(null)
+                            await handleStartTask(taskId)
+                          }}
+                          disabled={actionLoading !== null}
+                          className="bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white text-xs font-semibold px-4 py-2 rounded-lg transition hover:scale-[1.01] active:scale-[0.98]"
+                        >
+                          {actionLoading === viewingTask.id ? 'Iniciando...' : '🚀 Iniciar Tarea'}
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => {
+                            const t = viewingTask
+                            setViewingTask(null)
+                            handleOpenCompleteModal(t)
+                          }}
+                          disabled={actionLoading !== null}
+                          className="bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white text-xs font-semibold px-4 py-2 rounded-lg transition hover:scale-[1.01] active:scale-[0.98]"
+                        >
+                          {actionLoading === viewingTask.id ? 'Cargando...' : '✅ Completar Tarea'}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )
+            })()}
 
             {/* Modal de Confirmación para Completar */}
             {completingTask && (

@@ -8,9 +8,15 @@ import {
   updatePedido,
   deletePedido,
   generatePedidoTasks,
+  fetchPedidoPagos,
+  createPedidoPago,
+  deletePedidoPago,
+  createPedidoComentario,
   type Pedido,
   type CreatePedidoInput,
-  type UpdatePedidoInput
+  type UpdatePedidoInput,
+  type Pago,
+  type ComentarioPedido
 } from '@/lib/pedidos'
 import { fetchClientes, createCliente as createNewClient, type Cliente } from '@/lib/clientes'
 import { fetchProducts, type Product } from '@/lib/products'
@@ -46,6 +52,31 @@ export default function PedidosPage() {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
   const [selectedPedido, setSelectedPedido] = useState<Pedido | null>(null)
 
+  // Estados para el Modal de Visualización Trello
+  const [isViewModalOpen, setIsViewModalOpen] = useState(false)
+  const [selectedPedidoForView, setSelectedPedidoForView] = useState<Pedido | null>(null)
+  const [nuevoComentario, setNuevoComentario] = useState('')
+  const [isSubmittingComment, setIsSubmittingComment] = useState(false)
+  const [isEditCommentActive, setIsEditCommentActive] = useState(false)
+  const [tempComentario, setTempComentario] = useState('')
+  const [openAccordions, setOpenAccordions] = useState<Record<number, boolean>>({})
+  const [verTodosProductos, setVerTodosProductos] = useState(false)
+
+  // Estados para Gestión de Pagos Parciales/Únicos
+  const [isPaymentsModalOpen, setIsPaymentsModalOpen] = useState(false)
+  const [selectedPedidoForPayments, setSelectedPedidoForPayments] = useState<Pedido | null>(null)
+  const [pedidoPayments, setPedidoPayments] = useState<Pago[]>([])
+  const [paymentFormData, setPaymentFormData] = useState({
+    monto: '',
+    medio_pago: 'efectivo',
+    tipo_cobro: 'parcial' as 'seña' | 'parcial' | 'saldo' | 'unico',
+    observaciones: '',
+    fecha_pago: ''
+  })
+  const [paymentError, setPaymentError] = useState('')
+  const [paymentSuccess, setPaymentSuccess] = useState('')
+  const [isSubmittingPayment, setIsSubmittingPayment] = useState(false)
+
   // Estados para el flujo Wizard de creación
   const [wizardStep, setWizardStep] = useState<'select_client' | 'client_confirmation' | 'order_details' | 'order_confirmation'>('select_client')
   const [selectedWizardClient, setSelectedWizardClient] = useState<Cliente | null>(null)
@@ -61,8 +92,30 @@ export default function PedidosPage() {
     estado: 'pendiente',
     selectedProductIds: [] as number[],
     productQuantities: {} as Record<number, number>,
-    precio: ''
+    precio: '',
+    comentario: '',
+    tipo_pago: 'unico' as 'unico' | 'parcial'
   })
+
+  // Ordenamiento
+  const [sortField, setSortField] = useState<string | null>(null)
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
+
+  // Paginación
+  const [currentPage, setCurrentPage] = useState(1)
+
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [searchQuery, filterPrioridad, filterEstado])
+
+  const handleSort = (field: string) => {
+    if (sortField === field) {
+      setSortDirection(prev => (prev === 'asc' ? 'desc' : 'asc'))
+    } else {
+      setSortField(field)
+      setSortDirection('asc')
+    }
+  }
 
   const [clientSearchText, setClientSearchText] = useState('')
   const [isClientDropdownOpen, setIsClientDropdownOpen] = useState(false)
@@ -198,15 +251,25 @@ export default function PedidosPage() {
     setSelectedPedido(null)
     setLocalEtapas([])
     setLocalAssignments({})
+
+    // Calcular fecha por defecto: hoy + 15 días
+    const defaultDeliveryDate = (() => {
+      const d = new Date()
+      d.setDate(d.getDate() + 15)
+      return d.toISOString().split('T')[0]
+    })()
+
     setFormData({
       cliente_id: '',
       codigo: `PD-${Date.now().toString().slice(-6)}`,
       prioridad: 'normal',
-      fecha_entrega: '',
+      fecha_entrega: defaultDeliveryDate,
       estado: 'pendiente',
       selectedProductIds: [],
       productQuantities: {},
-      precio: ''
+      precio: '',
+      comentario: '',
+      tipo_pago: 'unico'
     })
     setClientSearchText('')
     setProductSearchQuery('')
@@ -235,15 +298,24 @@ export default function PedidosPage() {
       return acc
     }, {} as Record<number, number>) || {}
 
+    // Si no tiene fecha de entrega, usar hoy + 15 días
+    const defaultDeliveryDate = (() => {
+      const d = new Date()
+      d.setDate(d.getDate() + 15)
+      return d.toISOString().split('T')[0]
+    })()
+
     setFormData({
       cliente_id: pedido.cliente_id.toString(),
       codigo: pedido.codigo,
       prioridad: pedido.prioridad,
-      fecha_entrega: pedido.fecha_entrega || '',
+      fecha_entrega: pedido.fecha_entrega || defaultDeliveryDate,
       estado: pedido.estado,
       selectedProductIds: productIds,
       productQuantities: quantities,
-      precio: pedido.precio !== null && pedido.precio !== undefined ? pedido.precio.toString() : ''
+      precio: pedido.precio !== null && pedido.precio !== undefined ? pedido.precio.toString() : '',
+      comentario: pedido.comentario || '',
+      tipo_pago: pedido.tipo_pago || 'unico'
     })
     const assignedClient = clientes.find((c) => c.id === pedido.cliente_id)
     setClientSearchText(assignedClient ? `${assignedClient.nombre_cliente} - ${assignedClient.nombre_empresa}` : '')
@@ -426,6 +498,8 @@ export default function PedidosPage() {
         prioridad: formData.prioridad,
         fecha_entrega: formData.fecha_entrega || null,
         precio: formData.precio ? parseFloat(formData.precio) : null,
+        comentario: formData.comentario || null,
+        tipo_pago: formData.tipo_pago,
         productos: formData.selectedProductIds.map((id) => ({
           id,
           cantidad: formData.productQuantities[id] || 1
@@ -477,6 +551,8 @@ export default function PedidosPage() {
         fecha_entrega: formData.fecha_entrega || null,
         estado: formData.estado,
         precio: formData.precio ? parseFloat(formData.precio) : null,
+        comentario: formData.comentario || null,
+        tipo_pago: formData.tipo_pago,
         productos: formData.selectedProductIds.map((id) => ({
           id,
           cantidad: formData.productQuantities[id] || 1
@@ -527,6 +603,155 @@ export default function PedidosPage() {
     }))
   }
 
+  const getProductCurrentStage = (pedidoId: number, productStages: Etapa[], tasks: ResponsableEtapa[]) => {
+    const pedidoTasks = tasks.filter(t => t.pedido_id === pedidoId)
+    const sortedStages = [...productStages].sort((a, b) => a.orden - b.orden)
+
+    // Buscar la primera tarea que no esté completada
+    for (const stage of sortedStages) {
+      const task = pedidoTasks.find(t => t.etapa_id === stage.id)
+      if (task && task.estado !== 'completado') {
+        return { stage, task }
+      }
+    }
+    // Si están todas completadas
+    if (sortedStages.length > 0) {
+      const lastStage = sortedStages[sortedStages.length - 1]
+      const lastTask = pedidoTasks.find(t => t.etapa_id === lastStage.id)
+      return { stage: lastStage, task: lastTask }
+    }
+    return null
+  }
+
+  const handleOpenViewModal = async (pedido: Pedido) => {
+    setSelectedPedidoForView(pedido)
+    setTempComentario(pedido.comentario || '')
+    setNuevoComentario('')
+    setIsEditCommentActive(false)
+    setOpenAccordions({})
+    setVerTodosProductos(false)
+    setIsViewModalOpen(true)
+
+    // Cargar asignaciones de tareas para este pedido
+    await loadTaskAssignments(pedido.id)
+  }
+
+  // ── Gestores de Pagos Parciales/Únicos ─────────────────────────────
+  const handleOpenPaymentsModal = async (pedido: Pedido) => {
+    setSelectedPedidoForPayments(pedido)
+    setPaymentError('')
+    setPaymentSuccess('')
+
+    const precio = Number(pedido.precio) || 0
+    const currentPaid = pedido.pagos
+      ? pedido.pagos.filter(p => p.estado === 'pagado').reduce((sum, p) => sum + Number(p.monto), 0)
+      : (pedido.pago && pedido.pago.estado === 'pagado' ? Number(pedido.pago.monto) : 0)
+    const saldo = Math.max(0, precio - currentPaid)
+
+    setPaymentFormData({
+      monto: saldo > 0 ? saldo.toString() : '',
+      medio_pago: 'efectivo',
+      tipo_cobro: pedido.tipo_pago === 'unico' ? 'unico' : 'parcial',
+      observaciones: '',
+      fecha_pago: new Date().toISOString().split('T')[0]
+    })
+
+    try {
+      const pagos = await fetchPedidoPagos(pedido.id)
+      setPedidoPayments(pagos)
+    } catch (err) {
+      console.error('Error fetching payments:', err)
+      setPedidoPayments(pedido.pagos || (pedido.pago ? [pedido.pago] : []))
+    }
+
+    setIsPaymentsModalOpen(true)
+  }
+
+  const handleCreatePayment = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!selectedPedidoForPayments) return
+    setPaymentError('')
+    setPaymentSuccess('')
+    setIsSubmittingPayment(true)
+
+    const monto = parseFloat(paymentFormData.monto)
+    if (isNaN(monto) || monto <= 0) {
+      setPaymentError('Por favor ingrese un monto válido mayor a 0.')
+      setIsSubmittingPayment(false)
+      return
+    }
+
+    try {
+      const res = await createPedidoPago(selectedPedidoForPayments.id, {
+        monto,
+        medio_pago: paymentFormData.medio_pago,
+        tipo_cobro: paymentFormData.tipo_cobro,
+        observaciones: paymentFormData.observaciones || undefined,
+        fecha_pago: paymentFormData.fecha_pago || undefined
+      })
+
+      setPaymentSuccess(res.message || 'Pago registrado con éxito.')
+
+      const updatedPagos = await fetchPedidoPagos(selectedPedidoForPayments.id)
+      setPedidoPayments(updatedPagos)
+
+      const updatedPedido = res.pedido
+      setSelectedPedidoForPayments(updatedPedido)
+      const precio = Number(updatedPedido.precio) || 0
+      const currentPaid = updatedPedido.pagos
+        ? updatedPedido.pagos.filter(p => p.estado === 'pagado').reduce((sum, p) => sum + Number(p.monto), 0)
+        : (updatedPedido.pago && updatedPedido.pago.estado === 'pagado' ? Number(updatedPedido.pago.monto) : 0)
+      const newSaldo = Math.max(0, precio - currentPaid)
+
+      setPaymentFormData({
+        monto: newSaldo > 0 ? newSaldo.toString() : '',
+        medio_pago: 'efectivo',
+        tipo_cobro: updatedPedido.tipo_pago === 'unico' ? 'unico' : 'parcial',
+        observaciones: '',
+        fecha_pago: new Date().toISOString().split('T')[0]
+      })
+
+      loadData()
+    } catch (err: any) {
+      setPaymentError(err instanceof Error ? err.message : 'Error al registrar el pago.')
+    } finally {
+      setIsSubmittingPayment(false)
+    }
+  }
+
+  const handleAnnulPayment = async (pagoId: number) => {
+    if (!confirm('¿Estás seguro de que deseas anular este pago? Esta acción no se puede deshacer.')) return
+    setPaymentError('')
+    setPaymentSuccess('')
+
+    try {
+      const res = await deletePedidoPago(pagoId)
+      setPaymentSuccess('Pago anulado con éxito.')
+
+      if (selectedPedidoForPayments) {
+        const updatedPagos = await fetchPedidoPagos(selectedPedidoForPayments.id)
+        setPedidoPayments(updatedPagos)
+
+        const updatedPedido = res.pedido
+        setSelectedPedidoForPayments(updatedPedido)
+        const precio = Number(updatedPedido.precio) || 0
+        const currentPaid = updatedPedido.pagos
+          ? updatedPedido.pagos.filter(p => p.estado === 'pagado').reduce((sum, p) => sum + Number(p.monto), 0)
+          : (updatedPedido.pago && updatedPedido.pago.estado === 'pagado' ? Number(updatedPedido.pago.monto) : 0)
+        const newSaldo = Math.max(0, precio - currentPaid)
+
+        setPaymentFormData(prev => ({
+          ...prev,
+          monto: newSaldo > 0 ? newSaldo.toString() : ''
+        }))
+      }
+
+      loadData()
+    } catch (err: any) {
+      setPaymentError(err instanceof Error ? err.message : 'Error al anular el pago.')
+    }
+  }
+
   const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
       loadData()
@@ -570,18 +795,59 @@ export default function PedidosPage() {
     }
   }
 
-  // Filtrado de pedidos según el rol del usuario (vendedor y diseñador solo ven los suyos)
-  const displayedPedidos = pedidos.filter((p) => {
-    if (!currentUser) return false
-    if (currentUser.role === 'vendedor' || currentUser.role === 'disenador') {
-      return p.user_id === currentUser.id
-    }
-    return true
-  })
+  // Filtrado y ordenamiento de pedidos
+  const filteredAndSortedPedidos = pedidos
+    .filter((p) => {
+      if (!currentUser) return false
+      if (currentUser.role === 'vendedor' || currentUser.role === 'disenador') {
+        return p.user_id === currentUser.id
+      }
+      return true
+    })
+    .sort((a, b) => {
+      if (!sortField) return 0
+
+      let valA: any = ''
+      let valB: any = ''
+
+      if (sortField === 'cliente') {
+        valA = `${a.cliente?.nombre_cliente || ''} ${a.cliente?.nombre_empresa || ''}`.trim().toLowerCase()
+        valB = `${b.cliente?.nombre_cliente || ''} ${b.cliente?.nombre_empresa || ''}`.trim().toLowerCase()
+      } else if (sortField === 'productos') {
+        valA = a.productos?.length || 0
+        valB = b.productos?.length || 0
+      } else if (sortField === 'prioridad') {
+        const priorityOrder = { baja: 1, normal: 2, alta: 3, critica: 4 }
+        valA = priorityOrder[a.prioridad] || 0
+        valB = priorityOrder[b.prioridad] || 0
+      } else if (sortField === 'estado') {
+        valA = a.estado.toLowerCase()
+        valB = b.estado.toLowerCase()
+      } else if (sortField === 'fecha_entrega') {
+        valA = a.fecha_entrega ? new Date(a.fecha_entrega).getTime() : 0
+        valB = b.fecha_entrega ? new Date(b.fecha_entrega).getTime() : 0
+      } else if (sortField === 'precio') {
+        valA = a.precio ? parseFloat(a.precio.toString()) : 0
+        valB = b.precio ? parseFloat(b.precio.toString()) : 0
+      } else if (sortField === 'user') {
+        valA = (a.user?.name || '').toLowerCase()
+        valB = (b.user?.name || '').toLowerCase()
+      }
+
+      if (valA < valB) return sortDirection === 'asc' ? -1 : 1
+      if (valA > valB) return sortDirection === 'asc' ? 1 : -1
+      return 0
+    })
+
+  const totalPages = Math.ceil(filteredAndSortedPedidos.length / 5)
+  const displayedPedidos = filteredAndSortedPedidos.slice(
+    (currentPage - 1) * 5,
+    currentPage * 5
+  )
 
   return (
     <RoleGuard allowedRoles={['admin', 'supervisor', 'encargado', 'vendedor', 'disenador']}>
-      <main className="page-content p-6 max-w-7xl mx-auto text-white">
+      <main className="page-content p-6 text-white">
         {/* Notificaciones */}
         {successMessage && (
           <div className="fixed top-4 right-4 z-50 bg-emerald-500 text-white px-4 py-3 rounded-lg shadow-xl border border-emerald-400 flex items-center gap-2 animate-bounce">
@@ -718,14 +984,28 @@ export default function PedidosPage() {
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">
                 <thead>
-                  <tr className="border-b border-slate-800 bg-slate-950/40 text-slate-400 font-semibold text-xs uppercase tracking-wider">
-                    <th className="px-6 py-4">Cliente</th>
-                    <th className="px-6 py-4 text-center">Productos</th>
-                    <th className="px-6 py-4">Prioridad</th>
-                    <th className="px-6 py-4">Estado</th>
-                    <th className="px-6 py-4">Fecha Entrega</th>
-                    <th className="px-6 py-4 text-right">Precio</th>
-                    <th className="px-6 py-4">Registrado por</th>
+                  <tr className="border-b border-slate-800 bg-slate-950/40 text-slate-400 font-semibold text-xs uppercase tracking-wider select-none">
+                    <th onClick={() => handleSort('cliente')} className="px-6 py-4 cursor-pointer hover:text-white transition text-left">
+                      Cliente {sortField === 'cliente' ? (sortDirection === 'asc' ? ' ▲' : ' ▼') : ''}
+                    </th>
+                    <th onClick={() => handleSort('productos')} className="px-6 py-4 text-center cursor-pointer hover:text-white transition">
+                      Productos {sortField === 'productos' ? (sortDirection === 'asc' ? ' ▲' : ' ▼') : ''}
+                    </th>
+                    <th onClick={() => handleSort('prioridad')} className="px-6 py-4 cursor-pointer hover:text-white transition text-left">
+                      Prioridad {sortField === 'prioridad' ? (sortDirection === 'asc' ? ' ▲' : ' ▼') : ''}
+                    </th>
+                    <th onClick={() => handleSort('estado')} className="px-6 py-4 cursor-pointer hover:text-white transition text-left">
+                      Estado {sortField === 'estado' ? (sortDirection === 'asc' ? ' ▲' : ' ▼') : ''}
+                    </th>
+                    <th onClick={() => handleSort('fecha_entrega')} className="px-6 py-4 cursor-pointer hover:text-white transition text-left">
+                      Fecha Entrega {sortField === 'fecha_entrega' ? (sortDirection === 'asc' ? ' ▲' : ' ▼') : ''}
+                    </th>
+                    <th onClick={() => handleSort('precio')} className="px-6 py-4 text-right cursor-pointer hover:text-white transition">
+                      Precio {sortField === 'precio' ? (sortDirection === 'asc' ? ' ▲' : ' ▼') : ''}
+                    </th>
+                    <th onClick={() => handleSort('user')} className="px-6 py-4 cursor-pointer hover:text-white transition text-left">
+                      Registrado por {sortField === 'user' ? (sortDirection === 'asc' ? ' ▲' : ' ▼') : ''}
+                    </th>
                     <th className="px-6 py-4 text-right">Acciones</th>
                   </tr>
                 </thead>
@@ -736,12 +1016,18 @@ export default function PedidosPage() {
                         <div className="flex flex-col">
                           <span className="font-semibold text-white">{pedido.cliente?.nombre_cliente} - {pedido.cliente?.nombre_empresa}</span>
                           <span className="text-xs text-slate-500">{pedido.cliente?.email || 'Sin correo'}</span>
+                          {pedido.comentario && (
+                            <span className="text-[11px] text-slate-400 mt-1 italic flex items-center gap-1 max-w-xs truncate" title={pedido.comentario}>
+                              <span>💬</span>
+                              <span>{pedido.comentario}</span>
+                            </span>
+                          )}
                         </div>
                       </td>
                       <td className="px-6 py-4 max-w-xs">
                         {pedido.productos && pedido.productos.length > 0 ? (
                           <div className="flex flex-col gap-1.5 items-stretch justify-center">
-                            {pedido.productos.map((prod) => {
+                            {pedido.productos.slice(0, 2).map((prod) => {
                               const qty = (prod as any).pivot?.cantidad
                               return (
                                 <span
@@ -753,6 +1039,11 @@ export default function PedidosPage() {
                                 </span>
                               )
                             })}
+                            {pedido.productos.length > 2 && (
+                              <span className="text-[10px] text-slate-500 font-bold text-center mt-0.5 select-none">
+                                + {pedido.productos.length - 2} más
+                              </span>
+                            )}
                           </div>
                         ) : (
                           <span className="text-slate-650 italic text-xs block text-center">Ninguno</span>
@@ -794,6 +1085,20 @@ export default function PedidosPage() {
                       <td className="px-6 py-4 text-right">
                         <div className="flex justify-end gap-2.5">
                           <button
+                            onClick={() => handleOpenViewModal(pedido)}
+                            className="text-blue-400 hover:text-blue-300 p-1 hover:bg-blue-500/10 rounded transition"
+                            title="Ver detalles del pedido (Trello)"
+                          >
+                            👁️
+                          </button>
+                          <button
+                            onClick={() => handleOpenPaymentsModal(pedido)}
+                            className="text-emerald-400 hover:text-emerald-300 p-1 hover:bg-emerald-500/10 rounded transition"
+                            title="Gestionar pagos del pedido"
+                          >
+                            💵
+                          </button>
+                          <button
                             onClick={() => handleOpenEditModal(pedido)}
                             className="text-slate-400 hover:text-white p-1 hover:bg-slate-800 rounded transition"
                             title="Editar/Asignar pedido"
@@ -813,22 +1118,74 @@ export default function PedidosPage() {
                   ))}
                 </tbody>
               </table>
+
+              {/* Controles de Paginación */}
+              {totalPages > 1 && (
+                <div className="flex items-center justify-between border-t border-slate-800 bg-slate-950/20 px-6 py-4">
+                  <div className="text-xs text-slate-400">
+                    Mostrando <span className="font-semibold text-white">{(currentPage - 1) * 5 + 1}</span> a <span className="font-semibold text-white">{Math.min(currentPage * 5, filteredAndSortedPedidos.length)}</span> de <span className="font-semibold text-white">{filteredAndSortedPedidos.length}</span> pedidos
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      disabled={currentPage === 1}
+                      onClick={() => setCurrentPage(1)}
+                      className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 disabled:opacity-30 rounded text-xs text-slate-200 transition font-medium"
+                    >
+                      ⏮️
+                    </button>
+                    <button
+                      type="button"
+                      disabled={currentPage === 1}
+                      onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                      className="px-3 py-1 bg-slate-800 hover:bg-slate-700 disabled:opacity-30 rounded text-xs text-slate-200 transition font-medium"
+                    >
+                      Anterior
+                    </button>
+                    <span className="px-3 py-1 bg-slate-900 border border-slate-850 rounded text-xs text-slate-300 font-semibold self-center">
+                      Pág. {currentPage} de {totalPages}
+                    </span>
+                    <button
+                      type="button"
+                      disabled={currentPage === totalPages}
+                      onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                      className="px-3 py-1 bg-slate-800 hover:bg-slate-700 disabled:opacity-30 rounded text-xs text-slate-200 transition font-medium"
+                    >
+                      Siguiente
+                    </button>
+                    <button
+                      type="button"
+                      disabled={currentPage === totalPages}
+                      onClick={() => setCurrentPage(totalPages)}
+                      className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 disabled:opacity-30 rounded text-xs text-slate-200 transition font-medium"
+                    >
+                      ⏭️
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
 
         {/* Modal de Creación (Wizard) */}
         {isCreateModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 backdrop-blur-sm p-4">
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-xl shadow-2xl p-6 relative animate-in fade-in zoom-in-95 duration-150 max-h-[90vh] overflow-y-auto">
+          <>
+            <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-sm" onClick={() => {
+              setIsCreateModalOpen(false)
+              setWizardStep('select_client')
+              setSelectedWizardClient(null)
+              setCreatedPedidoResult(null)
+            }} />
+            <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-xl shadow-2xl p-6 max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in-95 duration-150">
               <h2 className="text-xl font-bold text-white mb-4">Registrar Nuevo Pedido</h2>
 
               {/* Stepper Indicator */}
               <div className="flex items-center justify-between mb-6 pb-4 border-b border-slate-800">
                 <div className="flex items-center gap-2">
                   <span className={`flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold transition-all ${wizardStep === 'select_client' || wizardStep === 'client_confirmation'
-                      ? 'bg-blue-600 text-white shadow-[0_0_8px_rgba(37,99,235,0.6)]'
-                      : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                    ? 'bg-blue-600 text-white shadow-[0_0_8px_rgba(37,99,235,0.6)]'
+                    : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
                     }`}>
                     {['order_details', 'order_confirmation'].includes(wizardStep) ? '✓' : '1'}
                   </span>
@@ -842,10 +1199,10 @@ export default function PedidosPage() {
 
                 <div className="flex items-center gap-2">
                   <span className={`flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold transition-all ${wizardStep === 'order_details'
-                      ? 'bg-blue-600 text-white shadow-[0_0_8px_rgba(37,99,235,0.6)]'
-                      : wizardStep === 'order_confirmation'
-                        ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
-                        : 'bg-slate-800 text-slate-500 border border-slate-700/30'
+                    ? 'bg-blue-600 text-white shadow-[0_0_8px_rgba(37,99,235,0.6)]'
+                    : wizardStep === 'order_confirmation'
+                      ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                      : 'bg-slate-800 text-slate-500 border border-slate-700/30'
                     }`}>
                     {wizardStep === 'order_confirmation' ? '✓' : '2'}
                   </span>
@@ -859,8 +1216,8 @@ export default function PedidosPage() {
 
                 <div className="flex items-center gap-2">
                   <span className={`flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold transition-all ${wizardStep === 'order_confirmation'
-                      ? 'bg-blue-600 text-white shadow-[0_0_8px_rgba(37,99,235,0.6)]'
-                      : 'bg-slate-800 text-slate-500 border border-slate-700/30'
+                    ? 'bg-blue-600 text-white shadow-[0_0_8px_rgba(37,99,235,0.6)]'
+                    : 'bg-slate-800 text-slate-500 border border-slate-700/30'
                     }`}>
                     3
                   </span>
@@ -893,8 +1250,8 @@ export default function PedidosPage() {
                         setError('')
                       }}
                       className={`flex-1 py-1.5 text-center text-xs font-semibold rounded-md transition ${clientMode === 'search'
-                          ? 'bg-blue-600 text-white shadow'
-                          : 'text-slate-400 hover:text-slate-200'
+                        ? 'bg-blue-600 text-white shadow'
+                        : 'text-slate-400 hover:text-slate-200'
                         }`}
                     >
                       🔍 Buscar Cliente Existente
@@ -906,8 +1263,8 @@ export default function PedidosPage() {
                         setError('')
                       }}
                       className={`flex-1 py-1.5 text-center text-xs font-semibold rounded-md transition ${clientMode === 'create'
-                          ? 'bg-blue-600 text-white shadow'
-                          : 'text-slate-400 hover:text-slate-200'
+                        ? 'bg-blue-600 text-white shadow'
+                        : 'text-slate-400 hover:text-slate-200'
                         }`}
                     >
                       ➕ Registrar Nuevo Cliente
@@ -1329,7 +1686,7 @@ export default function PedidosPage() {
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                     <div>
                       <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
                         Prioridad *
@@ -1362,6 +1719,31 @@ export default function PedidosPage() {
                         className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition"
                       />
                     </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
+                        Tipo de Cobro / Pago
+                      </label>
+                      <select
+                        value={formData.tipo_pago}
+                        onChange={(e) => setFormData({ ...formData, tipo_pago: e.target.value as 'unico' | 'parcial' })}
+                        className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition"
+                      >
+                        <option value="unico">Pago Único</option>
+                        <option value="parcial">Pagos Parciales (Abonos)</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
+                      Comentario
+                    </label>
+                    <textarea
+                      placeholder="Escribe un comentario o notas adicionales para el pedido..."
+                      value={formData.comentario}
+                      onChange={(e) => setFormData({ ...formData, comentario: e.target.value })}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition h-20 resize-none"
+                    />
                   </div>
 
                   {/* Selección de Productos */}
@@ -1422,7 +1804,7 @@ export default function PedidosPage() {
                   </div>
 
                   {/* Etapas de Fabricación por Producto */}
-                  {formData.selectedProductIds.length > 0 && (
+                  {formData.selectedProductIds.length > 0 && currentUser?.role !== 'vendedor' && (
                     <div className="border-t border-slate-800 pt-4 mt-4 space-y-3">
                       <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
                         Etapas de Fabricación y Asignación de Operarios
@@ -1463,7 +1845,7 @@ export default function PedidosPage() {
                                           <span className="font-semibold block text-slate-200">{stage.orden}. {stage.nombre}</span>
                                         </div>
 
-                                        {currentUser && ['admin', 'supervisor', 'encargado'].includes(currentUser.role) ? (
+                                        {currentUser && ['admin', 'encargado'].includes(currentUser.role) ? (
                                           <select
                                             value={localAssignments[stageKey] || ''}
                                             onChange={(e) => handleAssignTask(stageIdOrTempId, e.target.value)}
@@ -1604,13 +1986,14 @@ export default function PedidosPage() {
                 </div>
               )}
             </div>
-          </div>
+          </>
         )}
 
         {/* Modal de Edición */}
         {isEditModalOpen && selectedPedido && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 backdrop-blur-sm p-4">
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-xl shadow-2xl p-6 relative animate-in fade-in zoom-in-95 duration-150 max-h-[90vh] overflow-y-auto">
+          <>
+            <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-sm" onClick={() => setIsEditModalOpen(false)} />
+            <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-xl shadow-2xl p-6 max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in-95 duration-150">
               <h2 className="text-xl font-bold text-white mb-4">Editar Pedido</h2>
               <form onSubmit={handleEditSubmit} className="space-y-4 text-slate-300">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -1762,12 +2145,37 @@ export default function PedidosPage() {
                       className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition"
                     />
                   </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
+                      Tipo de Cobro / Pago
+                    </label>
+                    <select
+                      value={formData.tipo_pago}
+                      onChange={(e) => setFormData({ ...formData, tipo_pago: e.target.value as 'unico' | 'parcial' })}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition"
+                    >
+                      <option value="unico">Pago Único</option>
+                      <option value="parcial">Pagos Parciales (Abonos)</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
+                    Comentario
+                  </label>
+                  <textarea
+                    placeholder="Escribe un comentario o notas adicionales para el pedido..."
+                    value={formData.comentario}
+                    onChange={(e) => setFormData({ ...formData, comentario: e.target.value })}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition h-20 resize-none mb-4"
+                  />
                 </div>
 
                 {/* Selección de Productos */}
                 <div>
                   <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
-                    Observaciones
+                    Asociar Productos (Opcional)
                   </label>
                   <div className="mb-2">
                     <input
@@ -1821,90 +2229,92 @@ export default function PedidosPage() {
                   )}
                 </div>
                 {/* Etapas de Fabricación y Asignación */}
-                <div className="border-t border-slate-800 pt-4 mt-4 space-y-3">
-                  <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                    Etapas de Fabricación y Asignación de Operarios
-                  </h3>
-                  <p className="text-[11px] text-slate-500">
-                    Se muestran las etapas de fabricación preconfiguradas para los productos seleccionados. Puede asignar el operario responsable de cada etapa.
-                  </p>
+                {currentUser?.role !== 'vendedor' && (
+                  <div className="border-t border-slate-800 pt-4 mt-4 space-y-3">
+                    <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                      Etapas de Fabricación y Asignación de Operarios
+                    </h3>
+                    <p className="text-[11px] text-slate-500">
+                      Se muestran las etapas de fabricación preconfiguradas para los productos seleccionados. Puede asignar el operario responsable de cada etapa.
+                    </p>
 
-                  {formData.selectedProductIds.length === 0 ? (
-                    <p className="text-slate-500 italic text-xs">Asocia productos al pedido para ver sus etapas.</p>
-                  ) : (
-                    <div className="space-y-4 max-h-[300px] overflow-y-auto bg-slate-950/60 p-3 rounded-lg border border-slate-800">
-                      {formData.selectedProductIds.map((prodId) => {
-                        const product = productos.find(p => p.id === prodId)
-                        const productStages = localEtapas
-                          .filter(s => s.producto_id === prodId)
-                          .sort((a, b) => a.orden - b.orden)
+                    {formData.selectedProductIds.length === 0 ? (
+                      <p className="text-slate-500 italic text-xs">Asocia productos al pedido para ver sus etapas.</p>
+                    ) : (
+                      <div className="space-y-4 max-h-[300px] overflow-y-auto bg-slate-950/60 p-3 rounded-lg border border-slate-800">
+                        {formData.selectedProductIds.map((prodId) => {
+                          const product = productos.find(p => p.id === prodId)
+                          const productStages = localEtapas
+                            .filter(s => s.producto_id === prodId)
+                            .sort((a, b) => a.orden - b.orden)
 
-                        return (
-                          <div key={prodId} className="space-y-2 bg-slate-900/60 p-3 rounded-lg border border-slate-800/40">
-                            <div className="flex items-center justify-between border-b border-slate-850 pb-1.5">
-                              <span className="text-xs font-bold uppercase tracking-wider text-blue-400">
-                                {product?.nombre}
-                              </span>
-                              <span className="text-[10px] bg-slate-850 text-slate-400 px-2 py-0.5 rounded-full">
-                                {productStages.length} {productStages.length === 1 ? 'etapa' : 'etapas'}
-                              </span>
-                            </div>
-
-                            {productStages.length === 0 ? (
-                              <div className="flex flex-col sm:flex-row items-center justify-between gap-2 py-2">
-                                <span className="text-xs text-slate-500 italic">No hay etapas configuradas.</span>
+                          return (
+                            <div key={prodId} className="space-y-2 bg-slate-900/60 p-3 rounded-lg border border-slate-800/40">
+                              <div className="flex items-center justify-between border-b border-slate-850 pb-1.5">
+                                <span className="text-xs font-bold uppercase tracking-wider text-blue-400">
+                                  {product?.nombre}
+                                </span>
+                                <span className="text-[10px] bg-slate-850 text-slate-400 px-2 py-0.5 rounded-full">
+                                  {productStages.length} {productStages.length === 1 ? 'etapa' : 'etapas'}
+                                </span>
                               </div>
-                            ) : (
-                              <div className="space-y-1.5">
-                                {productStages.map((stage) => {
-                                  const stageIdOrTempId = stage.id || stage.temp_id
-                                  const stageKey = stageIdOrTempId.toString()
-                                  return (
-                                    <div key={stageKey} className="flex items-center justify-between text-xs bg-slate-950 border border-slate-850/60 p-2 rounded-lg">
-                                      <div className="flex items-center gap-2">
-                                        <div>
-                                          <span className="font-semibold block text-slate-200">{stage.orden}. {stage.nombre}</span>
+
+                              {productStages.length === 0 ? (
+                                <div className="flex flex-col sm:flex-row items-center justify-between gap-2 py-2">
+                                  <span className="text-xs text-slate-500 italic">No hay etapas configuradas.</span>
+                                </div>
+                              ) : (
+                                <div className="space-y-1.5">
+                                  {productStages.map((stage) => {
+                                    const stageIdOrTempId = stage.id || stage.temp_id
+                                    const stageKey = stageIdOrTempId.toString()
+                                    return (
+                                      <div key={stageKey} className="flex items-center justify-between text-xs bg-slate-950 border border-slate-850/60 p-2 rounded-lg">
+                                        <div className="flex items-center gap-2">
+                                          <div>
+                                            <span className="font-semibold block text-slate-200">{stage.orden}. {stage.nombre}</span>
+                                          </div>
                                         </div>
-                                      </div>
 
-                                      {currentUser && ['admin', 'supervisor', 'encargado'].includes(currentUser.role) ? (
-                                        <select
-                                          value={localAssignments[stageKey] || ''}
-                                          onChange={(e) => handleAssignTask(stageIdOrTempId, e.target.value)}
-                                          className="bg-slate-900 border border-slate-800 rounded px-2.5 py-1 text-xs text-white focus:outline-none focus:border-blue-500 transition"
-                                        >
-                                          <option value="">Sin Asignar</option>
-                                          {operarios.map((op) => (
-                                            <option key={op.id} value={op.id}>
-                                              {op.name}
-                                            </option>
-                                          ))}
-                                        </select>
-                                      ) : (
-                                        (() => {
-                                          const assignedOp = operarios.find(o => o.id === localAssignments[stageKey])
-                                          return assignedOp ? (
-                                            <span className="text-slate-400 text-xs italic">
-                                              Asignado: {assignedOp.name}
-                                            </span>
-                                          ) : (
-                                            <span className="text-slate-500 text-xs italic">
-                                              Sin asignar
-                                            </span>
-                                          )
-                                        })()
-                                      )}
-                                    </div>
-                                  )
-                                })}
-                              </div>
-                            )}
-                          </div>
-                        )
-                      })}
-                    </div>
-                  )}
-                </div>
+                                        {currentUser && ['admin', 'encargado'].includes(currentUser.role) ? (
+                                          <select
+                                            value={localAssignments[stageKey] || ''}
+                                            onChange={(e) => handleAssignTask(stageIdOrTempId, e.target.value)}
+                                            className="bg-slate-900 border border-slate-800 rounded px-2.5 py-1 text-xs text-white focus:outline-none focus:border-blue-500 transition"
+                                          >
+                                            <option value="">Sin Asignar</option>
+                                            {operarios.map((op) => (
+                                              <option key={op.id} value={op.id}>
+                                                {op.name}
+                                              </option>
+                                            ))}
+                                          </select>
+                                        ) : (
+                                          (() => {
+                                            const assignedOp = operarios.find(o => o.id === localAssignments[stageKey])
+                                            return assignedOp ? (
+                                              <span className="text-slate-400 text-xs italic">
+                                                Asignado: {assignedOp.name}
+                                              </span>
+                                            ) : (
+                                              <span className="text-slate-500 text-xs italic">
+                                                Sin asignar
+                                              </span>
+                                            )
+                                          })()
+                                        )}
+                                      </div>
+                                    )
+                                  })}
+                                </div>
+                              )}
+                            </div>
+                          )
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-800">
                   <button
@@ -1923,13 +2333,14 @@ export default function PedidosPage() {
                 </div>
               </form>
             </div>
-          </div>
+          </>
         )}
 
         {/* Modal de Creación de Cliente Rápido */}
         {isCreateClienteModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 backdrop-blur-sm p-4 text-slate-300">
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-lg shadow-2xl p-6 relative animate-in fade-in zoom-in-95 duration-150">
+          <>
+            <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-sm" onClick={() => setIsCreateClienteModalOpen(false)} />
+            <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-lg shadow-2xl p-6 max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in-95 duration-150 text-slate-300">
               <h2 className="text-xl font-bold text-white mb-4">Registrar Nuevo Cliente</h2>
               <form onSubmit={handleCreateClienteSubmit} className="space-y-4 max-h-[70vh] overflow-y-auto pr-2 text-left">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -2125,8 +2536,556 @@ export default function PedidosPage() {
                 </div>
               </form>
             </div>
-          </div>
+          </>
         )}
+
+        {/* Modal de Gestión de Pagos */}
+        {isPaymentsModalOpen && selectedPedidoForPayments && (
+          <>
+            <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-sm" onClick={() => setIsPaymentsModalOpen(false)} />
+            <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-4xl shadow-2xl p-6 max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in-95 duration-150">
+              <button
+                onClick={() => setIsPaymentsModalOpen(false)}
+                className="absolute top-4 right-4 text-slate-400 hover:text-white transition text-lg"
+                title="Cerrar"
+              >
+                ✕
+              </button>
+
+              <h2 className="text-xl font-bold text-white mb-1">
+                Gestión de Pagos: {selectedPedidoForPayments.codigo}
+              </h2>
+              <p className="text-xs text-slate-400 mb-5">
+                Cliente: <span className="font-semibold text-slate-200">{selectedPedidoForPayments.cliente?.nombre_cliente} ({selectedPedidoForPayments.cliente?.nombre_empresa})</span> |
+                Tipo: <span className="ml-1 uppercase text-blue-400 font-bold">{selectedPedidoForPayments.tipo_pago === 'unico' ? 'Pago Único' : 'Pagos Parciales'}</span>
+              </p>
+
+              {paymentError && (
+                <div className="mb-4 bg-rose-500/10 border border-rose-500/20 text-rose-300 p-3 rounded-lg text-xs font-semibold">
+                  ⚠️ {paymentError}
+                </div>
+              )}
+              {paymentSuccess && (
+                <div className="mb-4 bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 p-3 rounded-lg text-xs font-semibold">
+                  ✓ {paymentSuccess}
+                </div>
+              )}
+
+              {/* Grid Principal */}
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+                {/* Lado Izquierdo: Resumen y Listado de Pagos */}
+                <div className="lg:col-span-7 space-y-5 text-left">
+
+                  {/* Resumen Financiero */}
+                  <div className="bg-slate-950/60 p-4 rounded-xl border border-slate-800/60 space-y-3">
+                    <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Resumen de Cobros</h3>
+                    <div className="grid grid-cols-3 gap-2 text-center sm:text-left">
+                      <div>
+                        <span className="text-[10px] text-slate-500 uppercase block font-semibold">Total Pedido</span>
+                        <span className="text-sm font-bold text-white font-mono">
+                          $ {Number(selectedPedidoForPayments.precio || 0).toLocaleString('es-AR', { minimumFractionDigits: 2 })}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-[10px] text-slate-500 uppercase block font-semibold">Cobrado</span>
+                        <span className="text-sm font-bold text-emerald-400 font-mono">
+                          $ {Number(selectedPedidoForPayments.monto_pagado || 0).toLocaleString('es-AR', { minimumFractionDigits: 2 })}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-[10px] text-slate-500 uppercase block font-semibold">Saldo Pendiente</span>
+                        <span className="text-sm font-bold text-amber-500 font-mono">
+                          $ {Number(selectedPedidoForPayments.saldo_pendiente || 0).toLocaleString('es-AR', { minimumFractionDigits: 2 })}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Barra de progreso */}
+                    <div className="space-y-1.5">
+                      <div className="flex justify-between text-[10px] font-semibold text-slate-400">
+                        <span>Progreso de cobro</span>
+                        <span>{selectedPedidoForPayments.porcentaje_pagado || 0}%</span>
+                      </div>
+                      <div className="w-full bg-slate-800 rounded-full h-2">
+                        <div
+                          className="bg-emerald-500 h-2 rounded-full transition-all duration-350"
+                          style={{ width: `${Math.min(100, selectedPedidoForPayments.porcentaje_pagado || 0)}%` }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Listado / Historial de Pagos */}
+                  <div className="space-y-2">
+                    <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Historial de Transacciones</h3>
+                    {pedidoPayments.length === 0 ? (
+                      <p className="text-xs text-slate-500 italic py-4 text-center bg-slate-950/20 rounded-lg border border-slate-850">
+                        No hay cobros registrados para este pedido.
+                      </p>
+                    ) : (
+                      <div className="max-h-[220px] overflow-y-auto border border-slate-800/80 rounded-lg divide-y divide-slate-850">
+                        {pedidoPayments.map((pago) => (
+                          <div
+                            key={pago.id}
+                            className={`p-3 text-xs flex justify-between items-center transition ${pago.estado === 'anulado' ? 'bg-slate-950/20 opacity-50' : 'bg-slate-900/40 hover:bg-slate-950/20'
+                              }`}
+                          >
+                            <div className="space-y-0.5">
+                              <div className="flex items-center gap-2">
+                                <span className="font-mono font-bold text-white">
+                                  $ {Number(pago.monto).toLocaleString('es-AR', { minimumFractionDigits: 2 })}
+                                </span>
+                                <span className="text-[9px] px-1 rounded bg-slate-850 border border-slate-800 text-slate-300 font-semibold uppercase">
+                                  {pago.medio_pago || pago.medio}
+                                </span>
+                                {pago.estado === 'anulado' ? (
+                                  <span className="text-[8px] font-bold bg-rose-500/10 text-rose-400 border border-rose-500/20 px-1 rounded">ANULADO</span>
+                                ) : (
+                                  <span className="text-[8px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-1 rounded">{pago.tipo_cobro}</span>
+                                )}
+                              </div>
+                              <div className="text-[10px] text-slate-500 flex flex-wrap gap-x-2">
+                                <span>Fecha: {pago.fecha_pago ? new Date(pago.fecha_pago + 'T00:00:00').toLocaleDateString('es-AR') : new Date(pago.created_at).toLocaleDateString('es-AR')}</span>
+                                <span>•</span>
+                                <span>Por: {pago.vendedor?.name || 'Sistema'}</span>
+                              </div>
+                              {pago.observaciones && (
+                                <p className="text-[10px] text-slate-400 italic mt-0.5">Nota: "{pago.observaciones}"</p>
+                              )}
+                            </div>
+
+                            {/* Botón para anular pago */}
+                            {pago.estado !== 'anulado' && currentUser && ['admin', 'encargado', 'vendedor'].includes(currentUser.role) && (
+                              <button
+                                onClick={() => handleAnnulPayment(pago.id)}
+                                className="text-[10px] text-rose-455 hover:text-rose-300 font-bold hover:bg-rose-500/10 px-2 py-1 rounded transition"
+                                title="Anular Cobro"
+                              >
+                                Anular
+                              </button>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Lado Derecho: Registrar Nuevo Pago */}
+                <div className="lg:col-span-5 bg-slate-950/40 p-4 rounded-xl border border-slate-800 text-left">
+                  <h3 className="text-xs font-bold text-slate-200 uppercase tracking-wider mb-3">Registrar Nuevo Cobro</h3>
+
+                  {selectedPedidoForPayments.tipo_pago === 'unico' && pedidoPayments.some(p => p.estado === 'pagado') ? (
+                    <div className="text-xs text-slate-500 italic py-8 text-center">
+                      🔒 Este pedido es de **Pago Único** y ya tiene un cobro activo registrado. No es posible agregar más cobros.
+                    </div>
+                  ) : (selectedPedidoForPayments.saldo_pendiente ?? 0) <= 0 ? (
+                    <div className="text-xs text-slate-500 italic py-8 text-center">
+                      🎉 Este pedido se encuentra **completamente cobrado**. Saldo pendiente: $0.00.
+                    </div>
+                  ) : (
+                    <form onSubmit={handleCreatePayment} className="space-y-3.5">
+                      <div>
+                        <label className="block text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">
+                          Monto a Cobrar ($) *
+                        </label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          required
+                          max={selectedPedidoForPayments.saldo_pendiente ?? 0}
+                          value={paymentFormData.monto}
+                          onChange={(e) => setPaymentFormData({ ...paymentFormData, monto: e.target.value })}
+                          className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-blue-500 transition"
+                          placeholder="Ej. 500"
+                        />
+                        <span className="text-[9px] text-slate-500 block mt-0.5">Máximo disponible: ${selectedPedidoForPayments.saldo_pendiente ?? 0}</span>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="block text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">
+                            Medio de Pago *
+                          </label>
+                          <select
+                            value={paymentFormData.medio_pago}
+                            onChange={(e) => setPaymentFormData({ ...paymentFormData, medio_pago: e.target.value })}
+                            className="w-full bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-blue-500 transition"
+                          >
+                            <option value="efectivo">💵 Efectivo</option>
+                            <option value="transferencia">🏦 Transferencia</option>
+                            <option value="tarjeta">💳 Tarjeta</option>
+                            <option value="mercado_pago">📱 Mercado Pago</option>
+                            <option value="otro">⚙️ Otro</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">
+                            Tipo de Cobro *
+                          </label>
+                          <select
+                            value={paymentFormData.tipo_cobro}
+                            onChange={(e) => setPaymentFormData({ ...paymentFormData, tipo_cobro: e.target.value as any })}
+                            className="w-full bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-blue-500 transition"
+                          >
+                            {selectedPedidoForPayments.tipo_pago === 'unico' ? (
+                              <option value="unico">Cobro Único</option>
+                            ) : (
+                              <>
+                                <option value="seña">Seña / Adelanto</option>
+                                <option value="parcial">Abono Parcial</option>
+                                <option value="saldo">Saldo Final</option>
+                              </>
+                            )}
+                          </select>
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">
+                          Fecha de Pago
+                        </label>
+                        <input
+                          type="date"
+                          value={paymentFormData.fecha_pago}
+                          onChange={(e) => setPaymentFormData({ ...paymentFormData, fecha_pago: e.target.value })}
+                          className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-blue-500 transition"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">
+                          Observaciones / Notas
+                        </label>
+                        <textarea
+                          rows={2}
+                          value={paymentFormData.observaciones}
+                          onChange={(e) => setPaymentFormData({ ...paymentFormData, observaciones: e.target.value })}
+                          className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-blue-500 transition resize-none"
+                          placeholder="Detalles de la transferencia, banco, etc."
+                        />
+                      </div>
+
+                      <button
+                        type="submit"
+                        disabled={isSubmittingPayment}
+                        className="w-full py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-semibold shadow transition active:scale-[0.98] disabled:opacity-50"
+                      >
+                        {isSubmittingPayment ? 'Registrando...' : 'Registrar Cobro'}
+                      </button>
+                    </form>
+                  )}
+                </div>
+
+              </div>
+
+              <div className="flex items-center justify-end pt-4 border-t border-slate-800 mt-5">
+                <button
+                  type="button"
+                  onClick={() => setIsPaymentsModalOpen(false)}
+                  className="px-4 py-2 rounded-lg text-xs text-slate-400 hover:text-white hover:bg-slate-800 transition"
+                >
+                  Cerrar
+                </button>
+              </div>
+
+            </div>
+          </>
+        )}
+
+        {isViewModalOpen && selectedPedidoForView && (() => {
+          const pds = selectedPedidoForView.productos || []
+          const displayedProducts = verTodosProductos ? pds : pds.slice(0, 2)
+
+          return (
+            <>
+              <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm" onClick={() => { setIsViewModalOpen(false); setSelectedPedidoForView(null); }} />
+              <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-4xl shadow-2xl p-6 max-h-[90vh] overflow-y-auto flex flex-col animate-in fade-in zoom-in-95 duration-150">
+                {/* Header de la Tarjeta Trello */}
+                <div className="flex items-start justify-between border-b border-slate-800 pb-4 mb-4">
+                  <div className="text-left">
+                    {/* Estado del Pedido como Dropdown */}
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Estado:</span>
+                      <select
+                        value={selectedPedidoForView.estado}
+                        onChange={async (e) => {
+                          try {
+                            const newEstado = e.target.value
+                            const updated = await updatePedido(selectedPedidoForView.id, { estado: newEstado })
+                            setSelectedPedidoForView(updated)
+                            setPedidos(prev => prev.map(p => p.id === updated.id ? updated : p))
+                          } catch (err: any) {
+                            console.error("Error al actualizar estado:", err)
+                          }
+                        }}
+                        className="bg-slate-950 border border-slate-800 text-xs font-semibold text-blue-400 focus:outline-none focus:border-blue-500 rounded px-2 py-0.5"
+                      >
+                        <option value="pendiente">Pendiente</option>
+                        <option value="en_progreso">En Progreso</option>
+                        <option value="completado">Completado</option>
+                        <option value="cancelado">Cancelado</option>
+                      </select>
+                    </div>
+
+                    <h2 className="text-2xl font-bold text-white flex items-center gap-2">
+                      📋 {selectedPedidoForView.codigo}
+                    </h2>
+                    <p className="text-xs text-slate-400 mt-1">
+                      Cliente: <span className="text-slate-200 font-bold">{selectedPedidoForView.cliente?.nombre_cliente}</span> ({selectedPedidoForView.cliente?.nombre_empresa})
+                    </p>
+                  </div>
+
+                  <button
+                    onClick={() => {
+                      setIsViewModalOpen(false)
+                      setSelectedPedidoForView(null)
+                    }}
+                    className="text-slate-400 hover:text-white transition text-lg p-1 hover:bg-slate-800 rounded-lg"
+                    title="Cerrar"
+                  >
+                    ✕
+                  </button>
+                </div>
+
+                {/* Cuerpo Principal: Dos Columnas */}
+                <div className="grid grid-cols-1 md:grid-cols-12 gap-6 flex-grow overflow-y-auto">
+                  {/* Columna Izquierda (8 cols) */}
+                  <div className="md:col-span-8 space-y-6 text-left">
+                    {/* Sección: Descripción */}
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                          <span>📝</span> Descripción
+                        </h3>
+                        <button
+                          type="button"
+                          onClick={() => setIsEditCommentActive(!isEditCommentActive)}
+                          className="text-xs bg-slate-800 hover:bg-slate-700 hover:text-white text-slate-300 px-2 py-1 rounded transition font-semibold"
+                        >
+                          {isEditCommentActive ? 'Cancelar' : 'Editar'}
+                        </button>
+                      </div>
+
+                      {isEditCommentActive ? (
+                        <div className="space-y-2">
+                          <textarea
+                            value={tempComentario || ''}
+                            onChange={(e) => setTempComentario(e.target.value)}
+                            className="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-sm text-white focus:outline-none focus:border-blue-500 transition h-24"
+                            placeholder="Agregar una descripción más detallada..."
+                          />
+                          <div className="flex gap-2">
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                try {
+                                  const updated = await updatePedido(selectedPedidoForView.id, { comentario: tempComentario })
+                                  setSelectedPedidoForView(updated)
+                                  setPedidos(prev => prev.map(p => p.id === updated.id ? updated : p))
+                                  setIsEditCommentActive(false)
+                                } catch (err: any) {
+                                  console.error("Error al actualizar comentario/descripción:", err)
+                                }
+                              }}
+                              className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded text-xs font-semibold"
+                            >
+                              Guardar
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="bg-slate-950/40 border border-slate-855 p-4 rounded-xl">
+                          {selectedPedidoForView.comentario ? (
+                            <p className="text-sm text-slate-300 whitespace-pre-wrap">{selectedPedidoForView.comentario}</p>
+                          ) : (
+                            <p className="text-sm text-slate-500 italic">No hay descripción añadida. Haz clic en Editar para agregar una.</p>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Sección: Productos y sus Etapas */}
+                    <div className="space-y-3">
+                      <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                        <span>📦</span> Productos y Etapas de Fabricación
+                      </h3>
+
+                      {pds.length === 0 ? (
+                        <p className="text-xs text-slate-500 italic">No hay productos asociados a este pedido.</p>
+                      ) : (
+                        <div className="space-y-3">
+                          {displayedProducts.map((prod) => {
+                            const prodStages = allStages.filter(s => s.producto_id === prod.id).sort((a, b) => a.orden - b.orden)
+                            const qty = prod.pivot?.cantidad || 1
+                            const currentInfo = getProductCurrentStage(selectedPedidoForView.id, prodStages, taskAssignments)
+                            const isAccordionOpen = openAccordions[prod.id] || false
+
+                            return (
+                              <div key={prod.id} className="bg-slate-950/40 border border-slate-800 rounded-xl p-4 space-y-3 transition hover:border-slate-750">
+                                {/* Cabecera del producto */}
+                                <div className="flex items-center justify-between">
+                                  <div className="text-left">
+                                    <span className="text-sm font-bold text-white block">{prod.nombre}</span>
+                                    <span className="text-[10px] text-slate-500 font-bold uppercase">Cantidad: {qty}</span>
+                                  </div>
+
+                                  {/* Etapa actual a la vista */}
+                                  {currentInfo ? (
+                                    <div className="text-right">
+                                      <span className="text-[10px] text-slate-500 uppercase block font-semibold leading-none mb-1">Etapa Actual</span>
+                                      <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-blue-500/10 text-blue-400 border border-blue-500/20 capitalize">
+                                        {currentInfo.stage.nombre} ({currentInfo.task?.estado || 'pendiente'})
+                                      </span>
+                                    </div>
+                                  ) : (
+                                    <span className="text-xs text-slate-500 italic">Sin etapas</span>
+                                  )}
+                                </div>
+
+                                {/* Botón del acordeón */}
+                                {prodStages.length > 0 && (
+                                  <div className="border-t border-slate-850 pt-2.5">
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setOpenAccordions(prev => ({
+                                          ...prev,
+                                          [prod.id]: !isAccordionOpen
+                                        }))
+                                      }}
+                                      className="w-full flex items-center justify-between text-xs text-blue-400 hover:text-blue-300 font-semibold"
+                                    >
+                                      <span>{isAccordionOpen ? '🔼 Ocultar flujo de etapas' : '🔽 Ver flujo de etapas completo (Grafo)'}</span>
+                                      <span className="text-[10px] bg-slate-800 text-slate-350 px-2 py-0.5 rounded-full">{prodStages.length} etapas</span>
+                                    </button>
+
+                                    {/* Contenedor del Grafo dentro del Acordeón */}
+                                    {isAccordionOpen && (
+                                      <div className="mt-3 p-4 bg-slate-950/80 rounded-xl border border-slate-850 space-y-4 animate-in fade-in slide-in-from-top-1 duration-200">
+                                        <span className="text-[10px] uppercase font-bold text-slate-500 tracking-wider block">Grafo de Progreso de Fabricación</span>
+
+                                        <div className="flex flex-col md:flex-row md:items-center gap-4 md:gap-2 overflow-x-auto py-2">
+                                          {prodStages.map((stage, idx) => {
+                                            const task = taskAssignments.find(t => t.pedido_id === selectedPedidoForView.id && t.etapa_id === stage.id)
+                                            const state = task?.estado || 'pendiente'
+
+                                            let nodeBg = 'bg-slate-900 border-slate-800 text-slate-400'
+                                            let stateLabel = 'Pendiente'
+                                            if (state === 'completado') {
+                                              nodeBg = 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
+                                              stateLabel = 'Completado'
+                                            } else if (state === 'en_progreso') {
+                                              nodeBg = 'bg-blue-500/10 border-blue-500/30 text-blue-400 shadow-[0_0_8px_rgba(59,130,246,0.15)] animate-pulse'
+                                              stateLabel = 'En Progreso'
+                                            } else if (state === 'bloqueada') {
+                                              nodeBg = 'bg-rose-500/10 border-rose-500/30 text-rose-400'
+                                              stateLabel = 'Bloqueada'
+                                            }
+
+                                            return (
+                                              <div key={stage.id} className="flex flex-col md:flex-row md:items-center flex-shrink-0">
+                                                <div className={`border p-2.5 rounded-xl text-center min-w-[130px] ${nodeBg}`}>
+                                                  <span className="text-[9px] font-bold uppercase tracking-wider text-slate-500 block mb-0.5">Etapa {stage.orden}</span>
+                                                  <span className="text-xs font-bold block truncate max-w-[120px]" title={stage.nombre}>{stage.nombre}</span>
+                                                  <span className="text-[9px] font-medium block mt-1 uppercase">{stateLabel}</span>
+                                                </div>
+
+                                                {idx < prodStages.length - 1 && (
+                                                  <div className="flex items-center justify-center py-1 md:py-0 md:px-2">
+                                                    <span className="text-slate-600 font-bold hidden md:inline">➔</span>
+                                                    <span className="text-slate-600 font-bold md:hidden">↓</span>
+                                                  </div>
+                                                )}
+                                              </div>
+                                            )
+                                          })}
+                                        </div>
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            )
+                          })}
+
+                          {pds.length > 2 && (
+                            <div className="flex justify-center pt-2">
+                              <button
+                                type="button"
+                                onClick={() => setVerTodosProductos(!verTodosProductos)}
+                                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-blue-400 hover:text-blue-300 text-xs font-bold rounded-lg transition"
+                              >
+                                {verTodosProductos ? 'Mostrar menos 🔼' : 'Ver todos los productos 🔽'}
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Columna Derecha - Comentarios y Actividad */}
+                  <div className="md:col-span-4 border-t md:border-t-0 md:border-l border-slate-800 pt-6 md:pt-0 md:pl-6 flex flex-col max-h-[60vh] md:max-h-full">
+                    <h3 className="text-sm font-bold text-white flex items-center gap-2 mb-3 text-left">
+                      <span>💬</span> Comentarios y Actividad
+                    </h3>
+
+                    <div className="space-y-2 mb-4 text-left">
+                      <textarea
+                        value={nuevoComentario}
+                        onChange={(e) => setNuevoComentario(e.target.value)}
+                        placeholder="Escribe un comentario..."
+                        className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-xs text-white placeholder-slate-550 focus:outline-none focus:border-blue-500 transition resize-none h-16"
+                      />
+                      <button
+                        type="button"
+                        disabled={!nuevoComentario.trim() || isSubmittingComment}
+                        onClick={async () => {
+                          try {
+                            setIsSubmittingComment(true)
+                            const comment = await createPedidoComentario(selectedPedidoForView.id, nuevoComentario)
+                            const updatedComments = [comment, ...(selectedPedidoForView.comentarios || [])]
+                            const updatedPedido = { ...selectedPedidoForView, comentarios: updatedComments }
+                            setSelectedPedidoForView(updatedPedido)
+                            setPedidos(prev => prev.map(p => p.id === updatedPedido.id ? updatedPedido : p))
+                            setNuevoComentario('')
+                          } catch (err: any) {
+                            console.error("Error al publicar comentario:", err)
+                          } finally {
+                            setIsSubmittingComment(false)
+                          }
+                        }}
+                        className="px-3 py-1 bg-blue-600 hover:bg-blue-500 disabled:bg-slate-850 disabled:text-slate-650 text-white rounded text-xs font-semibold transition"
+                      >
+                        {isSubmittingComment ? 'Publicando...' : 'Comentar'}
+                      </button>
+                    </div>
+
+                    <div className="space-y-3 overflow-y-auto flex-grow pr-1 max-h-[30vh] md:max-h-[45vh]">
+                      {(!selectedPedidoForView.comentarios || selectedPedidoForView.comentarios.length === 0) ? (
+                        <p className="text-xs text-slate-500 italic text-center py-4">No hay comentarios en este pedido todavía.</p>
+                      ) : (
+                        selectedPedidoForView.comentarios.map((c) => (
+                          <div key={c.id} className="bg-slate-950/30 border border-slate-850/50 p-2.5 rounded-lg text-left space-y-1.5">
+                            <div className="flex items-center justify-between text-[10px]">
+                              <span className="font-bold text-slate-350">{c.user?.name || 'Usuario'}</span>
+                              <span className="text-slate-500 font-mono">
+                                {new Date(c.created_at).toLocaleDateString('es-AR')} {new Date(c.created_at).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}
+                              </span>
+                            </div>
+                            <p className="text-xs text-slate-200 leading-relaxed break-words">{c.cuerpo}</p>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </>
+          )
+        })()}
       </main>
     </RoleGuard>
   )

@@ -195,9 +195,6 @@ export default function ClientesPage() {
     if (formData.nombre_empresa !== selectedCliente.nombre_empresa) {
       payload.nombre_empresa = formData.nombre_empresa
     }
-    if (nombreEmpresaValue !== selectedCliente.nombre_empresa) {
-      payload.nombre_empresa = nombreEmpresaValue
-    }
     if (telefonoValue !== selectedCliente.telefono) {
       payload.telefono = telefonoValue
     }

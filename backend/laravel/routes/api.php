@@ -9,6 +9,7 @@ use App\Http\Controllers\Api\ResponsabilidadController;
 use App\Http\Controllers\Api\ResponsableEtapaController;
 use App\Http\Controllers\Api\OperarioTaskController;
 use App\Http\Controllers\Api\EtapaDependenciaController;
+use App\Http\Controllers\Api\PagoController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -62,6 +63,14 @@ Route::middleware('auth:sanctum')->group(function () {
     // ── Pedidos ───────────────────────────────────────────────────
     Route::apiResource('pedidos', PedidoController::class);
     Route::post('pedidos/{id}/generar-tareas', [PedidoController::class, 'generarTareasManual']);
+    Route::get('pedidos/{id}/comentarios', [PedidoController::class, 'getComentarios']);
+    Route::post('pedidos/{id}/comentarios', [PedidoController::class, 'addComentario']);
+
+    // ── Pagos de Pedidos ───────────────────────────────────────────
+    Route::get('pedidos/{pedido}/pagos', [PagoController::class, 'index']);
+    Route::post('pedidos/{pedido}/pagos', [PagoController::class, 'store']);
+    Route::patch('pagos/{pago}', [PagoController::class, 'update']);
+    Route::delete('pagos/{pago}', [PagoController::class, 'destroy']);
 
     // ── Responsabilidades ──────────────────────────────────────────
     Route::get('responsabilidades', [ResponsabilidadController::class, 'index']);
