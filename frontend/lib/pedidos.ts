@@ -44,7 +44,7 @@ export interface Pedido {
   fecha_entrega: string | null
   precio: number | null
   comentario?: string | null
-  tipo_pago: 'unico' | 'parcial'
+  tipo_pago?: 'unico' | 'parcial'
   created_at: string
   updated_at: string
   cliente?: Cliente

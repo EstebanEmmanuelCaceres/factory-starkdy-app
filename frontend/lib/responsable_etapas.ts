@@ -30,6 +30,8 @@ export async function fetchResponsablesEtapas(filters?: {
   pedido_id?: number
   user_id?: number
   estado?: string
+  fecha_desde?: string
+  fecha_hasta?: string
 }): Promise<ResponsableEtapa[]> {
   const { data } = await api.get<{ status: string; data: ResponsableEtapa[] }>('/responsables-etapas', { params: filters })
   return data.data

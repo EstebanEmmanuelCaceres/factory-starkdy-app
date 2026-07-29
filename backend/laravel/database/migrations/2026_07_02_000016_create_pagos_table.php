@@ -6,29 +6,28 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * Run the migrations.
-     */
     public function up(): void
     {
         Schema::create('pagos', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('pedido_id')->unique()->constrained('pedidos')->restrictOnDelete();
-            $table->foreignId('registrado_por')->constrained('users')->restrictOnDelete();
-            $table->string('medio');
+            $table->foreignId('pedido_id')->constrained('pedidos')->cascadeOnDelete();
+            $table->foreignId('registrado_por')->nullable()->constrained('users')->nullOnDelete();
+            $table->foreignId('vendedor_id')->nullable()->constrained('users')->nullOnDelete();
+            $table->string('medio')->nullable();
+            $table->string('medio_pago')->nullable();
             $table->string('estado')->default('pendiente');
             $table->decimal('monto', 12, 2);
-            $table->string('moneda', 3)->default('ARS');
+            $table->string('moneda', 10)->default('ARS');
             $table->string('referencia_externa')->nullable();
             $table->string('comprobante_url')->nullable();
             $table->timestamp('pagado_at')->nullable();
+            $table->timestamp('fecha_pago')->nullable();
+            $table->string('tipo_cobro')->nullable();
+            $table->text('observaciones')->nullable();
             $table->timestamps();
         });
     }
 
-    /**
-     * Reverse the migrations.
-     */
     public function down(): void
     {
         Schema::dropIfExists('pagos');

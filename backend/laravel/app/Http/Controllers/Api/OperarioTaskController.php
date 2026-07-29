@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\ResponsableEtapa;
+use App\Models\EtapaProducto;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Validator;
@@ -20,46 +21,48 @@ class OperarioTaskController extends Controller
 
         $tasks = ResponsableEtapa::with([
             'pedido.cliente',
-            'etapa.producto',
-            'etapa.dependencias'
+            'etapaProducto.producto',
+            'etapaProducto.etapa',
+            'etapaProducto.dependencias.etapa'
         ])
             ->where('user_id', $userId)
             ->whereIn('estado', ['pendiente', 'en_progreso', 'bloqueada'])
-            ->orderBy('estado', 'desc') // Muestra primero 'en_progreso' que 'pendiente'
+            ->orderBy('estado', 'desc')
             ->get();
 
         foreach ($tasks as $task) {
             $depsInfo = [];
-            if ($task->etapa) {
-                $deps = $task->etapa->dependencias;
+            $ep = $task->etapaProducto;
+
+            if ($ep) {
+                $deps = $ep->dependencias;
 
                 if ($deps && $deps->count() > 0) {
                     foreach ($deps as $dep) {
                         $tareaPrevia = ResponsableEtapa::where('pedido_id', $task->pedido_id)
-                            ->where('etapa_id', $dep->id)
+                            ->where('etapa_producto_id', $dep->id)
                             ->first();
 
                         $depsInfo[] = [
                             'id' => $dep->id,
-                            'nombre' => $dep->nombre,
+                            'nombre' => $dep->etapa->nombre ?? 'Etapa',
                             'estado' => $tareaPrevia ? $tareaPrevia->estado : 'pendiente'
                         ];
                     }
                 } else {
-                    // Fallback si no hay dependencias explícitas en etapa_dependencias: buscar etapa anterior por 'orden'
-                    $etapaAnterior = \App\Models\Etapa::where('producto_id', $task->etapa->producto_id)
-                        ->where('orden', '<', $task->etapa->orden)
+                    $etapaAnterior = EtapaProducto::where('producto_id', $ep->producto_id)
+                        ->where('orden', '<', $ep->orden)
                         ->orderBy('orden', 'desc')
                         ->first();
 
                     if ($etapaAnterior) {
                         $tareaPrevia = ResponsableEtapa::where('pedido_id', $task->pedido_id)
-                            ->where('etapa_id', $etapaAnterior->id)
+                            ->where('etapa_producto_id', $etapaAnterior->id)
                             ->first();
 
                         $depsInfo[] = [
                             'id' => $etapaAnterior->id,
-                            'nombre' => $etapaAnterior->nombre,
+                            'nombre' => $etapaAnterior->etapa->nombre ?? 'Etapa',
                             'estado' => $tareaPrevia ? $tareaPrevia->estado : 'pendiente'
                         ];
                     }
@@ -67,6 +70,16 @@ class OperarioTaskController extends Controller
             }
 
             $task->setAttribute('dependencias_info', $depsInfo);
+            // Compatibilidad de estructura: mapear etapa para que contenga producto y nombre de etapa maestro
+            if ($ep) {
+                $task->setAttribute('etapa', [
+                    'id' => $ep->id,
+                    'nombre' => $ep->etapa->nombre ?? '',
+                    'orden' => $ep->orden,
+                    'producto_id' => $ep->producto_id,
+                    'producto' => $ep->producto,
+                ]);
+            }
         }
 
         return response()->json([
@@ -142,10 +155,8 @@ class OperarioTaskController extends Controller
             ], 422);
         }
 
-        // Si la tarea no se había marcado en progreso, establecemos fecha_inicio a now
         $fechaInicio = $task->fecha_inicio ?? now();
 
-        // 1. Actualizar el estado de la tarea a completado
         $task->update([
             'estado' => 'completado',
             'fecha_inicio' => $fechaInicio,
@@ -170,16 +181,63 @@ class OperarioTaskController extends Controller
 
         $historial = ResponsableEtapa::with([
             'pedido.cliente',
-            'etapa.producto'
+            'etapaProducto.producto',
+            'etapaProducto.etapa'
         ])
         ->where('user_id', $userId)
         ->where('estado', 'completado')
         ->orderBy('fecha_fin', 'desc')
         ->get();
 
+        foreach ($historial as $task) {
+            $ep = $task->etapaProducto;
+            if ($ep) {
+                $task->setAttribute('etapa', [
+                    'id' => $ep->id,
+                    'nombre' => $ep->etapa->nombre ?? '',
+                    'orden' => $ep->orden,
+                    'producto_id' => $ep->producto_id,
+                    'producto' => $ep->producto,
+                ]);
+            }
+        }
+
         return response()->json([
             'status' => 'success',
             'data' => $historial
+        ]);
+    }
+
+    /**
+     * Cancelar una tarea iniciada (restablecer a pendiente).
+     */
+    public function cancel($id): JsonResponse
+    {
+        $task = ResponsableEtapa::find($id);
+
+        if (!$task) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Tarea no encontrada'
+            ], 404);
+        }
+
+        if ($task->estado !== 'en_progreso') {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Solo se pueden cancelar tareas que se encuentran en progreso'
+            ], 422);
+        }
+
+        $task->update([
+            'estado' => 'pendiente',
+            'fecha_inicio' => null,
+        ]);
+
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Tarea cancelada y restablecida a pendiente',
+            'data' => $task
         ]);
     }
 }

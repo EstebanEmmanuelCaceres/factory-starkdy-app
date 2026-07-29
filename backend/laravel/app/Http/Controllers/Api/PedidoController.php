@@ -6,6 +6,8 @@ use App\Http\Controllers\Controller;
 use App\Models\Pedido;
 use App\Models\PedidoProducto;
 use App\Models\Etapa;
+use App\Models\EtapaProducto;
+
 use App\Models\ResponsableEtapa;
 use App\Models\Cliente;
 use App\Models\ComentarioPedido;
@@ -41,7 +43,33 @@ class PedidoController extends Controller
 
         // Filtro por estado
         if ($request->has('estado') && !empty($request->input('estado'))) {
-            $query->where('estado', $request->input('estado'));
+            $query->whereHas('ultimoEstado', function ($q) use ($request) {
+                $q->where('estado', $request->input('estado'));
+            });
+        }
+
+        // Filtro por fecha de creación (desde / hasta)
+        if ($request->has('fecha_desde') && !empty($request->input('fecha_desde'))) {
+            $query->whereDate('created_at', '>=', $request->input('fecha_desde'));
+        } elseif ($request->has('creacion_desde') && !empty($request->input('creacion_desde'))) {
+            $query->whereDate('created_at', '>=', $request->input('creacion_desde'));
+        }
+
+        if ($request->has('fecha_hasta') && !empty($request->input('fecha_hasta'))) {
+            $query->whereDate('created_at', '<=', $request->input('fecha_hasta'));
+        } elseif ($request->has('creacion_hasta') && !empty($request->input('creacion_hasta'))) {
+            $query->whereDate('created_at', '<=', $request->input('creacion_hasta'));
+        }
+
+        // Filtro por usuario asignado / creador
+        if ($request->has('user_id') && !empty($request->input('user_id'))) {
+            $query->where('user_id', $request->input('user_id'));
+        }
+
+        // Restricción estricta por rol: Si el usuario autenticado es Vendedor, solo ve sus pedidos
+        $currentUser = auth()->user();
+        if ($currentUser && $currentUser->role?->slug === 'vendedor') {
+            $query->where('user_id', $currentUser->id);
         }
 
         $pedidos = $query->latest()->get();
@@ -126,6 +154,7 @@ class PedidoController extends Controller
         }
 
         $data = $request->only(['codigo', 'prioridad', 'fecha_entrega', 'precio', 'comentario', 'tipo_pago']);
+        $data['tipo_pago'] = $data['tipo_pago'] ?? 'parcial';
         $data['cliente_id'] = $clienteId;
         $data['user_id'] = Auth::id() ?? 1; // Asocia el usuario autenticado
         $data['estado'] = 'pendiente';      // Por defecto al crear
@@ -310,7 +339,7 @@ class PedidoController extends Controller
 
             if ($request->has('etapas')) {
                 $incomingEtapas = $request->input('etapas') ?? [];
-                $keptEtapaIds = [];
+                $keptEtapaProductoIds = [];
 
                 foreach ($incomingEtapas as $incomingEtapa) {
                     $productoId = $incomingEtapa['producto_id'];
@@ -318,32 +347,38 @@ class PedidoController extends Controller
                         continue;
                     }
 
+                    $nombre = trim($incomingEtapa['nombre']);
+                    $catalogItem = Etapa::whereRaw('LOWER(nombre) = ?', [mb_strtolower($nombre)])->first();
+                    if (!$catalogItem) {
+                        $catalogItem = Etapa::create(['nombre' => $nombre]);
+                    }
+
                     if (!empty($incomingEtapa['id'])) {
-                        $etapa = Etapa::withTrashed()->find($incomingEtapa['id']);
-                        if ($etapa) {
-                            $etapa->restore();
-                            $etapa->update([
-                                'nombre' => $incomingEtapa['nombre'],
+                        $etapaProducto = EtapaProducto::withTrashed()->find($incomingEtapa['id']);
+                        if ($etapaProducto) {
+                            $etapaProducto->restore();
+                            $etapaProducto->update([
+                                'etapa_id' => $catalogItem->id,
                                 'orden' => $incomingEtapa['orden']
                             ]);
-                            $keptEtapaIds[] = $etapa->id;
+                            $keptEtapaProductoIds[] = $etapaProducto->id;
                         }
                     } else {
-                        $etapa = Etapa::create([
+                        $etapaProducto = EtapaProducto::create([
                             'producto_id' => $productoId,
-                            'nombre' => $incomingEtapa['nombre'],
+                            'etapa_id' => $catalogItem->id,
                             'orden' => $incomingEtapa['orden']
                         ]);
-                        $keptEtapaIds[] = $etapa->id;
+                        $keptEtapaProductoIds[] = $etapaProducto->id;
                         if (!empty($incomingEtapa['temp_id'])) {
-                            $tempIdToDbId[$incomingEtapa['temp_id']] = $etapa->id;
+                            $tempIdToDbId[$incomingEtapa['temp_id']] = $etapaProducto->id;
                         }
                     }
                 }
 
-                // Borrado lógico de las etapas que no se enviaron
-                Etapa::whereIn('producto_id', $productIds)
-                    ->whereNotIn('id', $keptEtapaIds)
+                // Borrado lógico de las etapas de producto que no se enviaron
+                EtapaProducto::whereIn('producto_id', $productIds)
+                    ->whereNotIn('id', $keptEtapaProductoIds)
                     ->delete();
             }
 
@@ -354,18 +389,20 @@ class PedidoController extends Controller
             if ($request->has('asignaciones')) {
                 $incomingAsignaciones = $request->input('asignaciones') ?? [];
                 foreach ($incomingAsignaciones as $incomingAsignacion) {
-                    $etapaId = null;
-                    if (!empty($incomingAsignacion['etapa_id'])) {
-                        $etapaId = $incomingAsignacion['etapa_id'];
+                    $etapaProductoId = null;
+                    if (!empty($incomingAsignacion['etapa_producto_id'])) {
+                        $etapaProductoId = $incomingAsignacion['etapa_producto_id'];
+                    } elseif (!empty($incomingAsignacion['etapa_id'])) {
+                        $etapaProductoId = $incomingAsignacion['etapa_id'];
                     } elseif (!empty($incomingAsignacion['etapa_temp_id']) && isset($tempIdToDbId[$incomingAsignacion['etapa_temp_id']])) {
-                        $etapaId = $tempIdToDbId[$incomingAsignacion['etapa_temp_id']];
+                        $etapaProductoId = $tempIdToDbId[$incomingAsignacion['etapa_temp_id']];
                     }
 
-                    if ($etapaId) {
+                    if ($etapaProductoId) {
                         $userId = !empty($incomingAsignacion['user_id']) ? $incomingAsignacion['user_id'] : null;
 
                         $task = ResponsableEtapa::where('pedido_id', $pedido->id)
-                            ->where('etapa_id', $etapaId)
+                            ->where('etapa_producto_id', $etapaProductoId)
                             ->first();
 
                         if ($task) {
@@ -376,6 +413,7 @@ class PedidoController extends Controller
             }
         });
     }
+
 
     /**
      * Obtener comentarios de un pedido.

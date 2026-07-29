@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Etapa;
+use App\Models\EtapaProducto;
 use App\Models\Producto;
 use App\Models\Role;
 use App\Models\User;
@@ -37,24 +38,22 @@ class EtapaSyncTest extends TestCase
 
     public function test_sync_etapas_can_create_update_and_delete_in_bulk(): void
     {
-        // 1. Create an initial stage in DB to test update/delete
-        $etapa1 = Etapa::create([
+        $corteCat = Etapa::create(['nombre' => 'Corte Inicial']);
+        $eliminarCat = Etapa::create(['nombre' => 'Etapa a eliminar']);
+
+        // 1. Create initial product stages
+        $etapa1 = EtapaProducto::create([
             'producto_id' => $this->producto->id,
-            'nombre' => 'Corte Inicial',
+            'etapa_id' => $corteCat->id,
             'orden' => 1,
         ]);
 
-        $etapa2ToDelete = Etapa::create([
+        $etapa2ToDelete = EtapaProducto::create([
             'producto_id' => $this->producto->id,
-            'nombre' => 'Etapa a eliminar',
+            'etapa_id' => $eliminarCat->id,
             'orden' => 2,
         ]);
 
-        // 2. Prepare payload:
-        // - Update stage 1: change name to "Corte Modificado"
-        // - Create new stage "Grabado" (temp_1) depending on stage 1
-        // - Create new stage "Pintado" (temp_2) depending on "Grabado" (temp_1)
-        // - Omit $etapa2ToDelete to test deletion
         $payload = [
             'etapas' => [
                 [
@@ -87,64 +86,64 @@ class EtapaSyncTest extends TestCase
         $response->assertStatus(200);
         $response->assertJsonPath('status', 'success');
 
-        // Verify Corte was updated
+        // Verify catalog item created/updated
         $this->assertDatabaseHas('etapas', [
-            'id' => $etapa1->id,
             'nombre' => 'Corte Modificado',
-            'orden' => 1,
         ]);
 
-        // Verify Etapa a eliminar was soft-deleted
-        $this->assertSoftDeleted('etapas', [
+        // Verify Etapa2ToDelete was soft deleted from etapas_productos
+        $this->assertSoftDeleted('etapas_productos', [
             'id' => $etapa2ToDelete->id,
         ]);
 
-        // Verify new stages were created
-        $this->assertDatabaseHas('etapas', [
+        // Verify new product stages created
+        $grabadoCat = Etapa::where('nombre', 'Grabado')->first();
+        $pintadoCat = Etapa::where('nombre', 'Pintado')->first();
+
+        $this->assertDatabaseHas('etapas_productos', [
             'producto_id' => $this->producto->id,
-            'nombre' => 'Grabado',
+            'etapa_id' => $grabadoCat->id,
             'orden' => 2,
         ]);
 
-        $this->assertDatabaseHas('etapas', [
+        $this->assertDatabaseHas('etapas_productos', [
             'producto_id' => $this->producto->id,
-            'nombre' => 'Pintado',
+            'etapa_id' => $pintadoCat->id,
             'orden' => 3,
         ]);
 
-        $grabado = Etapa::where('nombre', 'Grabado')->first();
-        $pintado = Etapa::where('nombre', 'Pintado')->first();
+        $grabadoEP = EtapaProducto::where('etapa_id', $grabadoCat->id)->first();
+        $pintadoEP = EtapaProducto::where('etapa_id', $pintadoCat->id)->first();
 
         // Verify dependencies
-        $this->assertDatabaseHas('etapa_dependencias', [
-            'etapa_id' => $grabado->id,
-            'depende_de_etapa_id' => $etapa1->id,
+        $this->assertDatabaseHas('etapa_producto_dependencias', [
+            'etapa_producto_id' => $grabadoEP->id,
+            'depende_de_etapa_producto_id' => $etapa1->id,
         ]);
 
-        $this->assertDatabaseHas('etapa_dependencias', [
-            'etapa_id' => $pintado->id,
-            'depende_de_etapa_id' => $grabado->id,
+        $this->assertDatabaseHas('etapa_producto_dependencias', [
+            'etapa_producto_id' => $pintadoEP->id,
+            'depende_de_etapa_producto_id' => $grabadoEP->id,
         ]);
     }
 
     public function test_sync_etapas_prevents_cycles(): void
     {
-        // Create 2 stages
-        $etapa1 = Etapa::create([
+        $corteCat = Etapa::create(['nombre' => 'Corte']);
+        $grabadoCat = Etapa::create(['nombre' => 'Grabado']);
+
+        $etapa1 = EtapaProducto::create([
             'producto_id' => $this->producto->id,
-            'nombre' => 'Corte',
+            'etapa_id' => $corteCat->id,
             'orden' => 1,
         ]);
 
-        $etapa2 = Etapa::create([
+        $etapa2 = EtapaProducto::create([
             'producto_id' => $this->producto->id,
-            'nombre' => 'Grabado',
+            'etapa_id' => $grabadoCat->id,
             'orden' => 2,
         ]);
 
-        // Try to sync establishing dependencies that form a cycle:
-        // - Corte depends on Grabado
-        // - Grabado depends on Corte
         $payload = [
             'etapas' => [
                 [

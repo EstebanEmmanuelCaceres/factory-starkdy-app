@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Cliente;
 use App\Models\Etapa;
+use App\Models\EtapaProducto;
 use App\Models\Pedido;
 use App\Models\Producto;
 use App\Models\Role;
@@ -46,10 +47,14 @@ class PedidoTaskGenerationTest extends TestCase
             'precio' => 100.0,
         ]);
 
-        // 5. Create an etapa for the product
-        $etapa = Etapa::create([
-            'producto_id' => $producto->id,
+        // 5. Create master catalog etapa and link to product
+        $etapaCat = Etapa::create([
             'nombre' => 'Initial Stage',
+        ]);
+
+        $etapaProducto = EtapaProducto::create([
+            'producto_id' => $producto->id,
+            'etapa_id' => $etapaCat->id,
             'orden' => 1,
         ]);
 
@@ -70,7 +75,7 @@ class PedidoTaskGenerationTest extends TestCase
         // 8. Verify task was generated
         $this->assertDatabaseHas('responsables_etapas', [
             'pedido_id' => $pedido->id,
-            'etapa_id' => $etapa->id,
+            'etapa_producto_id' => $etapaProducto->id,
             'estado' => 'pendiente',
         ]);
 
@@ -104,13 +109,16 @@ class PedidoTaskGenerationTest extends TestCase
             'precio' => 100.0,
         ]);
         
-        $etapa = Etapa::create([
-            'producto_id' => $producto->id,
+        $etapaCat = Etapa::create([
             'nombre' => 'Initial Stage',
+        ]);
+
+        $etapaProducto = EtapaProducto::create([
+            'producto_id' => $producto->id,
+            'etapa_id' => $etapaCat->id,
             'orden' => 1,
         ]);
         
-        // When creating a Pedido, no tasks should be automatically generated now
         $pedido = Pedido::create([
             'cliente_id' => $cliente->id,
             'user_id' => $user->id,
@@ -133,7 +141,7 @@ class PedidoTaskGenerationTest extends TestCase
         // Assert that the database now has the task
         $this->assertDatabaseHas('responsables_etapas', [
             'pedido_id' => $pedido->id,
-            'etapa_id' => $etapa->id,
+            'etapa_producto_id' => $etapaProducto->id,
         ]);
     }
 }

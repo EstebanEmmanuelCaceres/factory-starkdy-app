@@ -3,6 +3,7 @@
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\ProductoController;
 use App\Http\Controllers\Api\EtapaController;
+use App\Http\Controllers\Api\EtapaProductoController;
 use App\Http\Controllers\Api\ClienteController;
 use App\Http\Controllers\Api\PedidoController;
 use App\Http\Controllers\Api\ResponsabilidadController;
@@ -33,20 +34,23 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::get('/users', [AuthController::class, 'users'])->name('api.users.index');
 
-    // ── Módulos de fábrica (se irán agregando aquí) ──────────────
+    // ── Módulos de fábrica ──────────────────────────────
     Route::get('productos', [ProductoController::class, 'index']);
     Route::post('productos', [ProductoController::class, 'store']);
     Route::get('productos/{id}', [ProductoController::class, 'show']);
     Route::patch('productos/{id}', [ProductoController::class, 'update']);
     Route::delete('productos/{id}', [ProductoController::class, 'destroy']);
 
-    // ── Etapas de Producto ─────────────────────────────────────────
+    // ── Catálogo Maestro de Etapas ─────────────────────────────────
     Route::get('etapas', [EtapaController::class, 'index']);
     Route::post('etapas', [EtapaController::class, 'store']);
     Route::get('etapas/{id}', [EtapaController::class, 'show']);
     Route::patch('etapas/{id}', [EtapaController::class, 'update']);
     Route::delete('etapas/{id}', [EtapaController::class, 'destroy']);
-    Route::post('productos/{id}/etapas/sync', [EtapaController::class, 'syncEtapas']);
+
+    // ── Etapas de un Producto (NxN - etapas_productos) ────────────
+    Route::get('productos/{id}/etapas', [EtapaProductoController::class, 'index']);
+    Route::post('productos/{id}/etapas/sync', [EtapaProductoController::class, 'sync']);
 
     // ── Dependencias entre Etapas ──────────────────────────────────
     Route::get('etapa-dependencias', [EtapaDependenciaController::class, 'index']);
@@ -88,6 +92,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::prefix('operario')->group(function () {
         Route::get('tasks', [OperarioTaskController::class, 'index']);
         Route::post('tasks/{id}/start', [OperarioTaskController::class, 'start']);
+        Route::post('tasks/{id}/cancel', [OperarioTaskController::class, 'cancel']);
         Route::post('tasks/{id}/complete', [OperarioTaskController::class, 'complete']);
         Route::get('historial', [OperarioTaskController::class, 'historial']);
     });

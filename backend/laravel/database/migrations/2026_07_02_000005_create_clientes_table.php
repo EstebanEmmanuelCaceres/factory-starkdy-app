@@ -10,10 +10,19 @@ return new class extends Migration
     {
         Schema::create('clientes', function (Blueprint $table) {
             $table->id();
-            $table->string('nombre_cliente');
-            $table->string('nombre_empresa');
-            $table->string('telefono');
+            $table->string('nombre_cliente')->default('');
+            $table->string('nombre_empresa')->default('');
+            $table->string('telefono')->default('');
             $table->string('email')->nullable();
+            $table->string('dni', 50)->nullable();
+            $table->string('direccion', 255)->nullable();
+            $table->string('provincia', 100)->nullable();
+            $table->string('cp', 20)->nullable();
+            $table->string('localidad', 100)->nullable();
+            $table->decimal('ingreso', 10, 2)->default(0.00);
+            $table->decimal('valor_total', 10, 2)->default(0.00);
+            $table->decimal('saldo', 10, 2)->default(0.00);
+            $table->text('observaciones')->nullable();
             $table->timestamps();
             $table->softDeletes();
         });
