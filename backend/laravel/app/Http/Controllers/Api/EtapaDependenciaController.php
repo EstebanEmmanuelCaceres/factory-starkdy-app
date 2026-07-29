@@ -3,7 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Models\Etapa;
+use App\Models\EtapaProducto;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\DB;
@@ -12,19 +12,20 @@ use Illuminate\Http\JsonResponse;
 class EtapaDependenciaController extends Controller
 {
     /**
-     * Listar dependencias de etapas.
+     * Listar dependencias de etapas de productos.
      */
     public function index(Request $request): JsonResponse
     {
-        $query = DB::table('etapa_dependencias');
+        $query = DB::table('etapa_producto_dependencias');
 
-        if ($request->has('etapa_id')) {
-            $query->where('etapa_id', $request->input('etapa_id'));
+        if ($request->has('etapa_producto_id') || $request->has('etapa_id')) {
+            $epId = $request->input('etapa_producto_id') ?? $request->input('etapa_id');
+            $query->where('etapa_producto_id', $epId);
         }
 
         if ($request->has('producto_id')) {
-            $query->whereIn('etapa_id', function ($q) use ($request) {
-                $q->select('id')->from('etapas')->where('producto_id', $request->input('producto_id'));
+            $query->whereIn('etapa_producto_id', function ($q) use ($request) {
+                $q->select('id')->from('etapas_productos')->where('producto_id', $request->input('producto_id'));
             });
         }
 
@@ -37,13 +38,15 @@ class EtapaDependenciaController extends Controller
     }
 
     /**
-     * Crear una dependencia (etapa_id depende de depende_de_etapa_id).
+     * Crear una dependencia (etapa_producto_id depende de depende_de_etapa_producto_id).
      */
     public function store(Request $request): JsonResponse
     {
         $validator = Validator::make($request->all(), [
-            'etapa_id' => 'required|exists:etapas,id',
-            'depende_de_etapa_id' => 'required|exists:etapas,id',
+            'etapa_producto_id' => 'required_without:etapa_id|exists:etapas_productos,id',
+            'etapa_id' => 'nullable|exists:etapas_productos,id',
+            'depende_de_etapa_producto_id' => 'required_without:depende_de_etapa_id|exists:etapas_productos,id',
+            'depende_de_etapa_id' => 'nullable|exists:etapas_productos,id',
         ]);
 
         if ($validator->fails()) {
@@ -54,8 +57,8 @@ class EtapaDependenciaController extends Controller
             ], 422);
         }
 
-        $etapaId = $request->input('etapa_id');
-        $dependeDeEtapaId = $request->input('depende_de_etapa_id');
+        $etapaId = $request->input('etapa_producto_id') ?? $request->input('etapa_id');
+        $dependeDeEtapaId = $request->input('depende_de_etapa_producto_id') ?? $request->input('depende_de_etapa_id');
 
         // 1. Evitar autodependencia directa
         if ($etapaId == $dependeDeEtapaId) {
@@ -66,8 +69,8 @@ class EtapaDependenciaController extends Controller
         }
 
         // 2. Verificar que ambas etapas pertenezcan al mismo producto
-        $etapa = Etapa::find($etapaId);
-        $dependeDeEtapa = Etapa::find($dependeDeEtapaId);
+        $etapa = EtapaProducto::find($etapaId);
+        $dependeDeEtapa = EtapaProducto::find($dependeDeEtapaId);
 
         if ($etapa->producto_id !== $dependeDeEtapa->producto_id) {
             return response()->json([
@@ -77,9 +80,9 @@ class EtapaDependenciaController extends Controller
         }
 
         // 3. Validar si ya existe
-        $exists = DB::table('etapa_dependencias')
-            ->where('etapa_id', $etapaId)
-            ->where('depende_de_etapa_id', $dependeDeEtapaId)
+        $exists = DB::table('etapa_producto_dependencias')
+            ->where('etapa_producto_id', $etapaId)
+            ->where('depende_de_etapa_producto_id', $dependeDeEtapaId)
             ->exists();
 
         if ($exists) {
@@ -98,10 +101,11 @@ class EtapaDependenciaController extends Controller
         }
 
         // 5. Crear la dependencia
-        $id = DB::table('etapa_dependencias')->insertGetId([
-            'etapa_id' => $etapaId,
-            'depende_de_etapa_id' => $dependeDeEtapaId,
+        $id = DB::table('etapa_producto_dependencias')->insertGetId([
+            'etapa_producto_id' => $etapaId,
+            'depende_de_etapa_producto_id' => $dependeDeEtapaId,
             'created_at' => now(),
+            'updated_at' => now(),
         ]);
 
         return response()->json([
@@ -109,8 +113,8 @@ class EtapaDependenciaController extends Controller
             'message' => 'Dependencia creada correctamente',
             'data' => [
                 'id' => $id,
-                'etapa_id' => $etapaId,
-                'depende_de_etapa_id' => $dependeDeEtapaId
+                'etapa_producto_id' => $etapaId,
+                'depende_de_etapa_producto_id' => $dependeDeEtapaId
             ]
         ], 201);
     }
@@ -120,7 +124,7 @@ class EtapaDependenciaController extends Controller
      */
     public function destroy($id): JsonResponse
     {
-        $deleted = DB::table('etapa_dependencias')->where('id', $id)->delete();
+        $deleted = DB::table('etapa_producto_dependencias')->where('id', $id)->delete();
 
         if (!$deleted) {
             return response()->json([
@@ -136,8 +140,7 @@ class EtapaDependenciaController extends Controller
     }
 
     /**
-     * Detectar si al agregar la relación A depende de B, se produce un ciclo.
-     * Hay ciclo si B depende transitivamente de A.
+     * Detección de ciclos.
      */
     private function detectsCycle(int $etapaId, int $dependeDeEtapaId): bool
     {
@@ -152,10 +155,9 @@ class EtapaDependenciaController extends Controller
 
         $visited[] = $fromId;
 
-        // Obtener todos los IDs de etapas de las que depende $fromId
-        $directDependencies = DB::table('etapa_dependencias')
-            ->where('etapa_id', $fromId)
-            ->pluck('depende_de_etapa_id')
+        $directDependencies = DB::table('etapa_producto_dependencias')
+            ->where('etapa_producto_id', $fromId)
+            ->pluck('depende_de_etapa_producto_id')
             ->toArray();
 
         foreach ($directDependencies as $depId) {

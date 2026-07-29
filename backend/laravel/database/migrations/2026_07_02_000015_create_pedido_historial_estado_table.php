@@ -8,12 +8,9 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::create('productos', function (Blueprint $table) {
+        Schema::create('pedido_historial_estado', function (Blueprint $table) {
             $table->id();
             $table->foreignId('pedido_id')->constrained('pedidos')->cascadeOnDelete();
-            $table->string('nombre');
-            $table->string('sku')->nullable();
-            $table->text('descripcion')->nullable();
             $table->string('estado')->default('pendiente');
             $table->timestamps();
         });
@@ -21,6 +18,6 @@ return new class extends Migration
 
     public function down(): void
     {
-        Schema::dropIfExists('productos');
+        Schema::dropIfExists('pedido_historial_estado');
     }
 };

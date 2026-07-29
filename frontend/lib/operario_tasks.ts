@@ -11,6 +11,11 @@ export async function startOperarioTask(id: number): Promise<ResponsableEtapa> {
   return data.data
 }
 
+export async function cancelOperarioTask(id: number): Promise<ResponsableEtapa> {
+  const { data } = await api.post<{ status: string; data: ResponsableEtapa }>(`/operario/tasks/${id}/cancel`)
+  return data.data
+}
+
 export async function completeOperarioTask(id: number): Promise<{
   task: ResponsableEtapa
 }> {

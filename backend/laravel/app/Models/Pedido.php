@@ -19,6 +19,12 @@ class Pedido extends Model
 
     protected $table = 'pedidos';
 
+    protected $with = ['ultimoEstado'];
+
+    protected $attributes = [
+        'tipo_pago' => 'parcial',
+    ];
+
     protected $fillable = [
         'cliente_id',
         'user_id',
@@ -32,11 +38,35 @@ class Pedido extends Model
     ];
 
     protected $appends = [
+        'estado',
         'monto_pagado',
         'saldo_pendiente',
         'porcentaje_pagado',
         'estado_pago',
     ];
+
+    protected ?string $pendingEstado = null;
+
+    protected static function booted(): void
+    {
+        static::saved(function (Pedido $pedido) {
+            if ($pedido->pendingEstado !== null) {
+                $nuevoEstado = $pedido->pendingEstado;
+                $pedido->pendingEstado = null;
+                $pedido->historialEstados()->create([
+                    'estado' => $nuevoEstado,
+                    'created_at' => now(),
+                ]);
+                $pedido->unsetRelation('ultimoEstado');
+            } elseif ($pedido->wasRecentlyCreated && $pedido->historialEstados()->count() === 0) {
+                $pedido->historialEstados()->create([
+                    'estado' => 'pendiente',
+                    'created_at' => now(),
+                ]);
+                $pedido->unsetRelation('ultimoEstado');
+            }
+        });
+    }
 
     /**
      * Relación: El pedido pertenece a un cliente.
@@ -88,6 +118,42 @@ class Pedido extends Model
         return $this->hasMany(ResponsableEtapa::class, 'pedido_id');
     }
 
+    /**
+     * Relación: Historial de estados del pedido.
+     */
+    public function historialEstados(): HasMany
+    {
+        return $this->hasMany(PedidoHistorialEstado::class, 'pedido_id');
+    }
+
+    /**
+     * Relación: Último estado registrado del pedido.
+     */
+    public function ultimoEstado(): HasOne
+    {
+        return $this->hasOne(PedidoHistorialEstado::class, 'pedido_id')->latestOfMany();
+    }
+
+    // Accessor y Mutator para la propiedad dinámica 'estado'
+    public function getEstadoAttribute(): string
+    {
+        if ($this->pendingEstado !== null) {
+            return $this->pendingEstado;
+        }
+        return $this->ultimoEstado?->estado ?? 'pendiente';
+    }
+
+    public function setEstadoAttribute(?string $value): void
+    {
+        if ($value === null) {
+            return;
+        }
+        $current = $this->ultimoEstado?->estado;
+        if ($current !== $value) {
+            $this->pendingEstado = $value;
+        }
+    }
+
     // Accessors para atributos dinámicos de pago
     public function getMontoPagadoAttribute(): float
     {
@@ -128,34 +194,34 @@ class Pedido extends Model
     {
         $productIds = $this->productos()->pluck('productos.id')->toArray();
 
-        // Obtener todas las etapas asociadas a estos productos
-        $etapas = Etapa::whereIn('producto_id', $productIds)->get();
-        $etapaIds = $etapas->pluck('id')->toArray();
+        // Obtener todas las etapas_productos asociadas a estos productos
+        $etapasProductos = EtapaProducto::whereIn('producto_id', $productIds)->get();
+        $etapaProductoIds = $etapasProductos->pluck('id')->toArray();
 
-        // Obtener dependencias
-        $dependencies = DB::table('etapa_dependencias')
-            ->whereIn('etapa_id', $etapaIds)
+        // Obtener dependencias entre etapas del producto
+        $dependencies = DB::table('etapa_producto_dependencias')
+            ->whereIn('etapa_producto_id', $etapaProductoIds)
             ->get()
-            ->groupBy('etapa_id');
+            ->groupBy('etapa_producto_id');
 
         // Eliminar asignaciones viejas de etapas que ya no pertenecen a los productos asociados
         ResponsableEtapa::where('pedido_id', $this->id)
-            ->whereNotIn('etapa_id', $etapaIds)
+            ->whereNotIn('etapa_producto_id', $etapaProductoIds)
             ->delete();
 
-        foreach ($etapas as $etapa) {
+        foreach ($etapasProductos as $etapaProducto) {
             // Verificar si ya existe la tarea
             $tarea = ResponsableEtapa::where('pedido_id', $this->id)
-                ->where('etapa_id', $etapa->id)
+                ->where('etapa_producto_id', $etapaProducto->id)
                 ->first();
 
-            $tieneDependencias = isset($dependencies[$etapa->id]) && $dependencies[$etapa->id]->count() > 0;
+            $tieneDependencias = isset($dependencies[$etapaProducto->id]) && $dependencies[$etapaProducto->id]->count() > 0;
             $estadoInicial = $tieneDependencias ? 'bloqueada' : 'pendiente';
 
             if (!$tarea) {
                 ResponsableEtapa::create([
                     'pedido_id' => $this->id,
-                    'etapa_id' => $etapa->id,
+                    'etapa_producto_id' => $etapaProducto->id,
                     'user_id' => null,
                     'estado' => $estadoInicial
                 ]);
@@ -178,10 +244,13 @@ class Pedido extends Model
     {
         $pedidos = self::whereHas('productos', function ($q) use ($productoId) {
             $q->where('productos.id', $productoId);
-        })->whereNotIn('estado', ['completado', 'cancelado'])->get();
+        })->whereHas('ultimoEstado', function ($q) {
+            $q->whereNotIn('estado', ['completado', 'cancelado']);
+        })->get();
 
         foreach ($pedidos as $pedido) {
             $pedido->generarTareas();
         }
     }
 }
+

@@ -61,19 +61,6 @@ class PagoController extends Controller
             'fecha_pago' => 'nullable|date',
         ]);
 
-        // Regla 1: Si el pedido es de pago único, no permitir más de un pago activo
-        if ($pedido->tipo_pago === 'unico') {
-            $hasActivePayment = $pedido->pagos()
-                ->where('estado', '!=', 'anulado')
-                ->exists();
-                
-            if ($hasActivePayment) {
-                return response()->json([
-                    'message' => 'Este pedido es de pago único y ya tiene un cobro registrado.'
-                ], 422);
-            }
-        }
-
         // Regla 2: El monto del pago no puede superar el saldo pendiente del pedido
         // Redondeamos los flotantes para evitar discrepancias de precisión de punto flotante
         $montoPago = round((float) $validated['monto'], 2);

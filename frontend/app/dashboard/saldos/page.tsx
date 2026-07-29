@@ -181,21 +181,39 @@ function SaldosContent() {
                   </div>
 
                   {/* Fichas de saldos */}
-                  <div className="grid grid-cols-3 gap-4 md:gap-8 bg-slate-950/40 p-3 rounded-lg border border-slate-850/50">
-                    <div>
-                      <span className="text-[10px] text-slate-500 uppercase font-semibold block mb-0.5">Total Pedidos</span>
-                      <span className="text-xs md:text-sm font-bold text-white">{formatCurrency(montoTotal)}</span>
+                  <div className="flex flex-col gap-2">
+                    <div className="grid grid-cols-3 gap-4 md:gap-8 bg-slate-950/40 p-3 rounded-lg border border-slate-850/50">
+                      <div>
+                        <span className="text-[10px] text-slate-500 uppercase font-semibold block mb-0.5">Total Pedidos</span>
+                        <span className="text-xs md:text-sm font-bold text-white">{formatCurrency(montoTotal)}</span>
+                      </div>
+                      <div>
+                        <span className="text-[10px] text-slate-500 uppercase font-semibold block mb-0.5">Total Pagado</span>
+                        <span className="text-xs md:text-sm font-bold text-emerald-400">{formatCurrency(montoPagado)}</span>
+                      </div>
+                      <div>
+                        <span className="text-[10px] text-slate-500 uppercase font-semibold block mb-0.5">Saldo Pendiente</span>
+                        <span className={`text-xs md:text-sm font-bold ${saldoPendiente > 0 ? 'text-amber-500' : 'text-slate-400'}`}>
+                          {formatCurrency(saldoPendiente)}
+                        </span>
+                      </div>
                     </div>
-                    <div>
-                      <span className="text-[10px] text-slate-500 uppercase font-semibold block mb-0.5">Total Pagado</span>
-                      <span className="text-xs md:text-sm font-bold text-emerald-400">{formatCurrency(montoPagado)}</span>
-                    </div>
-                    <div>
-                      <span className="text-[10px] text-slate-500 uppercase font-semibold block mb-0.5">Saldo Pendiente</span>
-                      <span className={`text-xs md:text-sm font-bold ${saldoPendiente > 0 ? 'text-amber-500' : 'text-slate-400'}`}>
-                        {formatCurrency(saldoPendiente)}
-                      </span>
-                    </div>
+                    {/* Barra de progreso de pago del cliente */}
+                    {montoTotal > 0 && (() => {
+                      const pct = Math.min(100, Math.round((montoPagado / montoTotal) * 100))
+                      const barColor = pct <= 10 ? 'bg-rose-500' : pct <= 50 ? 'bg-amber-500' : 'bg-emerald-500'
+                      return (
+                        <div className="px-1">
+                          <div className="flex justify-between text-[9px] font-semibold text-slate-400 mb-1">
+                            <span>Cobrado</span>
+                            <span>{pct}%</span>
+                          </div>
+                          <div className="w-full bg-slate-800 rounded-full h-1.5 overflow-hidden">
+                            <div className={`h-1.5 rounded-full transition-all duration-300 ${barColor}`} style={{ width: `${pct}%` }} />
+                          </div>
+                        </div>
+                      )
+                    })()}
                   </div>
 
                   {/* Indicador de Despliegue */}

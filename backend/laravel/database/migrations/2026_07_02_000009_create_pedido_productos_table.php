@@ -8,17 +8,18 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::create('comentarios_pedido', function (Blueprint $table) {
+        Schema::create('pedido_productos', function (Blueprint $table) {
             $table->id();
             $table->foreignId('pedido_id')->constrained('pedidos')->cascadeOnDelete();
-            $table->foreignId('user_id')->constrained('users')->restrictOnDelete();
-            $table->text('cuerpo');
+            $table->foreignId('producto_id')->constrained('productos')->cascadeOnDelete();
+            $table->unsignedInteger('cantidad')->default(1);
             $table->timestamps();
+            $table->softDeletes();
         });
     }
 
     public function down(): void
     {
-        Schema::dropIfExists('comentarios_pedido');
+        Schema::dropIfExists('pedido_productos');
     }
 };
