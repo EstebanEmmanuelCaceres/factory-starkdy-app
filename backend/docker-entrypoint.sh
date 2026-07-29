@@ -46,6 +46,21 @@ try {
 install_laravel() {
     if [ -f "$LARAVEL_PATH/artisan" ]; then
         echo "✅ Laravel ya instalado — omitiendo instalación."
+
+        # El repo versiona el código de Laravel pero no vendor/,
+        # así que hay que instalar las dependencias si todavía no están.
+        if [ ! -f "$LARAVEL_PATH/vendor/autoload.php" ]; then
+            echo ""
+            echo "📦 Falta vendor/ — ejecutando composer install..."
+            echo "   (Puede tomar unos minutos la primera vez)"
+            cd "$LARAVEL_PATH"
+            COMPOSER_ALLOW_SUPERUSER=1 composer install \
+                --prefer-dist \
+                --no-interaction \
+                --no-progress
+            echo "✅ Dependencias instaladas."
+        fi
+
         return
     fi
 
