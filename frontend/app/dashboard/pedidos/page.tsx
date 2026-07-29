@@ -21,7 +21,7 @@ import {
 import { fetchClientes, createCliente as createNewClient, type Cliente } from '@/lib/clientes'
 import { fetchProducts, type Product } from '@/lib/products'
 import { getStoredUser, fetchUsers, type User } from '@/lib/auth'
-import { fetchEtapas, createEtapa, deleteEtapa, type Etapa } from '@/lib/entities/etapas'
+import { fetchEtapas, type Etapa } from '@/lib/entities/etapas'
 import {
   fetchResponsablesEtapas,
   assignTask,
@@ -94,7 +94,7 @@ export default function PedidosPage() {
     productQuantities: {} as Record<number, number>,
     precio: '',
     comentario: '',
-    tipo_pago: 'unico' as 'unico' | 'parcial'
+    tipo_pago: 'parcial' as 'unico' | 'parcial'
   })
 
   // Ordenamiento
@@ -269,7 +269,7 @@ export default function PedidosPage() {
       productQuantities: {},
       precio: '',
       comentario: '',
-      tipo_pago: 'unico'
+      tipo_pago: 'parcial'
     })
     setClientSearchText('')
     setProductSearchQuery('')
@@ -288,9 +288,14 @@ export default function PedidosPage() {
     setSelectedPedido(pedido)
     const productIds = pedido.productos?.map((p) => p.id) || []
 
-    // Cargar etapas locales desde la plantilla global
-    const initialStages = allStages.filter((s) => productIds.includes(s.producto_id))
-    setLocalEtapas(initialStages)
+    // Cargar etapas configuradas desde la API por producto
+    try {
+      const stagesResults = await Promise.all(productIds.map(id => fetchEtapas({ producto_id: id })))
+      setLocalEtapas(stagesResults.flat())
+    } catch (err) {
+      console.error('Error al precargar etapas de productos:', err)
+      setLocalEtapas([])
+    }
 
     const quantities = pedido.productos?.reduce((acc, curr) => {
       const qty = (curr as any).pivot?.cantidad || 1
@@ -315,7 +320,7 @@ export default function PedidosPage() {
       productQuantities: quantities,
       precio: pedido.precio !== null && pedido.precio !== undefined ? pedido.precio.toString() : '',
       comentario: pedido.comentario || '',
-      tipo_pago: pedido.tipo_pago || 'unico'
+      tipo_pago: pedido.tipo_pago || 'parcial'
     })
     const assignedClient = clientes.find((c) => c.id === pedido.cliente_id)
     setClientSearchText(assignedClient ? `${assignedClient.nombre_cliente} - ${assignedClient.nombre_empresa}` : '')
@@ -327,7 +332,10 @@ export default function PedidosPage() {
       setTaskAssignments(assignments)
       const mapped: Record<string, number | null> = {}
       assignments.forEach((a) => {
-        mapped[a.etapa_id.toString()] = a.user_id
+        const epId = (a as any).etapa_producto_id || a.etapa_id
+        if (epId) {
+          mapped[epId.toString()] = a.user_id
+        }
       })
       setLocalAssignments(mapped)
     } catch (err) {
@@ -337,30 +345,36 @@ export default function PedidosPage() {
     setIsEditModalOpen(true)
   }
 
-  const handleProductCheckboxChange = (productId: number) => {
-    setFormData((prev) => {
-      const alreadySelected = prev.selectedProductIds.includes(productId)
-      const updatedIds = alreadySelected
-        ? prev.selectedProductIds.filter((id) => id !== productId)
-        : [...prev.selectedProductIds, productId]
+  const handleProductCheckboxChange = async (productId: number) => {
+    const alreadySelected = formData.selectedProductIds.includes(productId)
+    const updatedIds = alreadySelected
+      ? formData.selectedProductIds.filter((id) => id !== productId)
+      : [...formData.selectedProductIds, productId]
 
-      const updatedQuantities = { ...prev.productQuantities }
-      if (alreadySelected) {
-        delete updatedQuantities[productId]
-        setLocalEtapas((stages) => stages.filter((s) => s.producto_id !== productId))
-      } else {
-        updatedQuantities[productId] = 1
-        const newStages = allStages.filter((s) => s.producto_id === productId)
-        setLocalEtapas((stages) => [...stages, ...newStages])
+    const updatedQuantities = { ...formData.productQuantities }
+    if (alreadySelected) {
+      delete updatedQuantities[productId]
+      setLocalEtapas((stages) => stages.filter((s) => s.producto_id !== productId))
+    } else {
+      updatedQuantities[productId] = 1
+      try {
+        const productStages = await fetchEtapas({ producto_id: productId })
+        setLocalEtapas((prevEtapas) => {
+          const filtered = prevEtapas.filter(s => s.producto_id !== productId)
+          return [...filtered, ...productStages]
+        })
+      } catch (err) {
+        console.error('Error al obtener etapas del producto:', err)
       }
+    }
 
-      return {
-        ...prev,
-        selectedProductIds: updatedIds,
-        productQuantities: updatedQuantities
-      }
-    })
+    setFormData((prev) => ({
+      ...prev,
+      selectedProductIds: updatedIds,
+      productQuantities: updatedQuantities
+    }))
   }
+
 
   const handleProductQuantityChange = (productId: number, val: number) => {
     setFormData((prev) => ({
@@ -609,7 +623,7 @@ export default function PedidosPage() {
 
     // Buscar la primera tarea que no esté completada
     for (const stage of sortedStages) {
-      const task = pedidoTasks.find(t => t.etapa_id === stage.id)
+      const task = pedidoTasks.find(t => (t as any).etapa_producto_id === stage.id || t.etapa_id === stage.id || t.etapa?.id === stage.id)
       if (task && task.estado !== 'completado') {
         return { stage, task }
       }
@@ -617,7 +631,7 @@ export default function PedidosPage() {
     // Si están todas completadas
     if (sortedStages.length > 0) {
       const lastStage = sortedStages[sortedStages.length - 1]
-      const lastTask = pedidoTasks.find(t => t.etapa_id === lastStage.id)
+      const lastTask = pedidoTasks.find(t => (t as any).etapa_producto_id === lastStage.id || t.etapa_id === lastStage.id || t.etapa?.id === lastStage.id)
       return { stage: lastStage, task: lastTask }
     }
     return null
@@ -634,6 +648,21 @@ export default function PedidosPage() {
 
     // Cargar asignaciones de tareas para este pedido
     await loadTaskAssignments(pedido.id)
+
+    // Cargar las etapas asociadas a los productos del pedido
+    const productIds = pedido.productos?.map((p) => p.id) || []
+    if (productIds.length > 0) {
+      try {
+        const stagesResults = await Promise.all(productIds.map(id => fetchEtapas({ producto_id: id })))
+        const fetchedStages = stagesResults.flat()
+        setAllStages(prev => {
+          const otherStages = prev.filter(s => !productIds.includes(s.producto_id))
+          return [...otherStages, ...fetchedStages]
+        })
+      } catch (err) {
+        console.error('Error al precargar etapas de productos del pedido:', err)
+      }
+    }
   }
 
   // ── Gestores de Pagos Parciales/Únicos ─────────────────────────────
@@ -651,7 +680,7 @@ export default function PedidosPage() {
     setPaymentFormData({
       monto: saldo > 0 ? saldo.toString() : '',
       medio_pago: 'efectivo',
-      tipo_cobro: pedido.tipo_pago === 'unico' ? 'unico' : 'parcial',
+      tipo_cobro: 'parcial',
       observaciones: '',
       fecha_pago: new Date().toISOString().split('T')[0]
     })
@@ -706,7 +735,7 @@ export default function PedidosPage() {
       setPaymentFormData({
         monto: newSaldo > 0 ? newSaldo.toString() : '',
         medio_pago: 'efectivo',
-        tipo_cobro: updatedPedido.tipo_pago === 'unico' ? 'unico' : 'parcial',
+        tipo_cobro: 'parcial',
         observaciones: '',
         fecha_pago: new Date().toISOString().split('T')[0]
       })
@@ -779,12 +808,34 @@ export default function PedidosPage() {
     }
   }
 
+  const getStatusLabel = (status: string) => {
+    switch (status) {
+      case 'completado':
+        return 'Completado'
+      case 'completado_pd':
+        return 'Completado - Pend. Pago (PD)'
+      case 'enviado_faltante':
+        return 'Enviado con Faltante'
+      case 'en_progreso':
+        return 'En Progreso'
+      case 'cancelado':
+        return 'Cancelado'
+      case 'pendiente':
+      default:
+        return 'Pendiente'
+    }
+  }
+
   const getStatusBadgeClass = (status: string) => {
     switch (status) {
       case 'bloqueada':
         return 'bg-slate-800/80 text-slate-500 border border-slate-700/60'
       case 'completado':
         return 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+      case 'completado_pd':
+        return 'bg-purple-500/10 text-purple-400 border border-purple-500/20'
+      case 'enviado_faltante':
+        return 'bg-orange-500/10 text-orange-400 border border-orange-500/20'
       case 'en_progreso':
         return 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
       case 'cancelado':
@@ -823,9 +874,9 @@ export default function PedidosPage() {
       } else if (sortField === 'estado') {
         valA = a.estado.toLowerCase()
         valB = b.estado.toLowerCase()
-      } else if (sortField === 'fecha_entrega') {
-        valA = a.fecha_entrega ? new Date(a.fecha_entrega).getTime() : 0
-        valB = b.fecha_entrega ? new Date(b.fecha_entrega).getTime() : 0
+      } else if (sortField === 'created_at' || sortField === 'fecha_entrega') {
+        valA = a.created_at ? new Date(a.created_at).getTime() : 0
+        valB = b.created_at ? new Date(b.created_at).getTime() : 0
       } else if (sortField === 'precio') {
         valA = a.precio ? parseFloat(a.precio.toString()) : 0
         valB = b.precio ? parseFloat(b.precio.toString()) : 0
@@ -939,6 +990,8 @@ export default function PedidosPage() {
               <option value="pendiente">Pendiente</option>
               <option value="en_progreso">En Progreso</option>
               <option value="completado">Completado</option>
+              <option value="completado_pd">Completado - Pend. Pago (PD)</option>
+              <option value="enviado_faltante">Enviado con Faltante</option>
               <option value="cancelado">Cancelado</option>
             </select>
 
@@ -997,8 +1050,8 @@ export default function PedidosPage() {
                     <th onClick={() => handleSort('estado')} className="px-6 py-4 cursor-pointer hover:text-white transition text-left">
                       Estado {sortField === 'estado' ? (sortDirection === 'asc' ? ' ▲' : ' ▼') : ''}
                     </th>
-                    <th onClick={() => handleSort('fecha_entrega')} className="px-6 py-4 cursor-pointer hover:text-white transition text-left">
-                      Fecha Entrega {sortField === 'fecha_entrega' ? (sortDirection === 'asc' ? ' ▲' : ' ▼') : ''}
+                    <th onClick={() => handleSort('created_at')} className="px-6 py-4 cursor-pointer hover:text-white transition text-left">
+                      Fecha Creación {sortField === 'created_at' || sortField === 'fecha_entrega' ? (sortDirection === 'asc' ? ' ▲' : ' ▼') : ''}
                     </th>
                     <th onClick={() => handleSort('precio')} className="px-6 py-4 text-right cursor-pointer hover:text-white transition">
                       Precio {sortField === 'precio' ? (sortDirection === 'asc' ? ' ▲' : ' ▼') : ''}
@@ -1013,16 +1066,9 @@ export default function PedidosPage() {
                   {displayedPedidos.map((pedido) => (
                     <tr key={pedido.id} className="hover:bg-slate-800/40 text-slate-300 transition duration-100">
                       <td className="px-6 py-4">
-                        <div className="flex flex-col">
-                          <span className="font-semibold text-white">{pedido.cliente?.nombre_cliente} - {pedido.cliente?.nombre_empresa}</span>
-                          <span className="text-xs text-slate-500">{pedido.cliente?.email || 'Sin correo'}</span>
-                          {pedido.comentario && (
-                            <span className="text-[11px] text-slate-400 mt-1 italic flex items-center gap-1 max-w-xs truncate" title={pedido.comentario}>
-                              <span>💬</span>
-                              <span>{pedido.comentario}</span>
-                            </span>
-                          )}
-                        </div>
+                        <span className="font-semibold text-white">
+                          {pedido.cliente?.nombre_empresa || pedido.cliente?.nombre_cliente || 'Sin empresa'}
+                        </span>
                       </td>
                       <td className="px-6 py-4 max-w-xs">
                         {pedido.productos && pedido.productos.length > 0 ? (
@@ -1056,22 +1102,18 @@ export default function PedidosPage() {
                       </td>
                       <td className="px-6 py-4">
                         <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold uppercase tracking-wide ${getStatusBadgeClass(pedido.estado)}`}>
-                          {pedido.estado.replace('_', ' ')}
+                          {getStatusLabel(pedido.estado)}
                         </span>
                       </td>
                       <td className="px-6 py-4 text-xs text-slate-400">
-                        {pedido.fecha_entrega ? (
-                          /^\d{4}-\d{2}-\d{2}$/.test(pedido.fecha_entrega) ? (
-                            new Date(pedido.fecha_entrega + 'T00:00:00').toLocaleDateString('es-ES', {
-                              year: 'numeric',
-                              month: 'short',
-                              day: 'numeric'
-                            })
-                          ) : (
-                            <span>{pedido.fecha_entrega}</span>
-                          )
+                        {pedido.created_at ? (
+                          new Date(pedido.created_at).toLocaleDateString('es-ES', {
+                            year: 'numeric',
+                            month: 'short',
+                            day: 'numeric'
+                          })
                         ) : (
-                          <span className="text-slate-600 italic">No planificada</span>
+                          <span className="text-slate-600 italic">-</span>
                         )}
                       </td>
                       <td className="px-6 py-4 text-right text-xs font-semibold text-white">
@@ -1719,19 +1761,7 @@ export default function PedidosPage() {
                         className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition"
                       />
                     </div>
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
-                        Tipo de Cobro / Pago
-                      </label>
-                      <select
-                        value={formData.tipo_pago}
-                        onChange={(e) => setFormData({ ...formData, tipo_pago: e.target.value as 'unico' | 'parcial' })}
-                        className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition"
-                      >
-                        <option value="unico">Pago Único</option>
-                        <option value="parcial">Pagos Parciales (Abonos)</option>
-                      </select>
-                    </div>
+
                   </div>
 
                   <div>
@@ -2114,6 +2144,8 @@ export default function PedidosPage() {
                       <option value="pendiente">Pendiente</option>
                       <option value="en_progreso">En Progreso</option>
                       <option value="completado">Completado</option>
+                      <option value="completado_pd">Completado - Pendiente de pago (PD)</option>
+                      <option value="enviado_faltante">Enviado con faltante</option>
                       <option value="cancelado">Cancelado</option>
                     </select>
                   </div>
@@ -2145,19 +2177,7 @@ export default function PedidosPage() {
                       className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition"
                     />
                   </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
-                      Tipo de Cobro / Pago
-                    </label>
-                    <select
-                      value={formData.tipo_pago}
-                      onChange={(e) => setFormData({ ...formData, tipo_pago: e.target.value as 'unico' | 'parcial' })}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition"
-                    >
-                      <option value="unico">Pago Único</option>
-                      <option value="parcial">Pagos Parciales (Abonos)</option>
-                    </select>
-                  </div>
+
                 </div>
 
                 <div>
@@ -2556,8 +2576,7 @@ export default function PedidosPage() {
                 Gestión de Pagos: {selectedPedidoForPayments.codigo}
               </h2>
               <p className="text-xs text-slate-400 mb-5">
-                Cliente: <span className="font-semibold text-slate-200">{selectedPedidoForPayments.cliente?.nombre_cliente} ({selectedPedidoForPayments.cliente?.nombre_empresa})</span> |
-                Tipo: <span className="ml-1 uppercase text-blue-400 font-bold">{selectedPedidoForPayments.tipo_pago === 'unico' ? 'Pago Único' : 'Pagos Parciales'}</span>
+                Cliente: <span className="font-semibold text-slate-200">{selectedPedidoForPayments.cliente?.nombre_cliente} ({selectedPedidoForPayments.cliente?.nombre_empresa})</span>
               </p>
 
               {paymentError && (
@@ -2609,7 +2628,12 @@ export default function PedidosPage() {
                       </div>
                       <div className="w-full bg-slate-800 rounded-full h-2">
                         <div
-                          className="bg-emerald-500 h-2 rounded-full transition-all duration-350"
+                          className={`h-2 rounded-full transition-all duration-350 ${(selectedPedidoForPayments.porcentaje_pagado || 0) <= 10
+                            ? 'bg-rose-500'
+                            : (selectedPedidoForPayments.porcentaje_pagado || 0) <= 50
+                              ? 'bg-amber-500'
+                              : 'bg-emerald-500'
+                            }`}
                           style={{ width: `${Math.min(100, selectedPedidoForPayments.porcentaje_pagado || 0)}%` }}
                         />
                       </div>
@@ -2651,7 +2675,7 @@ export default function PedidosPage() {
                                 <span>Por: {pago.vendedor?.name || 'Sistema'}</span>
                               </div>
                               {pago.observaciones && (
-                                <p className="text-[10px] text-slate-400 italic mt-0.5">Nota: "{pago.observaciones}"</p>
+                                <p className="text-[10px] text-slate-400 italic mt-0.5">Nota: &quot;{pago.observaciones}&quot;</p>
                               )}
                             </div>
 
@@ -2676,11 +2700,7 @@ export default function PedidosPage() {
                 <div className="lg:col-span-5 bg-slate-950/40 p-4 rounded-xl border border-slate-800 text-left">
                   <h3 className="text-xs font-bold text-slate-200 uppercase tracking-wider mb-3">Registrar Nuevo Cobro</h3>
 
-                  {selectedPedidoForPayments.tipo_pago === 'unico' && pedidoPayments.some(p => p.estado === 'pagado') ? (
-                    <div className="text-xs text-slate-500 italic py-8 text-center">
-                      🔒 Este pedido es de **Pago Único** y ya tiene un cobro activo registrado. No es posible agregar más cobros.
-                    </div>
-                  ) : (selectedPedidoForPayments.saldo_pendiente ?? 0) <= 0 ? (
+                  {(selectedPedidoForPayments.saldo_pendiente ?? 0) <= 0 ? (
                     <div className="text-xs text-slate-500 italic py-8 text-center">
                       🎉 Este pedido se encuentra **completamente cobrado**. Saldo pendiente: $0.00.
                     </div>
@@ -2729,15 +2749,9 @@ export default function PedidosPage() {
                             onChange={(e) => setPaymentFormData({ ...paymentFormData, tipo_cobro: e.target.value as any })}
                             className="w-full bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-blue-500 transition"
                           >
-                            {selectedPedidoForPayments.tipo_pago === 'unico' ? (
-                              <option value="unico">Cobro Único</option>
-                            ) : (
-                              <>
-                                <option value="seña">Seña / Adelanto</option>
-                                <option value="parcial">Abono Parcial</option>
-                                <option value="saldo">Saldo Final</option>
-                              </>
-                            )}
+                            <option value="parcial">Abono Parcial</option>
+                            <option value="seña">Seña / Adelanto</option>
+                            <option value="saldo">Saldo Final</option>
                           </select>
                         </div>
                       </div>
@@ -2814,17 +2828,20 @@ export default function PedidosPage() {
                           try {
                             const newEstado = e.target.value
                             const updated = await updatePedido(selectedPedidoForView.id, { estado: newEstado })
-                            setSelectedPedidoForView(updated)
-                            setPedidos(prev => prev.map(p => p.id === updated.id ? updated : p))
-                          } catch (err: any) {
-                            console.error("Error al actualizar estado:", err)
+                            setSelectedPedidoForView(prev => prev ? { ...prev, estado: updated.estado } : null)
+                            setPedidos(prev => prev.map(p => p.id === updated.id ? { ...p, estado: updated.estado } : p))
+                            showNotification('Estado del pedido actualizado correctamente')
+                          } catch (err: unknown) {
+                            setError(err instanceof Error ? err.message : 'Error al actualizar el estado')
                           }
                         }}
-                        className="bg-slate-950 border border-slate-800 text-xs font-semibold text-blue-400 focus:outline-none focus:border-blue-500 rounded px-2 py-0.5"
+                        className="bg-slate-950 border border-slate-800 text-xs font-bold text-blue-400 focus:outline-none focus:border-blue-500 rounded-lg px-3 py-1 cursor-pointer transition hover:border-slate-700"
                       >
                         <option value="pendiente">Pendiente</option>
                         <option value="en_progreso">En Progreso</option>
                         <option value="completado">Completado</option>
+                        <option value="completado_pd">Completado - pendiente de pago (PD)</option>
+                        <option value="enviado_faltante">Enviado con faltante</option>
                         <option value="cancelado">Cancelado</option>
                       </select>
                     </div>
@@ -2968,7 +2985,7 @@ export default function PedidosPage() {
 
                                         <div className="flex flex-col md:flex-row md:items-center gap-4 md:gap-2 overflow-x-auto py-2">
                                           {prodStages.map((stage, idx) => {
-                                            const task = taskAssignments.find(t => t.pedido_id === selectedPedidoForView.id && t.etapa_id === stage.id)
+                                            const task = taskAssignments.find(t => t.pedido_id === selectedPedidoForView.id && ((t as any).etapa_producto_id === stage.id || t.etapa_id === stage.id || t.etapa?.id === stage.id))
                                             const state = task?.estado || 'pendiente'
 
                                             let nodeBg = 'bg-slate-900 border-slate-800 text-slate-400'
@@ -2984,12 +3001,25 @@ export default function PedidosPage() {
                                               stateLabel = 'Bloqueada'
                                             }
 
+                                            const completionDate = (state === 'completado' && (task?.fecha_fin || task?.updated_at))
+                                              ? new Date(task.fecha_fin || task.updated_at).toLocaleDateString('es-ES', {
+                                                day: 'numeric',
+                                                month: 'short',
+                                                year: 'numeric'
+                                              })
+                                              : null
+
                                             return (
                                               <div key={stage.id} className="flex flex-col md:flex-row md:items-center flex-shrink-0">
                                                 <div className={`border p-2.5 rounded-xl text-center min-w-[130px] ${nodeBg}`}>
                                                   <span className="text-[9px] font-bold uppercase tracking-wider text-slate-500 block mb-0.5">Etapa {stage.orden}</span>
                                                   <span className="text-xs font-bold block truncate max-w-[120px]" title={stage.nombre}>{stage.nombre}</span>
                                                   <span className="text-[9px] font-medium block mt-1 uppercase">{stateLabel}</span>
+                                                  {completionDate && (
+                                                    <span className="text-[9px] font-medium block mt-1 text-emerald-300/90 font-mono" title={`Fecha de terminación: ${completionDate}`}>
+                                                      {completionDate}
+                                                    </span>
+                                                  )}
                                                 </div>
 
                                                 {idx < prodStages.length - 1 && (

@@ -15,7 +15,7 @@ class ResponsableEtapa extends Model
 
     protected $fillable = [
         'pedido_id',
-        'etapa_id',
+        'etapa_producto_id',
         'user_id',
         'estado',
         'fecha_inicio',
@@ -36,11 +36,19 @@ class ResponsableEtapa extends Model
     }
 
     /**
-     * Relación: La tarea pertenece a una etapa.
+     * Relación: La tarea pertenece a una EtapaProducto.
+     */
+    public function etapaProducto(): BelongsTo
+    {
+        return $this->belongsTo(EtapaProducto::class, 'etapa_producto_id');
+    }
+
+    /**
+     * Relación o helper de conveniencia para acceder directamente a la EtapaProducto / Etapa.
      */
     public function etapa(): BelongsTo
     {
-        return $this->belongsTo(Etapa::class, 'etapa_id');
+        return $this->belongsTo(EtapaProducto::class, 'etapa_producto_id');
     }
 
     /**
@@ -92,35 +100,35 @@ class ResponsableEtapa extends Model
 
     public static function unblockDependentTasks($task)
     {
-        // Obtener etapas que dependen directamente de la etapa que acabamos de completar
-        $dependentEtapaIds = \DB::table('etapa_dependencias')
-            ->where('depende_de_etapa_id', $task->etapa_id)
-            ->pluck('etapa_id')
+        // Obtener etapas_productos que dependen directamente de la etapa que acabamos de completar
+        $dependentEtapaProductoIds = \DB::table('etapa_producto_dependencias')
+            ->where('depende_de_etapa_producto_id', $task->etapa_producto_id)
+            ->pluck('etapa_producto_id')
             ->toArray();
             
-        if (empty($dependentEtapaIds)) {
+        if (empty($dependentEtapaProductoIds)) {
             return;
         }
 
         // Para cada etapa dependiente, verificar si todas sus dependencias están completadas para este pedido
-        foreach ($dependentEtapaIds as $etapaId) {
+        foreach ($dependentEtapaProductoIds as $etapaProductoId) {
             // Obtener todas las etapas previas de las que depende esta etapa
-            $requiredEtapaIds = \DB::table('etapa_dependencias')
-                ->where('etapa_id', $etapaId)
-                ->pluck('depende_de_etapa_id')
+            $requiredEtapaProductoIds = \DB::table('etapa_producto_dependencias')
+                ->where('etapa_producto_id', $etapaProductoId)
+                ->pluck('depende_de_etapa_producto_id')
                 ->toArray();
                 
             // Contar cuántas de estas dependencias ya están en estado 'completado' para este pedido
             $completedCount = self::where('pedido_id', $task->pedido_id)
-                ->whereIn('etapa_id', $requiredEtapaIds)
+                ->whereIn('etapa_producto_id', $requiredEtapaProductoIds)
                 ->where('estado', 'completado')
                 ->count();
                 
             // Si el número de dependencias completadas coincide con el total de dependencias requeridas
-            if ($completedCount === count($requiredEtapaIds)) {
+            if ($completedCount === count($requiredEtapaProductoIds)) {
                 // Desbloquear la tarea
                 $dependentTask = self::where('pedido_id', $task->pedido_id)
-                    ->where('etapa_id', $etapaId)
+                    ->where('etapa_producto_id', $etapaProductoId)
                     ->first();
                     
                 if ($dependentTask && $dependentTask->estado === 'bloqueada') {
@@ -131,6 +139,4 @@ class ResponsableEtapa extends Model
             }
         }
     }
-
-
 }

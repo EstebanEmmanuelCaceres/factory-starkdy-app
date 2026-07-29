@@ -8,17 +8,18 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::create('etapa_historial_estado', function (Blueprint $table) {
+        Schema::create('etapas_productos', function (Blueprint $table) {
             $table->id();
+            $table->foreignId('producto_id')->constrained('productos')->cascadeOnDelete();
             $table->foreignId('etapa_id')->constrained('etapas')->cascadeOnDelete();
-            $table->foreignId('user_id')->nullable()->constrained('users')->nullOnDelete();
-            $table->text('comentario')->nullable();
-            $table->timestamp('created_at')->useCurrent();
+            $table->unsignedSmallInteger('orden')->default(1);
+            $table->timestamps();
+            $table->softDeletes();
         });
     }
 
     public function down(): void
     {
-        Schema::dropIfExists('etapa_historial_estado');
+        Schema::dropIfExists('etapas_productos');
     }
 };

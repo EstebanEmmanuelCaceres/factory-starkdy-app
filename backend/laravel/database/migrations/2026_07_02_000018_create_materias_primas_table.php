@@ -6,27 +6,21 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * Run the migrations.
-     */
     public function up(): void
     {
         Schema::create('materias_primas', function (Blueprint $table) {
             $table->id();
             $table->string('nombre');
-            $table->string('sku')->nullable();
+            $table->string('sku')->nullable()->unique();
             $table->string('unidad_medida');
-            $table->decimal('stock_actual', 12, 2)->default(0);
-            $table->decimal('stock_minimo', 12, 2)->nullable();
-            $table->decimal('costo_unitario', 12, 2)->nullable();
+            $table->decimal('stock_actual', 10, 2)->default(0.00);
+            $table->decimal('stock_minimo', 10, 2)->default(0.00);
+            $table->decimal('costo_unitario', 10, 2)->default(0.00);
             $table->timestamps();
             $table->softDeletes();
         });
     }
 
-    /**
-     * Reverse the migrations.
-     */
     public function down(): void
     {
         Schema::dropIfExists('materias_primas');

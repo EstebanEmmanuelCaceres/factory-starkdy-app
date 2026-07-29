@@ -10,14 +10,14 @@ return new class extends Migration
     {
         Schema::create('pedidos', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('cliente_id')->constrained('clientes')->restrictOnDelete();
-            $table->foreignId('user_id')->constrained('users')->restrictOnDelete();
+            $table->foreignId('cliente_id')->constrained('clientes')->cascadeOnDelete();
+            $table->foreignId('user_id')->nullable()->constrained('users')->nullOnDelete();
             $table->string('codigo')->unique();
-            $table->string('estado')->default('pendiente');
-            $table->string('prioridad')->default('normal');
+            $table->string('prioridad');
             $table->date('fecha_entrega')->nullable();
-            $table->integer('dias_vencimiento')->nullable();
-            $table->text('observaciones')->nullable();
+            $table->decimal('precio', 12, 2)->default(0.00);
+            $table->text('comentario')->nullable();
+            $table->string('tipo_pago')->nullable();
             $table->timestamps();
             $table->softDeletes();
         });

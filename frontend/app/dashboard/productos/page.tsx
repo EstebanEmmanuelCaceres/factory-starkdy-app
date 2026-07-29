@@ -1,6 +1,7 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
+
 import RoleGuard from '@/components/RoleGuard'
 import Pagination from '@/components/Pagination'
 import {
@@ -14,8 +15,10 @@ import {
 } from '@/lib/products'
 import {
   fetchEtapas,
+  fetchEtapasCatalog,
   syncEtapas,
   type Etapa,
+  type EtapaCatalog,
   type SyncEtapaItemInput
 } from '@/lib/entities/etapas'
 
@@ -41,7 +44,24 @@ export default function ProductosPage() {
   const [isStagesModalOpen, setIsStagesModalOpen] = useState(false)
   const [selectedProductForStages, setSelectedProductForStages] = useState<Product | null>(null)
   const [stages, setStages] = useState<Etapa[]>([])
+  const [catalogStages, setCatalogStages] = useState<EtapaCatalog[]>([])
+  const [isCatalogDropdownOpen, setIsCatalogDropdownOpen] = useState(false)
+  const catalogDropdownRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (catalogDropdownRef.current && !catalogDropdownRef.current.contains(event.target as Node)) {
+        setIsCatalogDropdownOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [])
+
   const [loadingStages, setLoadingStages] = useState(false)
+
   const [stagesError, setStagesError] = useState('')
   const [editingStage, setEditingStage] = useState<Etapa | null>(null)
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
@@ -59,6 +79,15 @@ export default function ProductosPage() {
     descripcion: ''
   })
 
+  const loadCatalog = async () => {
+    try {
+      const data = await fetchEtapasCatalog()
+      setCatalogStages(data)
+    } catch (err) {
+      console.error('Error al cargar catálogo de etapas:', err)
+    }
+  }
+
   const loadStages = async (productId: number) => {
     setLoadingStages(true)
     setStagesError('')
@@ -66,6 +95,7 @@ export default function ProductosPage() {
       const data = await fetchEtapas({ producto_id: productId })
       setStages(data)
       setHasUnsavedChanges(false)
+      await loadCatalog()
     } catch (err: unknown) {
       setStagesError(err instanceof Error ? err.message : 'Error al cargar las etapas')
     } finally {
@@ -81,10 +111,12 @@ export default function ProductosPage() {
       orden: '1',
       depende_de_ids: []
     })
+    setIsCatalogDropdownOpen(false)
     setHasUnsavedChanges(false)
     setIsStagesModalOpen(true)
     loadStages(product.id)
   }
+
 
   // Auto-calcular orden por defecto al abrir modal en modo creación o cuando cambien las etapas
   useEffect(() => {
@@ -158,8 +190,10 @@ export default function ProductosPage() {
       orden: '',
       depende_de_ids: []
     })
+    setIsCatalogDropdownOpen(false)
     setHasUnsavedChanges(true)
   }
+
 
   const handleDeleteStage = (stageId: number) => {
     if (!selectedProductForStages) return
@@ -337,7 +371,7 @@ export default function ProductosPage() {
   }
 
   return (
-    <RoleGuard allowedRoles={['admin', 'encargado']}>
+    <RoleGuard allowedRoles={['admin']}>
       <main className="page-content p-6 max-w-7xl mx-auto bg-[#1E293B]">
         {/* Notificación de Éxito */}
         {successMessage && (
@@ -670,7 +704,8 @@ export default function ProductosPage() {
                   ) : (
                     <div className="space-y-3">
                       {stages.map((stage) => {
-                        const hasDeps = stage.dependencias && stage.dependencias.length > 0;
+                        const validDeps = stage.dependencias?.filter(d => d && d.nombre && d.nombre.trim() !== '') || [];
+                        const hasDeps = validDeps.length > 0;
                         return (
                           <div
                             key={stage.id}
@@ -687,10 +722,10 @@ export default function ProductosPage() {
                                 <div>
                                   <span className="font-semibold text-white text-sm">{stage.nombre}</span>
                                   {hasDeps && (
-                                    <div className="flex flex-wrap gap-1 mt-1">
-                                      <span className="text-[10px] text-slate-500 self-center mr-1">Requiere:</span>
-                                      {stage.dependencias?.map(dep => (
-                                        <span key={dep.id} className="bg-slate-800 text-slate-300 text-[10px] px-1.5 py-0.5 rounded border border-slate-700">
+                                    <div className="flex flex-wrap items-center gap-1.5 mt-1">
+                                      <span className="text-[11px] text-slate-400 font-medium">Requiere:</span>
+                                      {validDeps.map(dep => (
+                                        <span key={dep.id} className="bg-slate-800 text-blue-300 text-[11px] font-semibold px-2 py-0.5 rounded border border-slate-700">
                                           {dep.nombre}
                                         </span>
                                       ))}
@@ -736,20 +771,77 @@ export default function ProductosPage() {
 
                   <form onSubmit={handleStageSubmit} className="space-y-4 flex-1 flex flex-col justify-between">
                     <div className="space-y-4">
-                      {/* Nombre */}
-                      <div>
-                        <label className="block text-xs font-semibold text-slate-400 mb-1.5">
-                          Nombre de la etapa
+                      {/* Nombre con Buscador en Catálogo */}
+                      <div className="relative" ref={catalogDropdownRef}>
+                        <label className="block text-xs font-semibold text-slate-400 mb-1.5 flex justify-between items-center">
+                          <span>Nombre de la etapa</span>
+                          {catalogStages.length > 0 && (
+                            <span className="text-[10px] text-blue-400 font-normal">
+                              {catalogStages.length} disponibles en catálogo
+                            </span>
+                          )}
                         </label>
                         <input
                           type="text"
                           required
-                          placeholder="Ej: Pintado, Pulido, Empaquetado"
+                          placeholder="Escribe para buscar en catálogo..."
                           value={stageFormData.nombre}
-                          onChange={(e) => setStageFormData({ ...stageFormData, nombre: e.target.value })}
+                          onFocus={() => {
+                            if (stageFormData.nombre.trim() !== '') {
+                              setIsCatalogDropdownOpen(true)
+                            }
+                          }}
+                          onChange={(e) => {
+                            const val = e.target.value
+                            setStageFormData({ ...stageFormData, nombre: val })
+                            setIsCatalogDropdownOpen(val.trim() !== '')
+                          }}
                           className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2.5 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500 transition"
                         />
+
+                        {/* Desplegable de Sugerencias del Catálogo */}
+                        {isCatalogDropdownOpen && stageFormData.nombre.trim() !== '' && (
+                          <div className="absolute z-20 w-full mt-1 bg-slate-950 border border-slate-800 rounded-lg shadow-xl max-h-48 overflow-y-auto">
+                            {(() => {
+                              const matches = catalogStages.filter(c =>
+                                c.nombre.toLowerCase().includes(stageFormData.nombre.trim().toLowerCase())
+                              );
+
+                              return (
+                                <>
+                                  {matches.map(item => (
+                                    <button
+                                      key={item.id}
+                                      type="button"
+                                      onClick={() => {
+                                        setStageFormData({ ...stageFormData, nombre: item.nombre })
+                                        setIsCatalogDropdownOpen(false)
+                                      }}
+                                      className="w-full text-left px-3.5 py-2 text-xs text-slate-300 hover:bg-blue-600/20 hover:text-white border-b border-slate-900 last:border-0 flex items-center justify-between transition"
+                                    >
+                                      <span className="font-semibold">{item.nombre}</span>
+                                      {item.descripcion && (
+                                        <span className="text-[10px] text-slate-500 truncate max-w-[150px]">
+                                          {item.descripcion}
+                                        </span>
+                                      )}
+                                    </button>
+                                  ))}
+
+                                  {!matches.some(c => c.nombre.toLowerCase() === stageFormData.nombre.trim().toLowerCase()) && (
+                                    <div className="p-2.5 text-[11px] text-emerald-400 bg-emerald-950/30 border-t border-slate-900 flex items-center gap-1.5">
+                                      <span>✨</span>
+                                      <span>Se guardará &quot;<strong>{stageFormData.nombre}</strong>&quot; como nueva etapa global</span>
+                                    </div>
+                                  )}
+                                </>
+                              )
+                            })()}
+                          </div>
+                        )}
                       </div>
+
+
 
                       {/* Dependencias Checkboxes */}
                       <div>

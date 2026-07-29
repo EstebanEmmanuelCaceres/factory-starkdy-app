@@ -41,10 +41,20 @@ class Producto extends Model
     }
 
     /**
-     * Relación Uno a Muchos con Etapas.
+     * Relación Uno a Muchos con EtapasProductos (Instancias de etapa asociadas al producto).
      */
-    public function etapas(): HasMany
+    public function etapasProductos(): HasMany
     {
-        return $this->hasMany(Etapa::class);
+        return $this->hasMany(EtapaProducto::class, 'producto_id')->orderBy('orden', 'asc');
+    }
+
+    /**
+     * Relación Muchos a Muchos con el Catálogo de Etapas.
+     */
+    public function etapas(): BelongsToMany
+    {
+        return $this->belongsToMany(Etapa::class, 'etapas_productos', 'producto_id', 'etapa_id')
+            ->withPivot(['id', 'orden'])
+            ->withTimestamps();
     }
 }
