@@ -8,7 +8,7 @@ services:
       - "3000:3000"
     environment:
       - NODE_ENV=production
-      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
+      - NEXT_PUBLIC_API_URL=http://72.61.27.14:8000
     depends_on:
       - backend
     networks:
@@ -32,7 +32,7 @@ services:
       - REDIS_PORT=6379
       - APP_ENV=production
       - APP_DEBUG=false
-      - CORS_ALLOWED_ORIGINS=${CORS_ALLOWED_ORIGINS}
+      - CORS_ALLOWED_ORIGINS=http://72.61.27.14:3000/
     depends_on:
       db:
         condition: service_healthy
