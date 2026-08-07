@@ -44,8 +44,10 @@ try {
 
 # ─────────────────────────────────────────────────────────────────
 install_laravel() {
-    if [ -f "$LARAVEL_PATH/artisan" ]; then
-        echo "✅ Laravel ya instalado — omitiendo instalación."
+    # if [ -f "$LARAVEL_PATH/artisan" ]; then
+    #     echo "✅ Laravel ya instalado — omitiendo instalación."
+    if [ -f "$LARAVEL_PATH/composer.json" ] || [ -f "$LARAVEL_PATH/artisan" ]; then
+        echo "✅ Código de Laravel detectado — omitiendo instalación de plantilla..."
 
         # El repo versiona el código de Laravel pero no vendor/,
         # así que hay que instalar las dependencias si todavía no están.
