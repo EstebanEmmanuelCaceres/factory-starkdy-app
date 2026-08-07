@@ -65,10 +65,11 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::delete('clientes/{id}', [ClienteController::class, 'destroy']);
 
     // ── Pedidos ───────────────────────────────────────────────────
-    Route::apiResource('pedidos', PedidoController::class);
+    Route::get('pedidos', [PedidoController::class, 'index']);
     Route::post('pedidos/{id}/generar-tareas', [PedidoController::class, 'generarTareasManual']);
     Route::get('pedidos/{id}/comentarios', [PedidoController::class, 'getComentarios']);
     Route::post('pedidos/{id}/comentarios', [PedidoController::class, 'addComentario']);
+    Route::get("clientes-with-pedidos", [ClienteController::class, 'clientesWithPedidos']);
 
     // ── Pagos de Pedidos ───────────────────────────────────────────
     Route::get('pedidos/{pedido}/pagos', [PagoController::class, 'index']);

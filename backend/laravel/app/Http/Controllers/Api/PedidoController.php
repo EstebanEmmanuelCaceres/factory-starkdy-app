@@ -24,7 +24,15 @@ class PedidoController extends Controller
      */
     public function index(Request $request): JsonResponse
     {
-        $query = Pedido::with(['cliente', 'user', 'productos', 'pago', 'pagos', 'comentarios', 'comentarios.user']);
+        $query = Pedido::select('id', 'cliente_id', 'user_id', 'codigo', 'prioridad', 'precio', 'created_at', 'updated_at')
+            ->with([
+                'cliente:id,nombre_empresa,nombre_cliente,telefono',
+                'user:id,name',
+                'pago',
+                'pagos',
+                'comentarios:id,pedido_id,user_id,cuerpo,created_at,updated_at',
+                'comentarios.user:id,name'
+            ]);
 
         // Búsqueda opcional por nombre de empresa, nombre de cliente o correo del cliente relacionado
         if ($request->has('search') && !empty($request->input('search'))) {
@@ -73,6 +81,13 @@ class PedidoController extends Controller
         }
 
         $pedidos = $query->latest()->get();
+
+        $pedidos->makeHidden(['porcentaje_pagado', 'comentario', 'fecha_entrega']);
+        $pedidos->each(function ($pedido) {
+            if ($pedido->relationLoaded('comentarios')) {
+                $pedido->comentarios->makeHidden(['pedido_id', 'user_id']);
+            }
+        });
 
         return response()->json([
             'status' => 'success',

@@ -76,3 +76,8 @@ export async function updateCliente(id: number, input: UpdateClienteInput): Prom
 export async function deleteCliente(id: number): Promise<void> {
   await api.delete(`/clientes/${id}`)
 }
+
+export async function clientesWithPedidos(): Promise<Cliente[]> {
+  const { data } = await api.get<{ status: string; data: Cliente[] }>(`/clientes-with-pedidos`)
+  return data.data
+}

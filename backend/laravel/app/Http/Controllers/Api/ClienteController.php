@@ -169,4 +169,29 @@ class ClienteController extends Controller
             'message' => 'Cliente eliminado correctamente'
         ]);
     }
+
+    /**
+     * Display a listing of the resource with related pedidos.
+     */
+    public function clientesWithPedidos(): JsonResponse
+    {
+        $clientes = Cliente::with(['pedidos' => function ($q) {
+            $q->select('id', 'cliente_id', 'codigo');
+        }])->get();
+
+        $clientes->each(function ($cliente) {
+            $cliente->pedidos->makeHidden([
+                'monto_pagado',
+                'saldo_pendiente',
+                'porcentaje_pagado',
+                'estado_pago',
+                'ultimo_estado'
+            ]);
+        });
+
+        return response()->json([
+            'status' => 'success',
+            'data' => $clientes
+        ]);
+    }
 }

@@ -1,9 +1,9 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import RoleGuard from '@/components/RoleGuard'
 import { fetchUsers, getStoredUser, type User } from '@/lib/auth'
-import { fetchPedidos, createPedidoComentario, type Pedido, type PedidoFilters } from '@/lib/pedidos'
+import { fetchPedidos, updatePedido, createPedidoComentario, type Pedido, type PedidoFilters } from '@/lib/pedidos'
 
 export default function DashboardPage() {
   const [users, setUsers] = useState<User[]>([])
@@ -56,6 +56,8 @@ export default function DashboardPage() {
   const [sortField, setSortField] = useState<'codigo' | 'created_at' | 'cliente' | 'estado'>('created_at')
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc')
 
+  const isFirstRender = useRef(true)
+
   const loadData = async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true)
     else {
@@ -65,11 +67,14 @@ export default function DashboardPage() {
     setError('')
 
     try {
-      const [usersData, pedidosData] = await Promise.all([
-        fetchUsers(),
-        fetchPedidos(filters)
-      ])
-      setUsers(usersData)
+      const user = getStoredUser()
+      setCurrentUser(user)
+
+      if (user?.role !== 'vendedor') {
+        const usersData = await fetchUsers()
+        setUsers(usersData)
+      }
+      const pedidosData = await fetchPedidos(filters)
       setPedidos(pedidosData)
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Error al cargar los datos'
@@ -83,13 +88,17 @@ export default function DashboardPage() {
 
   // Carga inicial de usuarios y pedidos
   useEffect(() => {
-    setCurrentUser(getStoredUser())
     loadData()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   // Recargar pedidos cuando cambien los filtros
   useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false
+      return
+    }
+
     const reloadPedidos = async () => {
       setLoadingPedidos(true)
       try {
@@ -550,7 +559,7 @@ export default function DashboardPage() {
                                 const paidAmount = pedido.pagos
                                   ? pedido.pagos.filter((p: any) => p.estado === 'pagado').reduce((sum: number, p: any) => sum + Number(p.monto), 0)
                                   : (pedido.pago && pedido.pago.estado === 'pagado' ? Number(pedido.pago.monto) : 0)
-                                
+
                                 const pct = precio > 0 ? Math.round((paidAmount / precio) * 100) : 0
 
                                 if (paidAmount <= 0) {
@@ -562,8 +571,8 @@ export default function DashboardPage() {
                                   <div className="flex flex-col">
                                     <span className="font-semibold text-white font-mono text-xs">{formatCurrency(paidAmount)}</span>
                                     <span className={`inline-flex items-center self-start px-1.5 py-0.5 rounded text-[9px] font-bold uppercase mt-0.5 ${isFullyPaid
-                                        ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-                                        : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
+                                      ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                                      : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
                                       }`}>
                                       {isFullyPaid ? 'Cobrado' : `Parcial (${pct}%)`}
                                     </span>

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import Sidebar from '@/components/Sidebar'
-import Header  from '@/components/Header'
+import Header from '@/components/Header'
 import { getStoredUser, fetchMe, type User } from '@/lib/auth'
 
 export default function DashboardLayout({
@@ -18,14 +18,14 @@ export default function DashboardLayout({
     if (stored) setUser(stored)
 
     // Luego verificar con la API (actualiza datos)
-    fetchMe()
-      .then((u) => {
-        setUser(u)
-        localStorage.setItem('auth_user', JSON.stringify(u))
-      })
-      .catch(() => {
-        // Si falla (401) el interceptor de Axios redirige a /login
-      })
+    // fetchMe()
+    //   .then((u) => {
+    //     setUser(u)
+    //     localStorage.setItem('auth_user', JSON.stringify(u))
+    //   })
+    //   .catch(() => {
+    //     // Si falla (401) el interceptor de Axios redirige a /login
+    //   })
   }, [])
 
   return (
