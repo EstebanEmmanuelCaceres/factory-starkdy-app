@@ -122,6 +122,41 @@ factory-app/
 
 ---
 
+## Despliegue en VPS
+
+El compose corre el frontend como build de producción (`next build` + `next start`),
+no el servidor de desarrollo.
+
+### 1. Configurar el dominio en `.env`
+
+`NEXT_PUBLIC_API_URL` viaja al **navegador del visitante**, así que no puede ser
+`localhost`: tiene que ser la URL pública del backend, terminada en `/api`.
+
+```bash
+NEXT_PUBLIC_API_URL=http://srv1875010.hstgr.cloud:8000/api
+CORS_ALLOWED_ORIGINS=http://srv1875010.hstgr.cloud:3000
+```
+
+`CORS_ALLOWED_ORIGINS` va **sin barra final** — el header `Origin` nunca la
+incluye y Laravel compara el string exacto.
+
+### 2. Levantar
+
+```bash
+docker compose up -d --build
+```
+
+> ⚠️ `NEXT_PUBLIC_API_URL` se incrusta en el bundle durante el build. Si cambiás
+> el dominio, no alcanza con reiniciar: hay que rebuildear el frontend.
+
+### 3. Abrir los puertos
+
+Los puertos `3000` (frontend) y `8000` (API) tienen que estar habilitados en el
+firewall del VPS. La base y Redis no publican puertos: solo se acceden desde la
+red interna de Docker.
+
+---
+
 ## Comandos Útiles
 
 ```bash

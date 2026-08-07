@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import RoleGuard from '@/components/RoleGuard'
 import { fetchUsers, getStoredUser, type User } from '@/lib/auth'
-import { fetchPedidos, createPedidoComentario, type Pedido, type PedidoFilters } from '@/lib/pedidos'
+import { fetchPedidos, createPedidoComentario, updatePedido, type Pedido, type PedidoFilters } from '@/lib/pedidos'
 
 export default function DashboardPage() {
   const [users, setUsers] = useState<User[]>([])
