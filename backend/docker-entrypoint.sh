@@ -162,16 +162,36 @@ setup_laravel() {
     chmod -R 775 "$LARAVEL_PATH/storage" "$LARAVEL_PATH/bootstrap/cache"
 
     # Migraciones
+    #
+    # Sin `set -o pipefail` un pipe devuelve el estado del ÚLTIMO comando, así
+    # que filtrar la salida con `grep` se tragaba cualquier fallo de migrate:
+    # el contenedor arrancaba igual y la API devolvía 500 en toda consulta
+    # porque las tablas nunca se habían creado. Se corre sin pipe y se aborta.
     echo "🗄️  Ejecutando migraciones..."
-    php artisan migrate --force 2>&1 | grep -E "(Migrating|Migrated|Nothing)" | head -20
+    if ! php artisan migrate --force; then
+        echo "❌ Fallaron las migraciones. Abortando el arranque."
+        exit 1
+    fi
     echo "✅ Migraciones completadas."
 
-    # Seeder (solo primera vez)
-    if [ ! -f "$LOCK_FILE" ]; then
-        echo "🌱 Ejecutando seeders..."
-        php artisan db:seed --force --quiet
+    # Seeder
+    #
+    # El gate ya no es un archivo: storage/.initialized llegó a versionarse, con
+    # lo que en un despliegue limpio el lock venía en el clone y los seeders no
+    # corrían nunca (base migrada pero sin usuarios). Se consulta el estado real.
+    local user_count
+    user_count=$(php artisan tinker --execute="echo \App\Models\User::count();" 2>/dev/null | tr -cd '0-9')
+
+    if [ -z "$user_count" ] || [ "$user_count" -eq 0 ] 2>/dev/null; then
+        echo "🌱 Base sin usuarios — ejecutando seeders..."
+        if ! php artisan db:seed --force; then
+            echo "❌ Fallaron los seeders. Abortando el arranque."
+            exit 1
+        fi
         touch "$LOCK_FILE"
         echo "✅ Base de datos poblada con datos iniciales."
+    else
+        echo "✅ Base ya poblada ($user_count usuarios) — omitiendo seeders."
     fi
 
     # Caché de configuración y rutas
