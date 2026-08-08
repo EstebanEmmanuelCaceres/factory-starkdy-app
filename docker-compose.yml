@@ -3,12 +3,14 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+      target: runner
+      args:
+        # Se incrusta en el bundle durante el build. Si cambia esta URL
+        # hay que rebuildear: `docker compose up -d --build frontend`.
+        - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://localhost:8000/api}
     container_name: factory-frontend
     ports:
-      - "3000:3000"
-    environment:
-      - NODE_ENV=production
-      - NEXT_PUBLIC_API_URL=http://72.61.27.14:8000
+      - "${FRONTEND_PORT:-3000}:3000"
     depends_on:
       - backend
     networks:
@@ -21,8 +23,15 @@ services:
       dockerfile: Dockerfile
     container_name: factory-backend
     ports:
-      - "8000:80"
+      - "${BACKEND_PORT:-8000}:80"
+    volumes:
+      # Obligatorio: backend/.dockerignore excluye laravel/, así que el código
+      # de la app NO está en la imagen. Sin este mount, /var/www/html va vacío.
+      - ./backend/laravel:/var/www/html
     environment:
+      # Explícito a propósito: si DB_CONNECTION queda sin definir, Laravel 11
+      # cae a sqlite por defecto y consulta un archivo vacío en vez de Postgres.
+      - DB_CONNECTION=pgsql
       - DB_HOST=db
       - DB_PORT=5432
       - DB_DATABASE=${DB_DATABASE}
@@ -32,7 +41,8 @@ services:
       - REDIS_PORT=6379
       - APP_ENV=production
       - APP_DEBUG=false
-      - CORS_ALLOWED_ORIGINS=http://72.61.27.14:3000/
+      # Sin barra final: el header Origin nunca la trae y Laravel compara exacto.
+      - CORS_ALLOWED_ORIGINS=${CORS_ALLOWED_ORIGINS:-http://localhost:3000}
     depends_on:
       db:
         condition: service_healthy
@@ -63,6 +73,20 @@ services:
   redis:
     image: redis:7-alpine
     container_name: factory-redis
+    networks:
+      - factory-network
+    restart: unless-stopped
+
+  adminer:
+    image: adminer:4
+    container_name: factory-adminer
+    ports:
+      - "${ADMINER_PORT:-8080}:8080"
+    environment:
+      - ADMINER_DEFAULT_SERVER=db
+    depends_on:
+      db:
+        condition: service_healthy
     networks:
       - factory-network
     restart: unless-stopped

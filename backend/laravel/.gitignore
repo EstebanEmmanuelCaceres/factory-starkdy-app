@@ -20,7 +20,14 @@
 /public/storage
 /storage/*.key
 /storage/pail
+# Lock de seeders: es estado de cada entorno. Versionarlo hacía que un deploy
+# limpio arrancara con el lock puesto y nunca corriera los seeders.
+/storage/.initialized
 /vendor
+# Archivo sqlite que genera Laravel si DB_CONNECTION queda sin definir
+# (cae a sqlite y trata DB_DATABASE como ruta de archivo).
+/factory_db
+/database/*.sqlite
 _ide_helper.php
 Homestead.json
 Homestead.yaml
