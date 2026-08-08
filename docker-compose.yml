@@ -29,6 +29,9 @@ services:
       # de la app NO está en la imagen. Sin este mount, /var/www/html va vacío.
       - ./backend/laravel:/var/www/html
     environment:
+      # Explícito a propósito: si DB_CONNECTION queda sin definir, Laravel 11
+      # cae a sqlite por defecto y consulta un archivo vacío en vez de Postgres.
+      - DB_CONNECTION=pgsql
       - DB_HOST=db
       - DB_PORT=5432
       - DB_DATABASE=${DB_DATABASE}
@@ -70,6 +73,20 @@ services:
   redis:
     image: redis:7-alpine
     container_name: factory-redis
+    networks:
+      - factory-network
+    restart: unless-stopped
+
+  adminer:
+    image: adminer:4
+    container_name: factory-adminer
+    ports:
+      - "${ADMINER_PORT:-8080}:8080"
+    environment:
+      - ADMINER_DEFAULT_SERVER=db
+    depends_on:
+      db:
+        condition: service_healthy
     networks:
       - factory-network
     restart: unless-stopped

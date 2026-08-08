@@ -12,6 +12,7 @@ Plataforma de gestión para fábrica construida con **Next.js 14**, **Laravel 11
 | Backend API | Laravel 11 (PHP 8.3) + Nginx | `8000` |
 | Base de datos | PostgreSQL 16 | `5432` |
 | Caché / Colas | Redis 7 | `6379` |
+| Admin de BD | Adminer 4 | `8080` |
 
 ---
 
@@ -50,6 +51,10 @@ docker-compose up --build
 | 🌐 Frontend (Next.js) | http://localhost:3000 |
 | 🔌 API (Laravel) | http://localhost:8000/api |
 | 📋 Health check | http://localhost:8000/up |
+| 🗄️ Adminer (BD) | http://localhost:8080 |
+
+Adminer entra con **System** `PostgreSQL`, **Server** `db`, y el usuario / contraseña
+/ base de `.env` (`factory_user` / `factory_secret` / `factory_db`).
 
 ---
 
@@ -151,9 +156,13 @@ docker compose up -d --build
 
 ### 3. Abrir los puertos
 
-Los puertos `3000` (frontend) y `8000` (API) tienen que estar habilitados en el
-firewall del VPS. La base y Redis no publican puertos: solo se acceden desde la
-red interna de Docker.
+Los puertos `3000` (frontend), `8000` (API) y `8080` (Adminer) tienen que estar
+habilitados en el firewall del VPS. La base y Redis no publican puertos: solo se
+acceden desde la red interna de Docker.
+
+> ⚠️ Adminer en `8080` queda expuesto a internet sin más protección que la
+> contraseña de Postgres. Para producción conviene no publicar el puerto y
+> llegar por un túnel SSH (`ssh -L 8080:localhost:8080 usuario@servidor`).
 
 ---
 
