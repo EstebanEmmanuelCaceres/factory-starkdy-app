@@ -28,6 +28,8 @@ class PedidoController extends Controller
             ->with([
                 'cliente:id,nombre_empresa,nombre_cliente,telefono',
                 'user:id,name',
+                'productos',
+                'productos.imagenPrincipal',
                 'pago',
                 'pagos',
                 'comentarios:id,pedido_id,user_id,cuerpo,created_at,updated_at',
@@ -209,7 +211,17 @@ class PedidoController extends Controller
      */
     public function show($id): JsonResponse
     {
-        $pedido = Pedido::with(['cliente', 'user', 'productos', 'pago', 'pagos', 'comentarios', 'comentarios.user'])->find($id);
+        $pedido = Pedido::with([
+            'cliente',
+            'user',
+            'productos',
+            'productos.imagenPrincipal',
+            'productos.imagenes',
+            'pago',
+            'pagos',
+            'comentarios',
+            'comentarios.user'
+        ])->find($id);
 
         if (!$pedido) {
             return response()->json([

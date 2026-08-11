@@ -15,7 +15,7 @@ class ProductoController extends Controller
      */
     public function index(Request $request): JsonResponse
     {
-        $query = Producto::query();
+        $query = Producto::with(['imagenes', 'imagenPrincipal']);
 
         // Búsqueda opcional por nombre
         if ($request->has('nombre')) {
@@ -53,7 +53,7 @@ class ProductoController extends Controller
         return response()->json([
             'status' => 'success',
             'message' => 'Producto creado correctamente',
-            'data' => $producto
+            'data' => $producto->load(['imagenes', 'imagenPrincipal'])
         ], 201);
     }
 
@@ -62,7 +62,7 @@ class ProductoController extends Controller
      */
     public function show($id): JsonResponse
     {
-        $producto = Producto::find($id);
+        $producto = Producto::with(['imagenes', 'imagenPrincipal'])->find($id);
 
         if (!$producto) {
             return response()->json([

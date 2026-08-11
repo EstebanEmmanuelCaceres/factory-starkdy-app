@@ -1,4 +1,5 @@
 import api from './api'
+import type { ProductImage } from './entities/productImages'
 
 export interface Product {
   id: number
@@ -6,6 +7,8 @@ export interface Product {
   descripcion: string | null
   created_at: string
   updated_at: string
+  imagenes?: ProductImage[]
+  imagen_principal?: ProductImage | null
 }
 
 export interface CreateProductInput {

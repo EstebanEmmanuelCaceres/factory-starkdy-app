@@ -4,6 +4,7 @@ import { useEffect, useState, useRef } from 'react'
 
 import RoleGuard from '@/components/RoleGuard'
 import Pagination from '@/components/Pagination'
+import ProductImageGallery from '@/components/ProductImageGallery'
 import {
   fetchProducts,
   createProduct,
@@ -39,6 +40,10 @@ export default function ProductosPage() {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
+
+  // Gestión de Imágenes
+  const [isImagesModalOpen, setIsImagesModalOpen] = useState(false)
+  const [selectedProductForImages, setSelectedProductForImages] = useState<Product | null>(null)
 
   // Gestión de Etapas
   const [isStagesModalOpen, setIsStagesModalOpen] = useState(false)
@@ -101,6 +106,11 @@ export default function ProductosPage() {
     } finally {
       setLoadingStages(false)
     }
+  }
+
+  const handleOpenImagesModal = (product: Product) => {
+    setSelectedProductForImages(product)
+    setIsImagesModalOpen(true)
   }
 
   const handleOpenStagesModal = (product: Product) => {
@@ -457,48 +467,75 @@ export default function ProductosPage() {
                   <thead>
                     <tr className="border-b border-slate-800 bg-slate-950/40 text-slate-400 font-semibold text-xs uppercase tracking-wider">
                       <th className="px-6 py-4">ID</th>
+                      <th className="px-6 py-4">Logo</th>
                       <th className="px-6 py-4">Producto</th>
                       <th className="px-6 py-4">Descripción</th>
                       <th className="px-6 py-4 text-right">Acciones</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-800 text-sm">
-                    {products.slice((currentPage - 1) * pageSize, currentPage * pageSize).map((product) => (
-                      <tr key={product.id} className="hover:bg-slate-800/40 text-slate-300 transition duration-100">
-                        <td className="px-6 py-4 font-mono text-xs text-slate-500">#{product.id}</td>
-                        <td className="px-6 py-4">
-                          <span className="font-semibold text-white">{product.nombre}</span>
-                        </td>
-                        <td className="px-6 py-4 max-w-xs truncate text-slate-400" title={product.descripcion || ''}>
-                          {product.descripcion || <span className="text-slate-600 italic">Sin descripción</span>}
-                        </td>
-                        <td className="px-6 py-4 text-right">
-                          <div className="flex justify-end gap-2.5">
-                            <button
-                              onClick={() => handleOpenStagesModal(product)}
-                              className="text-slate-400 hover:text-white p-1 hover:bg-slate-800 rounded transition flex items-center justify-center text-xs"
-                              title="Gestionar etapas"
-                            >
-                              ⚙️
-                            </button>
-                            <button
-                              onClick={() => handleOpenEditModal(product)}
-                              className="text-slate-400 hover:text-white p-1 hover:bg-slate-800 rounded transition"
-                              title="Editar producto"
-                            >
-                              ✏️
-                            </button>
-                            <button
-                              onClick={() => handleDelete(product.id)}
-                              className="text-rose-400 hover:text-rose-300 p-1 hover:bg-rose-500/10 rounded transition"
-                              title="Eliminar producto"
-                            >
-                              🗑️
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
+                    {products.slice((currentPage - 1) * pageSize, currentPage * pageSize).map((product) => {
+                      const logoUrl = product.imagen_principal?.url || product.imagenes?.[0]?.url
+                      return (
+                        <tr key={product.id} className="hover:bg-slate-800/40 text-slate-300 transition duration-100">
+                          <td className="px-6 py-4 font-mono text-xs text-slate-500">#{product.id}</td>
+                          <td className="px-6 py-4">
+                            {logoUrl ? (
+                              <div className="w-10 h-10 rounded-lg overflow-hidden border border-slate-700 bg-slate-950 relative flex items-center justify-center group shadow">
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img
+                                  src={logoUrl}
+                                  alt={product.nombre}
+                                  className="w-full h-full object-cover"
+                                />
+                              </div>
+                            ) : (
+                              <div className="w-10 h-10 rounded-lg border border-slate-800/80 bg-slate-950/50 flex items-center justify-center text-slate-600 text-xs" title="Sin imagen">
+                                📷
+                              </div>
+                            )}
+                          </td>
+                          <td className="px-6 py-4">
+                            <span className="font-semibold text-white">{product.nombre}</span>
+                          </td>
+                          <td className="px-6 py-4 max-w-xs truncate text-slate-400" title={product.descripcion || ''}>
+                            {product.descripcion || <span className="text-slate-600 italic">Sin descripción</span>}
+                          </td>
+                          <td className="px-6 py-4 text-right">
+                            <div className="flex justify-end gap-2.5">
+                              <button
+                                onClick={() => handleOpenImagesModal(product)}
+                                className="text-slate-400 hover:text-amber-400 p-1 hover:bg-slate-800 rounded transition flex items-center justify-center text-xs"
+                                title="Gestionar imágenes"
+                              >
+                                🖼️
+                              </button>
+                              <button
+                                onClick={() => handleOpenStagesModal(product)}
+                                className="text-slate-400 hover:text-white p-1 hover:bg-slate-800 rounded transition flex items-center justify-center text-xs"
+                                title="Gestionar etapas"
+                              >
+                                ⚙️
+                              </button>
+                              <button
+                                onClick={() => handleOpenEditModal(product)}
+                                className="text-slate-400 hover:text-white p-1 hover:bg-slate-800 rounded transition"
+                                title="Editar producto"
+                              >
+                                ✏️
+                              </button>
+                              <button
+                                onClick={() => handleDelete(product.id)}
+                                className="text-rose-400 hover:text-rose-300 p-1 hover:bg-rose-500/10 rounded transition"
+                                title="Eliminar producto"
+                              >
+                                🗑️
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      )
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -917,6 +954,40 @@ export default function ProductosPage() {
                   </form>
                 </div>
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* Modal de Gestión de Imágenes */}
+        {isImagesModalOpen && selectedProductForImages && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 backdrop-blur-sm p-4">
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-4xl max-h-[90vh] shadow-2xl p-6 relative flex flex-col animate-in fade-in zoom-in-95 duration-150 overflow-y-auto text-slate-300">
+              <div className="flex justify-between items-center pb-4 border-b border-slate-800 mb-4">
+                <div>
+                  <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                    <span>🖼️</span> Galería de Imágenes
+                  </h2>
+                  <p className="text-xs text-slate-400">
+                    Administra el logo e imágenes secundarias de: <span className="text-blue-400 font-semibold">{selectedProductForImages.nombre}</span>
+                  </p>
+                </div>
+                <button
+                  onClick={() => {
+                    setIsImagesModalOpen(false)
+                    loadProducts()
+                  }}
+                  className="text-slate-400 hover:text-white text-lg font-bold p-1"
+                  title="Cerrar modal"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <ProductImageGallery
+                productId={selectedProductForImages.id}
+                productName={selectedProductForImages.nombre}
+                onImagesUpdated={() => loadProducts()}
+              />
             </div>
           </div>
         )}

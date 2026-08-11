@@ -11,6 +11,7 @@ use App\Http\Controllers\Api\ResponsableEtapaController;
 use App\Http\Controllers\Api\OperarioTaskController;
 use App\Http\Controllers\Api\EtapaDependenciaController;
 use App\Http\Controllers\Api\PagoController;
+use App\Http\Controllers\Api\ProductoImagenController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -41,6 +42,13 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::patch('productos/{id}', [ProductoController::class, 'update']);
     Route::delete('productos/{id}', [ProductoController::class, 'destroy']);
 
+    // ── Imágenes de Productos ─────────────────────────────────────
+    Route::get('productos/{id}/imagenes', [ProductoImagenController::class, 'index']);
+    Route::post('productos/{id}/imagenes', [ProductoImagenController::class, 'store']);
+    Route::patch('productos/{id}/imagenes/{imagenId}/principal', [ProductoImagenController::class, 'setPrincipal']);
+    Route::delete('productos/{id}/imagenes/{imagenId}', [ProductoImagenController::class, 'destroy']);
+    Route::post('productos/{id}/imagenes/reordenar', [ProductoImagenController::class, 'reorder']);
+
     // ── Catálogo Maestro de Etapas ─────────────────────────────────
     Route::get('etapas', [EtapaController::class, 'index']);
     Route::post('etapas', [EtapaController::class, 'store']);
@@ -66,6 +74,10 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // ── Pedidos ───────────────────────────────────────────────────
     Route::get('pedidos', [PedidoController::class, 'index']);
+    Route::post('pedidos', [PedidoController::class, 'store']);
+    Route::get('pedidos/{id}', [PedidoController::class, 'show']);
+    Route::patch('pedidos/{id}', [PedidoController::class, 'update']);
+    Route::delete('pedidos/{id}', [PedidoController::class, 'destroy']);
     Route::post('pedidos/{id}/generar-tareas', [PedidoController::class, 'generarTareasManual']);
     Route::get('pedidos/{id}/comentarios', [PedidoController::class, 'getComentarios']);
     Route::post('pedidos/{id}/comentarios', [PedidoController::class, 'addComentario']);
