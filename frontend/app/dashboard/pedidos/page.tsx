@@ -1834,7 +1834,7 @@ export default function PedidosPage() {
                   </div>
 
                   {/* Etapas de Fabricación por Producto */}
-                  {formData.selectedProductIds.length > 0 && currentUser?.role !== 'vendedor' && (
+                  {/* {formData.selectedProductIds.length > 0 && currentUser?.role !== 'vendedor' && (
                     <div className="border-t border-slate-800 pt-4 mt-4 space-y-3">
                       <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
                         Etapas de Fabricación y Asignación de Operarios
@@ -1912,7 +1912,7 @@ export default function PedidosPage() {
                         })}
                       </div>
                     </div>
-                  )}
+                  )} */}
 
                   <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-800 mt-6">
                     <button
@@ -2249,7 +2249,7 @@ export default function PedidosPage() {
                   )}
                 </div>
                 {/* Etapas de Fabricación y Asignación */}
-                {currentUser?.role !== 'vendedor' && (
+                {/* {currentUser?.role !== 'vendedor' && (
                   <div className="border-t border-slate-800 pt-4 mt-4 space-y-3">
                     <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
                       Etapas de Fabricación y Asignación de Operarios
@@ -2334,7 +2334,7 @@ export default function PedidosPage() {
                       </div>
                     )}
                   </div>
-                )}
+                )} */}
 
                 <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-800">
                   <button

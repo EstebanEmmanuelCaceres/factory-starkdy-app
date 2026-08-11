@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import RoleGuard from '@/components/RoleGuard'
 import {
-  fetchClientes,
+  clientesWithPedidos,
   createCliente,
   updateCliente,
   deleteCliente,
@@ -60,13 +60,12 @@ export default function ClientesPage() {
         filters.search = searchQuery
       }
 
-      const [clientesData, pedidosData] = await Promise.all([
-        fetchClientes(filters),
-        fetchPedidos()
+      const [clientesData] = await Promise.all([
+        clientesWithPedidos()
       ])
-
+      console.log(clientesData);
       setClientes(clientesData)
-      setPedidos(pedidosData)
+      // setPedidos(clientesData.flatMap(c => c.pedidos))
 
       // Seleccionar el primer cliente de la lista por defecto si hay clientes cargados
       if (clientesData.length > 0) {
@@ -387,8 +386,8 @@ export default function ClientesPage() {
                         key={cliente.id}
                         onClick={() => setSelectedCliente(cliente)}
                         className={`cursor-pointer transition duration-100 ${selectedCliente?.id === cliente.id
-                            ? 'bg-blue-600/10 text-white border-l-2 border-l-blue-500'
-                            : 'hover:bg-slate-800/40 text-slate-300'
+                          ? 'bg-blue-600/10 text-white border-l-2 border-l-blue-500'
+                          : 'hover:bg-slate-800/40 text-slate-300'
                           }`}
                       >
                         <td className="px-6 py-4">

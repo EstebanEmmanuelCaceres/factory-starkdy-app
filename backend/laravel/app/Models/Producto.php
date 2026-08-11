@@ -57,4 +57,20 @@ class Producto extends Model
             ->withPivot(['id', 'orden'])
             ->withTimestamps();
     }
+
+    /**
+     * Relación Uno a Muchos con Imagenes del Producto.
+     */
+    public function imagenes(): HasMany
+    {
+        return $this->hasMany(ProductoImagen::class, 'producto_id')->orderBy('es_principal', 'desc')->orderBy('orden', 'asc');
+    }
+
+    /**
+     * Relación Uno a Uno con la Imagen Principal (Logo).
+     */
+    public function imagenPrincipal()
+    {
+        return $this->hasOne(ProductoImagen::class, 'producto_id')->where('es_principal', true);
+    }
 }
