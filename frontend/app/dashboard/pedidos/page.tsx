@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from 'react'
 import RoleGuard from '@/components/RoleGuard'
+import OrderImageGallery from '@/components/OrderImageGallery'
+import { fetchOrderImages } from '@/lib/entities/orderImages'
 import {
   fetchPedidos,
   createPedido,
@@ -51,6 +53,10 @@ export default function PedidosPage() {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
   const [selectedPedido, setSelectedPedido] = useState<Pedido | null>(null)
+
+  // Estados para Gestión de Imágenes del Pedido
+  const [isImagesModalOpen, setIsImagesModalOpen] = useState(false)
+  const [selectedPedidoForImages, setSelectedPedidoForImages] = useState<Pedido | null>(null)
 
   // Estados para el Modal de Visualización Trello
   const [isViewModalOpen, setIsViewModalOpen] = useState(false)
@@ -245,6 +251,11 @@ export default function PedidosPage() {
   const showNotification = (message: string) => {
     setSuccessMessage(message)
     setTimeout(() => setSuccessMessage(''), 3000)
+  }
+
+  const handleOpenImagesModal = (pedido: Pedido) => {
+    setSelectedPedidoForImages(pedido)
+    setIsImagesModalOpen(true)
   }
 
   const handleOpenCreateModal = () => {
@@ -648,6 +659,19 @@ export default function PedidosPage() {
 
     // Cargar asignaciones de tareas para este pedido
     await loadTaskAssignments(pedido.id)
+
+    // Precargar imágenes del pedido para la portada estilo Trello
+    try {
+      const orderImgs = await fetchOrderImages(pedido.id)
+      const primaryImg = orderImgs.find(img => img.es_principal) || orderImgs[0]
+      setSelectedPedidoForView(prev => prev && prev.id === pedido.id ? {
+        ...prev,
+        imagenes: orderImgs,
+        imagen_principal: primaryImg
+      } : prev)
+    } catch (err) {
+      console.error('Error al precargar imágenes del pedido:', err)
+    }
 
     // Cargar las etapas asociadas a los productos del pedido
     const productIds = pedido.productos?.map((p) => p.id) || []
@@ -1126,6 +1150,13 @@ export default function PedidosPage() {
                       <td className="px-6 py-4 text-xs text-slate-400">{pedido.user?.name || 'Desconocido'}</td>
                       <td className="px-6 py-4 text-right">
                         <div className="flex justify-end gap-2.5">
+                          <button
+                            onClick={() => handleOpenImagesModal(pedido)}
+                            className="text-slate-400 hover:text-amber-400 p-1 hover:bg-slate-800 rounded transition"
+                            title="Gestionar imágenes y planos del pedido"
+                          >
+                            🖼️
+                          </button>
                           <button
                             onClick={() => handleOpenViewModal(pedido)}
                             className="text-blue-400 hover:text-blue-300 p-1 hover:bg-blue-500/10 rounded transition"
@@ -2811,11 +2842,48 @@ export default function PedidosPage() {
         {isViewModalOpen && selectedPedidoForView && (() => {
           const pds = selectedPedidoForView.productos || []
           const displayedProducts = verTodosProductos ? pds : pds.slice(0, 2)
+          const coverUrl = selectedPedidoForView.imagen_principal?.url || selectedPedidoForView.imagenes?.[0]?.url
 
           return (
             <>
               <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm" onClick={() => { setIsViewModalOpen(false); setSelectedPedidoForView(null); }} />
               <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-4xl shadow-2xl p-6 max-h-[90vh] overflow-y-auto flex flex-col animate-in fade-in zoom-in-95 duration-150">
+                {/* Header de Imagen / Portada estilo Trello */}
+                {coverUrl && (
+                  <div className="-mx-6 -mt-6 mb-5 relative h-48 sm:h-56 md:h-64 bg-slate-950/90 border-b border-slate-800/80 flex items-center justify-center overflow-hidden rounded-t-2xl group">
+                    {/* Fondo desenfocado ambiental */}
+                    <div
+                      className="absolute inset-0 bg-cover bg-center opacity-20 blur-2xl scale-110 pointer-events-none"
+                      style={{ backgroundImage: `url(${coverUrl})` }}
+                    />
+                    
+                    {/* Imagen principal con object-contain: si es chica se centra con márgenes; si es grande se achica proporcionalmente */}
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={coverUrl}
+                      alt={`Portada ${selectedPedidoForView.codigo}`}
+                      className="relative z-10 max-h-full max-w-full object-contain p-3 transition duration-200"
+                    />
+
+                    {/* Badge y Botón de Acción flotante */}
+                    <div className="absolute top-3 left-3 z-20">
+                      <span className="bg-amber-500 text-slate-950 font-extrabold text-[10px] uppercase px-2.5 py-1 rounded-full shadow-lg border border-amber-300 flex items-center gap-1">
+                        ⭐ Portada del Pedido
+                      </span>
+                    </div>
+
+                    <div className="absolute bottom-3 right-3 z-20">
+                      <button
+                        type="button"
+                        onClick={() => handleOpenImagesModal(selectedPedidoForView)}
+                        className="bg-slate-900/90 hover:bg-slate-950 text-white text-xs font-bold px-3 py-1.5 rounded-lg border border-slate-700 backdrop-blur-md flex items-center gap-1.5 shadow-xl transition"
+                      >
+                        🖼️ Cambiar Portada / Ver Galería ({selectedPedidoForView.imagenes?.length || 1})
+                      </button>
+                    </div>
+                  </div>
+                )}
+
                 {/* Header de la Tarjeta Trello */}
                 <div className="flex items-start justify-between border-b border-slate-800 pb-4 mb-4">
                   <div className="text-left">
@@ -2854,16 +2922,30 @@ export default function PedidosPage() {
                     </p>
                   </div>
 
-                  <button
-                    onClick={() => {
-                      setIsViewModalOpen(false)
-                      setSelectedPedidoForView(null)
-                    }}
-                    className="text-slate-400 hover:text-white transition text-lg p-1 hover:bg-slate-800 rounded-lg"
-                    title="Cerrar"
-                  >
-                    ✕
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (selectedPedidoForView) {
+                          handleOpenImagesModal(selectedPedidoForView)
+                        }
+                      }}
+                      className="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-amber-300 text-xs font-semibold px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition"
+                      title="Gestionar Galería de Imágenes / Planos"
+                    >
+                      🖼️ Galería / Planos
+                    </button>
+                    <button
+                      onClick={() => {
+                        setIsViewModalOpen(false)
+                        setSelectedPedidoForView(null)
+                      }}
+                      className="text-slate-400 hover:text-white transition text-lg p-1 hover:bg-slate-800 rounded-lg"
+                      title="Cerrar"
+                    >
+                      ✕
+                    </button>
+                  </div>
                 </div>
 
                 {/* Cuerpo Principal: Dos Columnas */}
@@ -3116,6 +3198,40 @@ export default function PedidosPage() {
             </>
           )
         })()}
+
+        {/* Modal de Gestión de Imágenes del Pedido */}
+        {isImagesModalOpen && selectedPedidoForImages && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 backdrop-blur-sm p-4">
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-4xl max-h-[90vh] shadow-2xl p-6 relative flex flex-col animate-in fade-in zoom-in-95 duration-150 overflow-y-auto text-slate-300">
+              <div className="flex justify-between items-center pb-4 border-b border-slate-800 mb-4">
+                <div>
+                  <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                    <span>🖼️</span> Galería de Imágenes y Planos del Pedido
+                  </h2>
+                  <p className="text-xs text-slate-400">
+                    Administra la portada e imágenes secundarias de: <span className="text-blue-400 font-semibold">{selectedPedidoForImages.codigo}</span>
+                  </p>
+                </div>
+                <button
+                  onClick={() => {
+                    setIsImagesModalOpen(false)
+                    loadData()
+                  }}
+                  className="text-slate-400 hover:text-white text-lg font-bold p-1"
+                  title="Cerrar modal"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <OrderImageGallery
+                orderId={selectedPedidoForImages.id}
+                orderCode={selectedPedidoForImages.codigo}
+                onImagesUpdated={() => loadData()}
+              />
+            </div>
+          </div>
+        )}
       </main>
     </RoleGuard>
   )

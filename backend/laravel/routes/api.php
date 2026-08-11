@@ -12,6 +12,7 @@ use App\Http\Controllers\Api\OperarioTaskController;
 use App\Http\Controllers\Api\EtapaDependenciaController;
 use App\Http\Controllers\Api\PagoController;
 use App\Http\Controllers\Api\ProductoImagenController;
+use App\Http\Controllers\Api\PedidoImagenController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -82,6 +83,13 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('pedidos/{id}/comentarios', [PedidoController::class, 'getComentarios']);
     Route::post('pedidos/{id}/comentarios', [PedidoController::class, 'addComentario']);
     Route::get("clientes-with-pedidos", [ClienteController::class, 'clientesWithPedidos']);
+
+    // ── Imágenes de Pedidos ───────────────────────────────────────
+    Route::get('pedidos/{id}/imagenes', [PedidoImagenController::class, 'index']);
+    Route::post('pedidos/{id}/imagenes', [PedidoImagenController::class, 'store']);
+    Route::patch('pedidos/{id}/imagenes/{imagenId}/principal', [PedidoImagenController::class, 'setPrincipal']);
+    Route::delete('pedidos/{id}/imagenes/{imagenId}', [PedidoImagenController::class, 'destroy']);
+    Route::post('pedidos/{id}/imagenes/reordenar', [PedidoImagenController::class, 'reorder']);
 
     // ── Pagos de Pedidos ───────────────────────────────────────────
     Route::get('pedidos/{pedido}/pagos', [PagoController::class, 'index']);

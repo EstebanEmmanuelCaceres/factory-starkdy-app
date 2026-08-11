@@ -2,6 +2,7 @@ import api from './api'
 import { type Cliente } from './clientes'
 import { type Product } from './products'
 import { type User } from './auth'
+import { type OrderImage } from './entities/orderImages'
 
 export interface Pago {
   id: number
@@ -58,6 +59,8 @@ export interface Pedido {
   estado_pago?: 'sin_pago' | 'parcial' | 'pagado'
   comentarios?: ComentarioPedido[]
   tareas?: any[]
+  imagenes?: OrderImage[]
+  imagen_principal?: OrderImage
 }
 
 export interface CreatePedidoInput {
