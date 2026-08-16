@@ -140,8 +140,6 @@ export default function PedidosPage() {
     provincia: '',
     cp: '',
     localidad: '',
-    ingreso: 0,
-    valor_total: 0,
     saldo: 0,
     observaciones: ''
   })
@@ -408,8 +406,6 @@ export default function PedidosPage() {
       provincia: '',
       cp: '',
       localidad: '',
-      ingreso: 0,
-      valor_total: 0,
       saldo: 0,
       observaciones: ''
     })
@@ -430,8 +426,6 @@ export default function PedidosPage() {
         provincia: clienteFormData.provincia?.trim() || null,
         cp: clienteFormData.cp?.trim() || null,
         localidad: clienteFormData.localidad?.trim() || null,
-        ingreso: Number(clienteFormData.ingreso) || 0,
-        valor_total: Number(clienteFormData.valor_total) || 0,
         saldo: Number(clienteFormData.saldo) || 0,
         observaciones: clienteFormData.observaciones?.trim() || null
       }
@@ -468,8 +462,6 @@ export default function PedidosPage() {
       provincia: clienteFormData.provincia?.trim() || null,
       cp: clienteFormData.cp?.trim() || null,
       localidad: clienteFormData.localidad?.trim() || null,
-      ingreso: Number(clienteFormData.ingreso) || 0,
-      valor_total: Number(clienteFormData.valor_total) || 0,
       saldo: Number(clienteFormData.saldo) || 0,
       observaciones: clienteFormData.observaciones?.trim() || null
     }
@@ -487,8 +479,8 @@ export default function PedidosPage() {
       provincia: payload.provincia,
       cp: payload.cp,
       localidad: payload.localidad,
-      ingreso: payload.ingreso,
-      valor_total: payload.valor_total,
+      ingreso: 0,
+      valor_total: 0,
       saldo: payload.saldo,
       observaciones: payload.observaciones,
       created_at: '',
@@ -834,6 +826,8 @@ export default function PedidosPage() {
 
   const getStatusLabel = (status: string) => {
     switch (status) {
+      case 'listo_para_produccion':
+        return 'Listo para Producción'
       case 'completado':
         return 'Completado'
       case 'completado_pd':
@@ -854,6 +848,8 @@ export default function PedidosPage() {
     switch (status) {
       case 'bloqueada':
         return 'bg-slate-800/80 text-slate-500 border border-slate-700/60'
+      case 'listo_para_produccion':
+        return 'bg-cyan-500/10 text-cyan-400 border border-cyan-500/20'
       case 'completado':
         return 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
       case 'completado_pd':
@@ -876,6 +872,9 @@ export default function PedidosPage() {
       if (!currentUser) return false
       if (currentUser.role === 'vendedor' || currentUser.role === 'disenador') {
         return p.user_id === currentUser.id
+      }
+      if (['operario', 'operator', 'encargado', 'supervisor'].includes(currentUser.role)) {
+        return p.estado !== 'pendiente'
       }
       return true
     })
@@ -1012,6 +1011,7 @@ export default function PedidosPage() {
             >
               <option value="">Todos los Estados</option>
               <option value="pendiente">Pendiente</option>
+              <option value="listo_para_produccion">Listo para producción</option>
               <option value="en_progreso">En Progreso</option>
               <option value="completado">Completado</option>
               <option value="completado_pd">Completado - Pend. Pago (PD)</option>
@@ -1150,6 +1150,23 @@ export default function PedidosPage() {
                       <td className="px-6 py-4 text-xs text-slate-400">{pedido.user?.name || 'Desconocido'}</td>
                       <td className="px-6 py-4 text-right">
                         <div className="flex justify-end gap-2.5">
+                          {pedido.estado === 'pendiente' && (
+                            <button
+                              onClick={async () => {
+                                try {
+                                  await updatePedido(pedido.id, { estado: 'listo_para_produccion' })
+                                  showNotification('Pedido enviado a producción correctamente')
+                                  loadData()
+                                } catch (err: unknown) {
+                                  setError(err instanceof Error ? err.message : 'Error al enviar a producción')
+                                }
+                              }}
+                              className="bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-500/40 text-xs px-2.5 py-1 rounded font-semibold transition flex items-center gap-1"
+                              title="Pasar pedido a 'Listo para producción'"
+                            >
+                              🚀 Habilitar Producción
+                            </button>
+                          )}
                           <button
                             onClick={() => handleOpenImagesModal(pedido)}
                             className="text-slate-400 hover:text-amber-400 p-1 hover:bg-slate-800 rounded transition"
@@ -1374,24 +1391,34 @@ export default function PedidosPage() {
                                   (c.email || '').toLowerCase().includes(query)
                                 )
                               })
-                              .map((c) => (
-                                <div
-                                  key={c.id}
-                                  onClick={() => {
-                                    setFormData({ ...formData, cliente_id: c.id.toString() })
-                                    setClientSearchText(`${c.nombre_cliente} - ${c.nombre_empresa}`)
-                                    setSelectedWizardClient(c)
-                                    setIsClientDropdownOpen(false)
-                                  }}
-                                  className="px-3.5 py-2 hover:bg-slate-900 cursor-pointer text-sm text-slate-300 hover:text-white transition flex justify-between"
-                                >
-                                  <div>
-                                    <span className="font-semibold block">{c.nombre_cliente}</span>
-                                    <span className="text-xs text-slate-500">{c.nombre_empresa}</span>
+                              .map((c) => {
+                                const isBlocked = Boolean(c.alcanzo_limite || (Number(c.saldo || 0) > 0 && Number(c.total_pedidos || 0) >= Number(c.saldo || 0)))
+                                return (
+                                  <div
+                                    key={c.id}
+                                    onClick={() => {
+                                      setFormData({ ...formData, cliente_id: c.id.toString() })
+                                      setClientSearchText(`${c.nombre_cliente} - ${c.nombre_empresa}`)
+                                      setSelectedWizardClient(c)
+                                      setIsClientDropdownOpen(false)
+                                    }}
+                                    className={`px-3.5 py-2 cursor-pointer text-sm transition flex justify-between items-center ${isBlocked ? 'bg-rose-950/20 hover:bg-rose-900/30 text-rose-300' : 'hover:bg-slate-900 text-slate-300 hover:text-white'}`}
+                                  >
+                                    <div>
+                                      <div className="flex items-center gap-2">
+                                        <span className="font-semibold">{c.nombre_cliente}</span>
+                                        {isBlocked && (
+                                          <span className="text-[10px] bg-rose-500/20 text-rose-400 font-bold px-1.5 py-0.5 rounded border border-rose-500/30">
+                                            🚨 Alcanzó el límite
+                                          </span>
+                                        )}
+                                      </div>
+                                      <span className="text-xs text-slate-500">{c.nombre_empresa}</span>
+                                    </div>
+                                    {c.email && <span className="text-xs text-slate-500">{c.email}</span>}
                                   </div>
-                                  {c.email && <span className="text-xs text-slate-500 self-center">{c.email}</span>}
-                                </div>
-                              ))}
+                                )
+                              })}
                             {clientes.filter((c) => {
                               const query = clientSearchText.toLowerCase()
                               return (
@@ -1410,10 +1437,14 @@ export default function PedidosPage() {
 
                       {/* Tarjeta de cliente seleccionado */}
                       {selectedWizardClient && (
-                        <div className="bg-slate-950/50 border border-slate-800 p-4 rounded-xl flex flex-col gap-1.5 animate-in fade-in slide-in-from-top-1 duration-150">
+                        <div className="bg-slate-950/50 border border-slate-800 p-4 rounded-xl flex flex-col gap-2 animate-in fade-in slide-in-from-top-1 duration-150">
                           <div className="flex items-center justify-between border-b border-slate-850 pb-2 mb-1">
                             <span className="text-xs font-bold text-blue-400 uppercase tracking-wider">Cliente Seleccionado</span>
-                            <span className="text-emerald-400 text-xs">✓ Listo</span>
+                            {selectedWizardClient.alcanzo_limite || (Number(selectedWizardClient.saldo || 0) > 0 && Number(selectedWizardClient.total_pedidos || 0) >= Number(selectedWizardClient.saldo || 0)) ? (
+                              <span className="text-rose-400 text-xs font-bold">⛔ Límite Alcanzado</span>
+                            ) : (
+                              <span className="text-emerald-400 text-xs">✓ Listo</span>
+                            )}
                           </div>
                           <div>
                             <span className="text-sm font-bold text-white">{selectedWizardClient.nombre_cliente}</span>
@@ -1423,6 +1454,39 @@ export default function PedidosPage() {
                             <div>📞 {selectedWizardClient.telefono || 'Sin teléfono'}</div>
                             <div>✉️ {selectedWizardClient.email || 'Sin correo'}</div>
                           </div>
+
+                          {Number(selectedWizardClient.saldo || 0) > 0 ? (
+                            <div className="bg-slate-900/60 border border-slate-800 p-3 rounded-lg text-xs space-y-1 mt-1">
+                              <div className="flex justify-between">
+                                <span className="text-slate-400">Límite de Crédito:</span>
+                                <span className="font-bold text-white">${Number(selectedWizardClient.saldo).toFixed(2)}</span>
+                              </div>
+                              <div className="flex justify-between">
+                                <span className="text-slate-400">Total en Pedidos:</span>
+                                <span className="font-bold text-amber-400">${Number(selectedWizardClient.total_pedidos || 0).toFixed(2)}</span>
+                              </div>
+                              <div className="flex justify-between border-t border-slate-800 pt-1">
+                                <span className="font-semibold text-slate-300">Crédito Disponible:</span>
+                                <span className={`font-bold ${(selectedWizardClient.alcanzo_limite || (Number(selectedWizardClient.total_pedidos || 0) >= Number(selectedWizardClient.saldo || 0))) ? 'text-rose-400' : 'text-emerald-400'}`}>
+                                  ${Number(selectedWizardClient.saldo_disponible ?? (Number(selectedWizardClient.saldo) - Number(selectedWizardClient.total_pedidos || 0))).toFixed(2)}
+                                </span>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="text-xs text-slate-400 bg-slate-900/40 p-2 rounded border border-slate-850">
+                              ♾️ Cliente sin límite de crédito configurado.
+                            </div>
+                          )}
+
+                          {(selectedWizardClient.alcanzo_limite || (Number(selectedWizardClient.saldo || 0) > 0 && Number(selectedWizardClient.total_pedidos || 0) >= Number(selectedWizardClient.saldo || 0))) && (
+                            <div className="mt-1 bg-rose-500/10 border border-rose-500/30 p-3 rounded-xl text-rose-300 text-xs font-semibold flex items-center gap-2.5">
+                              <span className="text-lg">⛔</span>
+                              <div>
+                                <span className="font-bold block text-sm mb-0.5">¡Ha alcanzado el límite de crédito!</span>
+                                Total en pedidos (${Number(selectedWizardClient.total_pedidos || 0).toFixed(2)}) alcanzó o superó el límite asignado (${Number(selectedWizardClient.saldo || 0).toFixed(2)}). Debe saldar o ampliar el límite para registrar nuevos pedidos.
+                              </div>
+                            </div>
+                          )}
                         </div>
                       )}
 
@@ -1436,7 +1500,7 @@ export default function PedidosPage() {
                         </button>
                         <button
                           type="button"
-                          disabled={!formData.cliente_id}
+                          disabled={!formData.cliente_id || Boolean(selectedWizardClient?.alcanzo_limite || (Number(selectedWizardClient?.saldo || 0) > 0 && Number(selectedWizardClient?.total_pedidos || 0) >= Number(selectedWizardClient?.saldo || 0)))}
                           onClick={() => setWizardStep('order_details')}
                           className="px-4 py-2 rounded-lg text-sm bg-blue-600 hover:bg-blue-500 disabled:bg-slate-800 disabled:text-slate-500 text-white font-medium shadow transition hover:scale-[1.02] active:scale-[0.98] disabled:scale-100"
                         >
@@ -1577,43 +1641,21 @@ export default function PedidosPage() {
                             />
                           </div>
 
-                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                            <div>
-                              <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
-                                Valor Total ($)
-                              </label>
-                              <input
-                                type="number"
-                                step="0.01"
-                                value={clienteFormData.valor_total}
-                                onChange={(e) => setClienteFormData({ ...clienteFormData, valor_total: Number(e.target.value) })}
-                                className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition"
-                              />
-                            </div>
-                            <div>
-                              <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
-                                Ingreso ($)
-                              </label>
-                              <input
-                                type="number"
-                                step="0.01"
-                                value={clienteFormData.ingreso}
-                                onChange={(e) => setClienteFormData({ ...clienteFormData, ingreso: Number(e.target.value) })}
-                                className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition"
-                              />
-                            </div>
-                            <div>
-                              <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
-                                Saldo ($)
-                              </label>
-                              <input
-                                type="number"
-                                step="0.01"
-                                value={clienteFormData.saldo}
-                                onChange={(e) => setClienteFormData({ ...clienteFormData, saldo: Number(e.target.value) })}
-                                className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition"
-                              />
-                            </div>
+                          <div>
+                            <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
+                              Saldo ($)
+                            </label>
+                            <input
+                              type="number"
+                              step="0.01"
+                              value={clienteFormData.saldo}
+                              onChange={(e) => setClienteFormData({ ...clienteFormData, saldo: Number(e.target.value) })}
+                              className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition"
+                              placeholder="0.00"
+                            />
+                            <span className="text-[11px] text-slate-500 mt-1 block">
+                              Si el saldo es negativo, la creación de pedidos estará deshabilitada para este cliente.
+                            </span>
                           </div>
 
                           <div>
@@ -2173,6 +2215,7 @@ export default function PedidosPage() {
                       className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition"
                     >
                       <option value="pendiente">Pendiente</option>
+                      <option value="listo_para_produccion">Listo para producción</option>
                       <option value="en_progreso">En Progreso</option>
                       <option value="completado">Completado</option>
                       <option value="completado_pd">Completado - Pendiente de pago (PD)</option>
@@ -2518,43 +2561,21 @@ export default function PedidosPage() {
                   />
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
-                      Valor Total ($)
-                    </label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={clienteFormData.valor_total}
-                      onChange={(e) => setClienteFormData({ ...clienteFormData, valor_total: Number(e.target.value) })}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
-                      Ingreso ($)
-                    </label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={clienteFormData.ingreso}
-                      onChange={(e) => setClienteFormData({ ...clienteFormData, ingreso: Number(e.target.value) })}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
-                      Saldo ($)
-                    </label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={clienteFormData.saldo}
-                      onChange={(e) => setClienteFormData({ ...clienteFormData, saldo: Number(e.target.value) })}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition"
-                    />
-                  </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
+                    Saldo ($)
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={clienteFormData.saldo}
+                    onChange={(e) => setClienteFormData({ ...clienteFormData, saldo: Number(e.target.value) })}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition"
+                    placeholder="0.00"
+                  />
+                  <span className="text-[11px] text-slate-500 mt-1 block">
+                    Si el saldo es negativo, la creación de pedidos estará deshabilitada para este cliente.
+                  </span>
                 </div>
 
                 <div>
@@ -2906,6 +2927,7 @@ export default function PedidosPage() {
                         className="bg-slate-950 border border-slate-800 text-xs font-bold text-blue-400 focus:outline-none focus:border-blue-500 rounded-lg px-3 py-1 cursor-pointer transition hover:border-slate-700"
                       >
                         <option value="pendiente">Pendiente</option>
+                        <option value="listo_para_produccion">Listo para producción</option>
                         <option value="en_progreso">En Progreso</option>
                         <option value="completado">Completado</option>
                         <option value="completado_pd">Completado - pendiente de pago (PD)</option>
@@ -2921,6 +2943,30 @@ export default function PedidosPage() {
                       Cliente: <span className="text-slate-200 font-bold">{selectedPedidoForView.cliente?.nombre_cliente}</span> ({selectedPedidoForView.cliente?.nombre_empresa})
                     </p>
                   </div>
+
+                  {selectedPedidoForView.estado === 'pendiente' && (
+                    <div className="bg-amber-500/10 border border-amber-500/30 text-amber-300 px-4 py-3 rounded-xl mb-4 flex items-center justify-between gap-3">
+                      <div className="text-xs">
+                        <span className="font-bold block text-sm mb-0.5">⚠️ Pedido en Pendiente</span>
+                        Este pedido no es visible para encargados ni operarios hasta que lo pases a <strong>"Listo para producción"</strong>.
+                      </div>
+                      <button
+                        onClick={async () => {
+                          try {
+                            const updated = await updatePedido(selectedPedidoForView.id, { estado: 'listo_para_produccion' })
+                            setSelectedPedidoForView(updated)
+                            setPedidos(prev => prev.map(p => p.id === updated.id ? { ...p, estado: updated.estado } : p))
+                            showNotification('Pedido actualizado a "Listo para producción"')
+                          } catch (err: unknown) {
+                            setError(err instanceof Error ? err.message : 'Error al actualizar el estado')
+                          }
+                        }}
+                        className="bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs px-3.5 py-2 rounded-lg transition shadow-md whitespace-nowrap"
+                      >
+                        🚀 Pasar a Listo para Producción
+                      </button>
+                    </div>
+                  )}
 
                   <div className="flex items-center gap-2">
                     <button

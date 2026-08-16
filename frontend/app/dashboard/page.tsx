@@ -129,12 +129,17 @@ export default function DashboardPage() {
     })
   }
 
-  // Si el usuario logueado es vendedor, se restringen los pedidos strictly a los suyos
-  const isVendedor = currentUser?.role === 'vendedor'
+  // Restricciones por rol:
+  // - Vendedor / Diseñador: solo ven sus pedidos.
+  // - Parte operativa (Encargado, Supervisor, Operario): ven únicamente los pedidos fuera del estado 'pendiente'.
+  const isVendedor = currentUser?.role === 'vendedor' || currentUser?.role === 'disenador'
   const isEncargado = currentUser?.role === 'encargado'
+  const isOperativo = ['encargado', 'supervisor', 'operario', 'operator'].includes(currentUser?.role || '')
 
   const scopedPedidos = isVendedor && currentUser
     ? pedidos.filter(p => p.user_id === currentUser.id)
+    : isOperativo
+    ? pedidos.filter(p => p.estado !== 'pendiente')
     : pedidos
 
   const sortedPedidos = [...scopedPedidos].sort((a, b) => {

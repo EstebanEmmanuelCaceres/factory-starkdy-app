@@ -27,6 +27,9 @@ class OperarioTaskController extends Controller
         ])
             ->where('user_id', $userId)
             ->whereIn('estado', ['pendiente', 'en_progreso', 'bloqueada'])
+            ->whereHas('pedido.ultimoEstado', function ($q) {
+                $q->where('estado', '!=', 'pendiente');
+            })
             ->orderBy('estado', 'desc')
             ->get();
 

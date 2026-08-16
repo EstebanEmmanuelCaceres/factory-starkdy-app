@@ -57,6 +57,13 @@ class ResponsableEtapaController extends Controller
             });
         }
 
+        $currentUser = auth()->user();
+        if ($currentUser && in_array($currentUser->role?->slug, ['operario', 'operator', 'encargado', 'supervisor'])) {
+            $query->whereHas('pedido.ultimoEstado', function ($q) {
+                $q->where('estado', '!=', 'pendiente');
+            });
+        }
+
         $asignaciones = $query->latest()->get();
 
         foreach ($asignaciones as $item) {

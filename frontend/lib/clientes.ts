@@ -15,6 +15,9 @@ export interface Cliente {
   ingreso: number
   valor_total: number
   saldo: number
+  total_pedidos?: number
+  saldo_disponible?: number | null
+  alcanzo_limite?: boolean
   observaciones: string | null
   created_at: string
   updated_at: string
