@@ -3096,7 +3096,7 @@ export default function PedidosPage() {
                     <div className="bg-amber-500/10 border border-amber-500/30 text-amber-300 px-4 py-3 rounded-xl mb-4 flex items-center justify-between gap-3">
                       <div className="text-xs">
                         <span className="font-bold block text-sm mb-0.5">⚠️ Pedido en Pendiente</span>
-                        Este pedido no es visible para encargados ni operarios hasta que lo pases a <strong>"Listo para producción"</strong>.
+                        Este pedido no es visible para encargados ni operarios hasta que lo pases a <strong>&quot;Listo para producción&quot;</strong>.
                       </div>
                       <button
                         onClick={async () => {
