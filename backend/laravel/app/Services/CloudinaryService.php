@@ -20,17 +20,23 @@ class CloudinaryService
         $apiKey = config('cloudinary.api_key');
         $apiSecret = config('cloudinary.api_secret');
 
-        if (!empty($cloudinaryUrl)) {
-            $this->cloudinary = new Cloudinary($cloudinaryUrl);
-            $this->isConfigured = true;
-        } elseif (!empty($cloudName) && !empty($apiKey) && !empty($apiSecret)) {
-            $config = new Configuration();
-            $config->cloud->cloudName = $cloudName;
-            $config->cloud->apiKey = $apiKey;
-            $config->cloud->apiSecret = $apiSecret;
-            $config->url->secure = true;
-            $this->cloudinary = new Cloudinary($config);
-            $this->isConfigured = true;
+        try {
+            if (!empty($cloudinaryUrl)) {
+                $this->cloudinary = new Cloudinary($cloudinaryUrl);
+                $this->isConfigured = true;
+            } elseif (!empty($cloudName) && !empty($apiKey) && !empty($apiSecret)) {
+                $config = new Configuration();
+                $config->cloud->cloudName = $cloudName;
+                $config->cloud->apiKey = $apiKey;
+                $config->cloud->apiSecret = $apiSecret;
+                $config->url->secure = true;
+                $this->cloudinary = new Cloudinary($config);
+                $this->isConfigured = true;
+            }
+        } catch (\Throwable $e) {
+            Log::warning('Error al inicializar Cloudinary SDK: ' . $e->getMessage());
+            $this->cloudinary = null;
+            $this->isConfigured = false;
         }
     }
 
