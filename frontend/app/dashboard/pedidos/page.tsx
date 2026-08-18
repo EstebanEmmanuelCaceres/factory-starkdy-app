@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import RoleGuard from '@/components/RoleGuard'
 import OrderImageGallery from '@/components/OrderImageGallery'
+import Modal from '@/components/Modal'
 import { fetchOrderImages } from '@/lib/entities/orderImages'
 import {
   fetchPedidos,
@@ -1058,169 +1059,311 @@ export default function PedidosPage() {
               )}
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse">
-                <thead>
-                  <tr className="border-b border-slate-800 bg-slate-950/40 text-slate-400 font-semibold text-xs uppercase tracking-wider select-none">
-                    <th onClick={() => handleSort('cliente')} className="px-6 py-4 cursor-pointer hover:text-white transition text-left">
-                      Cliente {sortField === 'cliente' ? (sortDirection === 'asc' ? ' ▲' : ' ▼') : ''}
-                    </th>
-                    <th onClick={() => handleSort('productos')} className="px-6 py-4 text-center cursor-pointer hover:text-white transition">
-                      Productos {sortField === 'productos' ? (sortDirection === 'asc' ? ' ▲' : ' ▼') : ''}
-                    </th>
-                    <th onClick={() => handleSort('prioridad')} className="px-6 py-4 cursor-pointer hover:text-white transition text-left">
-                      Prioridad {sortField === 'prioridad' ? (sortDirection === 'asc' ? ' ▲' : ' ▼') : ''}
-                    </th>
-                    <th onClick={() => handleSort('estado')} className="px-6 py-4 cursor-pointer hover:text-white transition text-left">
-                      Estado {sortField === 'estado' ? (sortDirection === 'asc' ? ' ▲' : ' ▼') : ''}
-                    </th>
-                    <th onClick={() => handleSort('created_at')} className="px-6 py-4 cursor-pointer hover:text-white transition text-left">
-                      Fecha Creación {sortField === 'created_at' || sortField === 'fecha_entrega' ? (sortDirection === 'asc' ? ' ▲' : ' ▼') : ''}
-                    </th>
-                    <th onClick={() => handleSort('precio')} className="px-6 py-4 text-right cursor-pointer hover:text-white transition">
-                      Precio {sortField === 'precio' ? (sortDirection === 'asc' ? ' ▲' : ' ▼') : ''}
-                    </th>
-                    <th onClick={() => handleSort('user')} className="px-6 py-4 cursor-pointer hover:text-white transition text-left">
-                      Registrado por {sortField === 'user' ? (sortDirection === 'asc' ? ' ▲' : ' ▼') : ''}
-                    </th>
-                    <th className="px-6 py-4 text-right">Acciones</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-800 text-sm">
-                  {displayedPedidos.map((pedido) => (
-                    <tr key={pedido.id} className="hover:bg-slate-800/40 text-slate-300 transition duration-100">
-                      <td className="px-6 py-4">
-                        <span className="font-semibold text-white">
+            <div>
+              {/* VISTA EN TARJETAS PARA MOBILE (< md) */}
+              <div className="md:hidden space-y-3 p-3">
+                {displayedPedidos.map((pedido) => (
+                  <div key={pedido.id} className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-3 shadow-xl text-left">
+                    {/* Encabezado de la Tarjeta */}
+                    <div className="flex items-start justify-between gap-2 border-b border-slate-800 pb-2.5">
+                      <div>
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="text-xs font-mono font-bold text-white bg-slate-950 border border-slate-800 px-2 py-0.5 rounded">
+                            {pedido.codigo}
+                          </span>
+                        </div>
+                        <span className="font-bold text-white text-base block">
                           {pedido.cliente?.nombre_empresa || pedido.cliente?.nombre_cliente || 'Sin empresa'}
                         </span>
-                      </td>
-                      <td className="px-6 py-4 max-w-xs">
-                        {pedido.productos && pedido.productos.length > 0 ? (
-                          <div className="flex flex-col gap-1.5 items-stretch justify-center">
-                            {pedido.productos.slice(0, 2).map((prod) => {
-                              const qty = (prod as any).pivot?.cantidad
-                              return (
-                                <span
-                                  key={prod.id}
-                                  className="bg-slate-950 border border-slate-800 text-slate-200 text-sm px-3 py-1.5 rounded-lg text-center font-medium shadow-sm transition hover:border-slate-700"
-                                  title={prod.descripcion || ''}
-                                >
-                                  {prod.nombre} {qty ? `(x${qty})` : ''}
-                                </span>
-                              )
-                            })}
-                            {pedido.productos.length > 2 && (
-                              <span className="text-[10px] text-slate-500 font-bold text-center mt-0.5 select-none">
-                                + {pedido.productos.length - 2} más
-                              </span>
-                            )}
-                          </div>
-                        ) : (
-                          <span className="text-slate-650 italic text-xs block text-center">Ninguno</span>
-                        )}
-                      </td>
-                      <td className="px-6 py-4">
-                        <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold capitalize ${getPriorityBadgeClass(pedido.prioridad)}`}>
+                      </div>
+                      <div className="flex flex-col items-end gap-1">
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-extrabold capitalize ${getPriorityBadgeClass(pedido.prioridad)}`}>
                           {pedido.prioridad}
                         </span>
-                      </td>
-                      <td className="px-6 py-4">
-                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold uppercase tracking-wide ${getStatusBadgeClass(pedido.estado)}`}>
+                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wide ${getStatusBadgeClass(pedido.estado)}`}>
                           {getStatusLabel(pedido.estado)}
                         </span>
-                      </td>
-                      <td className="px-6 py-4 text-xs text-slate-400">
-                        {pedido.created_at ? (
-                          new Date(pedido.created_at).toLocaleDateString('es-ES', {
-                            year: 'numeric',
-                            month: 'short',
-                            day: 'numeric'
-                          })
-                        ) : (
-                          <span className="text-slate-600 italic">-</span>
-                        )}
-                      </td>
-                      <td className="px-6 py-4 text-right text-xs font-semibold text-white">
-                        {pedido.precio !== null && pedido.precio !== undefined ? (
-                          `$ ${parseFloat(pedido.precio.toString()).toLocaleString('es-AR', { minimumFractionDigits: 2 })}`
-                        ) : (
-                          <span className="text-slate-600 italic">-</span>
-                        )}
-                      </td>
-                      <td className="px-6 py-4 text-xs text-slate-400">{pedido.user?.name || 'Desconocido'}</td>
-                      <td className="px-6 py-4 text-right">
-                        <div className="flex justify-end gap-2.5">
-                          {pedido.estado === 'pendiente' && (
-                            <button
-                              onClick={async () => {
-                                try {
-                                  await updatePedido(pedido.id, { estado: 'listo_para_produccion' })
-                                  showNotification('Pedido enviado a producción correctamente')
-                                  loadData()
-                                } catch (err: unknown) {
-                                  setError(err instanceof Error ? err.message : 'Error al enviar a producción')
-                                }
-                              }}
-                              className="bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-500/40 text-xs px-2.5 py-1 rounded font-semibold transition flex items-center gap-1"
-                              title="Pasar pedido a 'Listo para producción'"
-                            >
-                              🚀 Habilitar Producción
-                            </button>
-                          )}
-                          <button
-                            onClick={() => handleOpenImagesModal(pedido)}
-                            className="text-slate-400 hover:text-amber-400 p-1 hover:bg-slate-800 rounded transition"
-                            title="Gestionar imágenes y planos del pedido"
-                          >
-                            🖼️
-                          </button>
-                          <button
-                            onClick={() => handleOpenViewModal(pedido)}
-                            className="text-blue-400 hover:text-blue-300 p-1 hover:bg-blue-500/10 rounded transition"
-                            title="Ver detalles del pedido (Trello)"
-                          >
-                            👁️
-                          </button>
-                          <button
-                            onClick={() => handleOpenPaymentsModal(pedido)}
-                            className="text-emerald-400 hover:text-emerald-300 p-1 hover:bg-emerald-500/10 rounded transition"
-                            title="Gestionar pagos del pedido"
-                          >
-                            💵
-                          </button>
-                          <button
-                            onClick={() => handleOpenEditModal(pedido)}
-                            className="text-slate-400 hover:text-white p-1 hover:bg-slate-800 rounded transition"
-                            title="Editar/Asignar pedido"
-                          >
-                            ✏️
-                          </button>
-                          <button
-                            onClick={() => handleDelete(pedido.id)}
-                            className="text-rose-400 hover:text-rose-300 p-1 hover:bg-rose-500/10 rounded transition"
-                            title="Dar de baja pedido"
-                          >
-                            🗑️
-                          </button>
+                      </div>
+                    </div>
+
+                    {/* Productos */}
+                    <div className="space-y-1">
+                      <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Productos</span>
+                      {pedido.productos && pedido.productos.length > 0 ? (
+                        <div className="flex flex-wrap gap-1.5">
+                          {pedido.productos.map((prod) => {
+                            const qty = (prod as any).pivot?.cantidad
+                            return (
+                              <span
+                                key={prod.id}
+                                className="bg-slate-950 border border-slate-800 text-slate-200 text-xs px-2.5 py-1 rounded-lg font-medium shadow-sm"
+                              >
+                                {prod.nombre} {qty ? `(x${qty})` : ''}
+                              </span>
+                            )
+                          })}
                         </div>
-                      </td>
+                      ) : (
+                        <span className="text-slate-500 italic text-xs block">Sin productos asociados</span>
+                      )}
+                    </div>
+
+                    {/* Detalles breves: Fecha, Precio, Registrador */}
+                    <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-850 text-xs">
+                      <div>
+                        <span className="text-slate-500 block mb-0.5">Fecha Creación</span>
+                        <span className="text-slate-300 font-medium">
+                          {pedido.created_at ? (
+                            new Date(pedido.created_at).toLocaleDateString('es-ES', {
+                              year: 'numeric',
+                              month: 'short',
+                              day: 'numeric'
+                            })
+                          ) : (
+                            '-'
+                          )}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-slate-500 block mb-0.5">Precio</span>
+                        <span className="font-bold text-white">
+                          {pedido.precio !== null && pedido.precio !== undefined ? (
+                            `$ ${parseFloat(pedido.precio.toString()).toLocaleString('es-AR', { minimumFractionDigits: 2 })}`
+                          ) : (
+                            'Sin precio'
+                          )}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-slate-500 block mb-0.5">Registrado por</span>
+                        <span className="text-slate-400">{pedido.user?.name || 'Desconocido'}</span>
+                      </div>
+                    </div>
+
+                    {/* Barra de Acciones */}
+                    <div className="flex flex-wrap items-center justify-end gap-2 pt-3 border-t border-slate-800">
+                      {pedido.estado === 'pendiente' && (
+                        <button
+                          onClick={async () => {
+                            try {
+                              await updatePedido(pedido.id, { estado: 'listo_para_produccion' })
+                              showNotification('Pedido enviado a producción correctamente')
+                              loadData()
+                            } catch (err: unknown) {
+                              setError(err instanceof Error ? err.message : 'Error al enviar a producción')
+                            }
+                          }}
+                          className="bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-500/40 text-xs px-2.5 py-1.5 rounded-lg font-semibold transition flex items-center gap-1"
+                          title="Pasar pedido a 'Listo para producción'"
+                        >
+                          🚀 Habilitar Producción
+                        </button>
+                      )}
+                      <button
+                        onClick={() => handleOpenImagesModal(pedido)}
+                        className="text-slate-300 hover:text-amber-400 p-2 bg-slate-950 border border-slate-800 hover:bg-slate-800 rounded-lg transition text-xs flex items-center gap-1 font-semibold"
+                        title="Gestionar imágenes y planos del pedido"
+                      >
+                        🖼️ <span className="text-[11px]">Fotos</span>
+                      </button>
+                      <button
+                        onClick={() => handleOpenViewModal(pedido)}
+                        className="text-blue-400 hover:text-blue-300 p-2 bg-slate-950 border border-slate-800 hover:bg-blue-500/10 rounded-lg transition text-xs flex items-center gap-1 font-semibold"
+                        title="Ver detalles del pedido"
+                      >
+                        👁️ <span className="text-[11px]">Ver</span>
+                      </button>
+                      <button
+                        onClick={() => handleOpenPaymentsModal(pedido)}
+                        className="text-emerald-400 hover:text-emerald-300 p-2 bg-slate-950 border border-slate-800 hover:bg-emerald-500/10 rounded-lg transition text-xs flex items-center gap-1 font-semibold"
+                        title="Gestionar pagos del pedido"
+                      >
+                        💵 <span className="text-[11px]">Pagos</span>
+                      </button>
+                      <button
+                        onClick={() => handleOpenEditModal(pedido)}
+                        className="text-slate-300 hover:text-white p-2 bg-slate-950 border border-slate-800 hover:bg-slate-800 rounded-lg transition text-xs flex items-center gap-1 font-semibold"
+                        title="Editar/Asignar pedido"
+                      >
+                        ✏️ <span className="text-[11px]">Editar</span>
+                      </button>
+                      <button
+                        onClick={() => handleDelete(pedido.id)}
+                        className="text-rose-400 hover:text-rose-300 p-2 bg-slate-950 border border-slate-800 hover:bg-rose-500/10 rounded-lg transition text-xs flex items-center gap-1 font-semibold"
+                        title="Dar de baja pedido"
+                      >
+                        🗑️
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* VISTA EN TABLA PARA ESCRITORIO (hidden md:block) */}
+              <div className="hidden md:block overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="border-b border-slate-800 bg-slate-950/40 text-slate-400 font-semibold text-xs uppercase tracking-wider select-none">
+                      <th onClick={() => handleSort('cliente')} className="px-6 py-4 cursor-pointer hover:text-white transition text-left">
+                        Cliente {sortField === 'cliente' ? (sortDirection === 'asc' ? ' ▲' : ' ▼') : ''}
+                      </th>
+                      <th onClick={() => handleSort('productos')} className="px-6 py-4 text-center cursor-pointer hover:text-white transition">
+                        Productos {sortField === 'productos' ? (sortDirection === 'asc' ? ' ▲' : ' ▼') : ''}
+                      </th>
+                      <th onClick={() => handleSort('prioridad')} className="px-6 py-4 cursor-pointer hover:text-white transition text-left">
+                        Prioridad {sortField === 'prioridad' ? (sortDirection === 'asc' ? ' ▲' : ' ▼') : ''}
+                      </th>
+                      <th onClick={() => handleSort('estado')} className="px-6 py-4 cursor-pointer hover:text-white transition text-left">
+                        Estado {sortField === 'estado' ? (sortDirection === 'asc' ? ' ▲' : ' ▼') : ''}
+                      </th>
+                      <th onClick={() => handleSort('created_at')} className="px-6 py-4 cursor-pointer hover:text-white transition text-left">
+                        Fecha Creación {sortField === 'created_at' || sortField === 'fecha_entrega' ? (sortDirection === 'asc' ? ' ▲' : ' ▼') : ''}
+                      </th>
+                      <th onClick={() => handleSort('precio')} className="px-6 py-4 text-right cursor-pointer hover:text-white transition">
+                        Precio {sortField === 'precio' ? (sortDirection === 'asc' ? ' ▲' : ' ▼') : ''}
+                      </th>
+                      <th onClick={() => handleSort('user')} className="px-6 py-4 cursor-pointer hover:text-white transition text-left">
+                        Registrado por {sortField === 'user' ? (sortDirection === 'asc' ? ' ▲' : ' ▼') : ''}
+                      </th>
+                      <th className="px-6 py-4 text-right">Acciones</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800 text-sm">
+                    {displayedPedidos.map((pedido) => (
+                      <tr key={pedido.id} className="hover:bg-slate-800/40 text-slate-300 transition duration-100">
+                        <td className="px-6 py-4">
+                          <span className="font-semibold text-white">
+                            {pedido.cliente?.nombre_empresa || pedido.cliente?.nombre_cliente || 'Sin empresa'}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 max-w-xs">
+                          {pedido.productos && pedido.productos.length > 0 ? (
+                            <div className="flex flex-col gap-1.5 items-stretch justify-center">
+                              {pedido.productos.slice(0, 2).map((prod) => {
+                                const qty = (prod as any).pivot?.cantidad
+                                return (
+                                  <span
+                                    key={prod.id}
+                                    className="bg-slate-950 border border-slate-800 text-slate-200 text-sm px-3 py-1.5 rounded-lg text-center font-medium shadow-sm transition hover:border-slate-700"
+                                    title={prod.descripcion || ''}
+                                  >
+                                    {prod.nombre} {qty ? `(x${qty})` : ''}
+                                  </span>
+                                )
+                              })}
+                              {pedido.productos.length > 2 && (
+                                <span className="text-[10px] text-slate-500 font-bold text-center mt-0.5 select-none">
+                                  + {pedido.productos.length - 2} más
+                                </span>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="text-slate-650 italic text-xs block text-center">Ninguno</span>
+                          )}
+                        </td>
+                        <td className="px-6 py-4">
+                          <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold capitalize ${getPriorityBadgeClass(pedido.prioridad)}`}>
+                            {pedido.prioridad}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4">
+                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold uppercase tracking-wide ${getStatusBadgeClass(pedido.estado)}`}>
+                            {getStatusLabel(pedido.estado)}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 text-xs text-slate-400">
+                          {pedido.created_at ? (
+                            new Date(pedido.created_at).toLocaleDateString('es-ES', {
+                              year: 'numeric',
+                              month: 'short',
+                              day: 'numeric'
+                            })
+                          ) : (
+                            <span className="text-slate-600 italic">-</span>
+                          )}
+                        </td>
+                        <td className="px-6 py-4 text-right text-xs font-semibold text-white">
+                          {pedido.precio !== null && pedido.precio !== undefined ? (
+                            `$ ${parseFloat(pedido.precio.toString()).toLocaleString('es-AR', { minimumFractionDigits: 2 })}`
+                          ) : (
+                            <span className="text-slate-600 italic">-</span>
+                          )}
+                        </td>
+                        <td className="px-6 py-4 text-xs text-slate-400">{pedido.user?.name || 'Desconocido'}</td>
+                        <td className="px-6 py-4 text-right">
+                          <div className="flex justify-end gap-2.5">
+                            {pedido.estado === 'pendiente' && (
+                              <button
+                                onClick={async () => {
+                                  try {
+                                    await updatePedido(pedido.id, { estado: 'listo_para_produccion' })
+                                    showNotification('Pedido enviado a producción correctamente')
+                                    loadData()
+                                  } catch (err: unknown) {
+                                    setError(err instanceof Error ? err.message : 'Error al enviar a producción')
+                                  }
+                                }}
+                                className="bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-500/40 text-xs px-2.5 py-1 rounded font-semibold transition flex items-center gap-1"
+                                title="Pasar pedido a 'Listo para producción'"
+                              >
+                                🚀 Habilitar Producción
+                              </button>
+                            )}
+                            <button
+                              onClick={() => handleOpenImagesModal(pedido)}
+                              className="text-slate-400 hover:text-amber-400 p-1 hover:bg-slate-800 rounded transition"
+                              title="Gestionar imágenes y planos del pedido"
+                            >
+                              🖼️
+                            </button>
+                            <button
+                              onClick={() => handleOpenViewModal(pedido)}
+                              className="text-blue-400 hover:text-blue-300 p-1 hover:bg-blue-500/10 rounded transition"
+                              title="Ver detalles del pedido (Trello)"
+                            >
+                              👁️
+                            </button>
+                            <button
+                              onClick={() => handleOpenPaymentsModal(pedido)}
+                              className="text-emerald-400 hover:text-emerald-300 p-1 hover:bg-emerald-500/10 rounded transition"
+                              title="Gestionar pagos del pedido"
+                            >
+                              💵
+                            </button>
+                            <button
+                              onClick={() => handleOpenEditModal(pedido)}
+                              className="text-slate-400 hover:text-white p-1 hover:bg-slate-800 rounded transition"
+                              title="Editar/Asignar pedido"
+                            >
+                              ✏️
+                            </button>
+                            <button
+                              onClick={() => handleDelete(pedido.id)}
+                              className="text-rose-400 hover:text-rose-300 p-1 hover:bg-rose-500/10 rounded transition"
+                              title="Dar de baja pedido"
+                            >
+                              🗑️
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
 
               {/* Controles de Paginación */}
               {totalPages > 1 && (
-                <div className="flex items-center justify-between border-t border-slate-800 bg-slate-950/20 px-6 py-4">
-                  <div className="text-xs text-slate-400">
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-slate-800 bg-slate-950/20 p-4 sm:px-6 sm:py-4">
+                  <div className="text-xs text-slate-400 text-center sm:text-left">
                     Mostrando <span className="font-semibold text-white">{(currentPage - 1) * 5 + 1}</span> a <span className="font-semibold text-white">{Math.min(currentPage * 5, filteredAndSortedPedidos.length)}</span> de <span className="font-semibold text-white">{filteredAndSortedPedidos.length}</span> pedidos
                   </div>
-                  <div className="flex gap-2">
+                  <div className="flex items-center gap-1.5 sm:gap-2">
                     <button
                       type="button"
                       disabled={currentPage === 1}
                       onClick={() => setCurrentPage(1)}
-                      className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 disabled:opacity-30 rounded text-xs text-slate-200 transition font-medium"
+                      className="px-2 py-1 sm:px-2.5 sm:py-1 bg-slate-800 hover:bg-slate-700 disabled:opacity-30 rounded text-xs text-slate-200 transition font-medium"
                     >
                       ⏮️
                     </button>
@@ -1228,18 +1371,18 @@ export default function PedidosPage() {
                       type="button"
                       disabled={currentPage === 1}
                       onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-                      className="px-3 py-1 bg-slate-800 hover:bg-slate-700 disabled:opacity-30 rounded text-xs text-slate-200 transition font-medium"
+                      className="px-2.5 py-1 sm:px-3 sm:py-1 bg-slate-800 hover:bg-slate-700 disabled:opacity-30 rounded text-xs text-slate-200 transition font-medium"
                     >
                       Anterior
                     </button>
-                    <span className="px-3 py-1 bg-slate-900 border border-slate-850 rounded text-xs text-slate-300 font-semibold self-center">
+                    <span className="px-2.5 py-1 sm:px-3 sm:py-1 bg-slate-900 border border-slate-850 rounded text-xs text-slate-300 font-semibold self-center">
                       Pág. {currentPage} de {totalPages}
                     </span>
                     <button
                       type="button"
                       disabled={currentPage === totalPages}
                       onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-                      className="px-3 py-1 bg-slate-800 hover:bg-slate-700 disabled:opacity-30 rounded text-xs text-slate-200 transition font-medium"
+                      className="px-2.5 py-1 sm:px-3 sm:py-1 bg-slate-800 hover:bg-slate-700 disabled:opacity-30 rounded text-xs text-slate-200 transition font-medium"
                     >
                       Siguiente
                     </button>
@@ -1247,7 +1390,7 @@ export default function PedidosPage() {
                       type="button"
                       disabled={currentPage === totalPages}
                       onClick={() => setCurrentPage(totalPages)}
-                      className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 disabled:opacity-30 rounded text-xs text-slate-200 transition font-medium"
+                      className="px-2 py-1 sm:px-2.5 sm:py-1 bg-slate-800 hover:bg-slate-700 disabled:opacity-30 rounded text-xs text-slate-200 transition font-medium"
                     >
                       ⏭️
                     </button>
@@ -1260,14 +1403,16 @@ export default function PedidosPage() {
 
         {/* Modal de Creación (Wizard) */}
         {isCreateModalOpen && (
-          <>
-            <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-sm" onClick={() => {
+          <Modal
+            isOpen={isCreateModalOpen}
+            onClose={() => {
               setIsCreateModalOpen(false)
               setWizardStep('select_client')
               setSelectedWizardClient(null)
               setCreatedPedidoResult(null)
-            }} />
-            <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-xl shadow-2xl p-6 max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in-95 duration-150">
+            }}
+            className="max-w-xl p-6"
+          >
               <h2 className="text-xl font-bold text-white mb-4">Registrar Nuevo Pedido</h2>
 
               {/* Stepper Indicator */}
@@ -2088,15 +2233,16 @@ export default function PedidosPage() {
                   </div>
                 </div>
               )}
-            </div>
-          </>
+          </Modal>
         )}
 
         {/* Modal de Edición */}
         {isEditModalOpen && selectedPedido && (
-          <>
-            <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-sm" onClick={() => setIsEditModalOpen(false)} />
-            <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-xl shadow-2xl p-6 max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in-95 duration-150">
+          <Modal
+            isOpen={isEditModalOpen}
+            onClose={() => setIsEditModalOpen(false)}
+            className="max-w-xl p-6"
+          >
               <h2 className="text-xl font-bold text-white mb-4">Editar Pedido</h2>
               <form onSubmit={handleEditSubmit} className="space-y-4 text-slate-300">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -2426,15 +2572,16 @@ export default function PedidosPage() {
                   </button>
                 </div>
               </form>
-            </div>
-          </>
+          </Modal>
         )}
 
         {/* Modal de Creación de Cliente Rápido */}
         {isCreateClienteModalOpen && (
-          <>
-            <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-sm" onClick={() => setIsCreateClienteModalOpen(false)} />
-            <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-lg shadow-2xl p-6 max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in-95 duration-150 text-slate-300">
+          <Modal
+            isOpen={isCreateClienteModalOpen}
+            onClose={() => setIsCreateClienteModalOpen(false)}
+            className="max-w-lg p-6 text-slate-300"
+          >
               <h2 className="text-xl font-bold text-white mb-4">Registrar Nuevo Cliente</h2>
               <form onSubmit={handleCreateClienteSubmit} className="space-y-4 max-h-[70vh] overflow-y-auto pr-2 text-left">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -2607,15 +2754,16 @@ export default function PedidosPage() {
                   </button>
                 </div>
               </form>
-            </div>
-          </>
+          </Modal>
         )}
 
         {/* Modal de Gestión de Pagos */}
         {isPaymentsModalOpen && selectedPedidoForPayments && (
-          <>
-            <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-sm" onClick={() => setIsPaymentsModalOpen(false)} />
-            <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-4xl shadow-2xl p-6 max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in-95 duration-150">
+          <Modal
+            isOpen={isPaymentsModalOpen}
+            onClose={() => setIsPaymentsModalOpen(false)}
+            className="max-w-4xl p-6"
+          >
               <button
                 onClick={() => setIsPaymentsModalOpen(false)}
                 className="absolute top-4 right-4 text-slate-400 hover:text-white transition text-lg"
@@ -2855,9 +3003,7 @@ export default function PedidosPage() {
                   Cerrar
                 </button>
               </div>
-
-            </div>
-          </>
+          </Modal>
         )}
 
         {isViewModalOpen && selectedPedidoForView && (() => {
@@ -2866,9 +3012,11 @@ export default function PedidosPage() {
           const coverUrl = selectedPedidoForView.imagen_principal?.url || selectedPedidoForView.imagenes?.[0]?.url
 
           return (
-            <>
-              <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm" onClick={() => { setIsViewModalOpen(false); setSelectedPedidoForView(null); }} />
-              <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-4xl shadow-2xl p-6 max-h-[90vh] overflow-y-auto flex flex-col animate-in fade-in zoom-in-95 duration-150">
+            <Modal
+              isOpen={isViewModalOpen}
+              onClose={() => { setIsViewModalOpen(false); setSelectedPedidoForView(null); }}
+              className="max-w-4xl p-6 flex flex-col"
+            >
                 {/* Header de Imagen / Portada estilo Trello */}
                 {coverUrl && (
                   <div className="-mx-6 -mt-6 mb-5 relative h-48 sm:h-56 md:h-64 bg-slate-950/90 border-b border-slate-800/80 flex items-center justify-center overflow-hidden rounded-t-2xl group">
@@ -3240,15 +3388,20 @@ export default function PedidosPage() {
                     </div>
                   </div>
                 </div>
-              </div>
-            </>
+            </Modal>
           )
         })()}
 
         {/* Modal de Gestión de Imágenes del Pedido */}
         {isImagesModalOpen && selectedPedidoForImages && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 backdrop-blur-sm p-4">
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-4xl max-h-[90vh] shadow-2xl p-6 relative flex flex-col animate-in fade-in zoom-in-95 duration-150 overflow-y-auto text-slate-300">
+          <Modal
+            isOpen={isImagesModalOpen}
+            onClose={() => {
+              setIsImagesModalOpen(false)
+              loadData()
+            }}
+            className="max-w-4xl p-6 flex flex-col text-slate-300"
+          >
               <div className="flex justify-between items-center pb-4 border-b border-slate-800 mb-4">
                 <div>
                   <h2 className="text-xl font-bold text-white flex items-center gap-2">
@@ -3275,8 +3428,7 @@ export default function PedidosPage() {
                 orderCode={selectedPedidoForImages.codigo}
                 onImagesUpdated={() => loadData()}
               />
-            </div>
-          </div>
+          </Modal>
         )}
       </main>
     </RoleGuard>

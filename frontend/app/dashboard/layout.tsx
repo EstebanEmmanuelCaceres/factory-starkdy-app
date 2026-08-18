@@ -11,29 +11,29 @@ export default function DashboardLayout({
   children: React.ReactNode
 }) {
   const [user, setUser] = useState<User | null>(null)
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false)
 
   useEffect(() => {
     // Cargar usuario desde localStorage primero (instantáneo)
     const stored = getStoredUser()
     if (stored) setUser(stored)
-
-    // Luego verificar con la API (actualiza datos)
-    // fetchMe()
-    //   .then((u) => {
-    //     setUser(u)
-    //     localStorage.setItem('auth_user', JSON.stringify(u))
-    //   })
-    //   .catch(() => {
-    //     // Si falla (401) el interceptor de Axios redirige a /login
-    //   })
   }, [])
 
   return (
-    <div className="dashboard-layout">
-      <Sidebar user={user} />
-      <div className="dashboard-main">
-        <Header user={user} />
-        {children}
+    <div className="dashboard-layout min-h-screen bg-slate-950 text-slate-100 flex">
+      <Sidebar
+        user={user}
+        isOpen={isMobileSidebarOpen}
+        onClose={() => setIsMobileSidebarOpen(false)}
+      />
+      <div className="dashboard-main flex-1 flex flex-col min-h-screen w-full min-w-0 transition-all duration-200">
+        <Header
+          user={user}
+          onToggleSidebar={() => setIsMobileSidebarOpen((prev) => !prev)}
+        />
+        <main className="page-content flex-1 p-4 xs:p-5 sm:p-6 lg:p-8">
+          {children}
+        </main>
       </div>
     </div>
   )

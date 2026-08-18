@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import RoleGuard from '@/components/RoleGuard'
+import Modal from '@/components/Modal'
 import {
   clientesWithPedidos,
   createCliente,
@@ -508,8 +509,7 @@ export default function ClientesPage() {
 
         {/* Modal de Creación */}
         {isCreateModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 backdrop-blur-sm p-4">
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-lg shadow-2xl p-6 relative animate-in fade-in zoom-in-95 duration-150">
+          <Modal isOpen={isCreateModalOpen} onClose={() => setIsCreateModalOpen(false)} className="max-w-lg p-6">
               <h2 className="text-xl font-bold text-white mb-4">Registrar Nuevo Cliente</h2>
               <form onSubmit={handleCreateSubmit} className="space-y-4 text-slate-300 max-h-[75vh] overflow-y-auto pr-2">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -694,14 +694,12 @@ export default function ClientesPage() {
                   </button>
                 </div>
               </form>
-            </div>
-          </div>
+          </Modal>
         )}
 
         {/* Modal de Edición */}
         {isEditModalOpen && selectedCliente && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 backdrop-blur-sm p-4">
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-lg shadow-2xl p-6 relative animate-in fade-in zoom-in-95 duration-150">
+          <Modal isOpen={isEditModalOpen} onClose={() => setIsEditModalOpen(false)} className="max-w-lg p-6">
               <h2 className="text-xl font-bold text-white mb-4">Editar Cliente</h2>
               <form onSubmit={handleEditSubmit} className="space-y-4 text-slate-300 max-h-[75vh] overflow-y-auto pr-2">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -876,14 +874,12 @@ export default function ClientesPage() {
                   </button>
                 </div>
               </form>
-            </div>
-          </div>
+          </Modal>
         )}
 
         {/* Modal de Vista de Detalles (Read-only) */}
         {isViewModalOpen && viewingCliente && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 backdrop-blur-sm p-4 text-slate-300">
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-lg shadow-2xl p-6 relative animate-in fade-in zoom-in-95 duration-150">
+          <Modal isOpen={isViewModalOpen} onClose={() => setIsViewModalOpen(false)} className="max-w-lg p-6 text-slate-300">
               <h2 className="text-xl font-bold text-white mb-4">Detalles Completos del Cliente</h2>
               <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-2 text-left">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -1054,8 +1050,7 @@ export default function ClientesPage() {
                   </button>
                 </div>
               </div>
-            </div>
-          </div>
+          </Modal>
         )}
       </main>
     </RoleGuard>

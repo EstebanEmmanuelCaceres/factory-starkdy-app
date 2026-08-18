@@ -521,21 +521,47 @@ textarea {
 .dashboard-layout {
   display: flex;
   min-height: 100vh;
+  background: var(--bg-main);
 }
 
 .dashboard-main {
   flex: 1;
-  margin-left: var(--sidebar-w);
+  margin-left: 0;
   display: flex;
   flex-direction: column;
   min-height: 100vh;
   background: var(--bg-main);
+  width: 100%;
+}
+
+@media (min-width: 1080px) {
+  .dashboard-main {
+    margin-left: var(--sidebar-w);
+  }
 }
 
 .page-content {
   flex: 1;
-  padding: 28px 32px;
+  padding: 16px;
   animation: fadeUp 0.35s ease forwards;
+}
+
+@media (min-width: 480px) {
+  .page-content {
+    padding: 20px;
+  }
+}
+
+@media (min-width: 720px) {
+  .page-content {
+    padding: 24px;
+  }
+}
+
+@media (min-width: 1080px) {
+  .page-content {
+    padding: 28px 32px;
+  }
 }
 
 /* ═══════════════════════════════════════════════════════════════════

@@ -56,6 +56,10 @@ export default function DashboardPage() {
   const [sortField, setSortField] = useState<'codigo' | 'created_at' | 'cliente' | 'estado'>('created_at')
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc')
 
+  // Paginación para vista Mobile de Pedidos y Completados por Cobrar (Límite de 5 tarjetas por página)
+  const [mobilePedidosPage, setMobilePedidosPage] = useState(1)
+  const [mobileUnpaidPage, setMobileUnpaidPage] = useState(1)
+
   const isFirstRender = useRef(true)
 
   const loadData = async (isRefresh = false) => {
@@ -114,6 +118,7 @@ export default function DashboardPage() {
   }, [filters])
 
   const handleFilterChange = (key: keyof PedidoFilters, value: string) => {
+    setMobilePedidosPage(1)
     setFilters((prev) => ({
       ...prev,
       [key]: value
@@ -121,6 +126,7 @@ export default function DashboardPage() {
   }
 
   const handleClearFilters = () => {
+    setMobilePedidosPage(1)
     setFilters({
       search: '',
       estado: '',
@@ -496,109 +502,212 @@ export default function DashboardPage() {
                   <span className="text-sm font-medium">No se encontraron pedidos con los filtros seleccionados</span>
                 </div>
               ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left border-collapse">
-                    <thead>
-                      <tr className="border-b border-slate-800 bg-slate-950/40 text-slate-400 font-semibold text-xs uppercase tracking-wider">
-                        <th
-                          onClick={() => {
-                            if (sortField === 'codigo') setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc')
-                            else { setSortField('codigo'); setSortOrder('asc') }
-                          }}
-                          className="px-4 py-3 cursor-pointer hover:text-white transition"
-                        >
-                          Código {sortField === 'codigo' && (sortOrder === 'asc' ? '↑' : '↓')}
-                        </th>
-                        <th
-                          onClick={() => {
-                            if (sortField === 'cliente') setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc')
-                            else { setSortField('cliente'); setSortOrder('asc') }
-                          }}
-                          className="px-4 py-3 cursor-pointer hover:text-white transition"
-                        >
-                          Cliente / Empresa {sortField === 'cliente' && (sortOrder === 'asc' ? '↑' : '↓')}
-                        </th>
-                        <th
-                          onClick={() => {
-                            if (sortField === 'created_at') setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc')
-                            else { setSortField('created_at'); setSortOrder('asc') }
-                          }}
-                          className="px-4 py-3 cursor-pointer hover:text-white transition"
-                        >
-                          Fecha Creación {sortField === 'created_at' && (sortOrder === 'asc' ? '↑' : '↓')}
-                        </th>
-                        <th
-                          onClick={() => {
-                            if (sortField === 'estado') setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc')
-                            else { setSortField('estado'); setSortOrder('asc') }
-                          }}
-                          className="px-4 py-3 cursor-pointer hover:text-white transition"
-                        >
-                          Estado {sortField === 'estado' && (sortOrder === 'asc' ? '↑' : '↓')}
-                        </th>
-                        {!isEncargado && <th className="px-4 py-3">Dinero</th>}
-                        <th className="px-4 py-3 text-center">Acciones</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-800 text-sm">
-                      {sortedPedidos.map((pedido) => (
-                        <tr key={pedido.id} className="hover:bg-slate-800/40 text-slate-300 transition duration-150">
-                          <td className="px-4 py-3 font-mono font-bold text-white text-xs">{pedido.codigo}</td>
-                          <td className="px-4 py-3">
-                            <span className="font-semibold text-white text-xs">
-                              {pedido.cliente?.nombre_empresa || pedido.cliente?.nombre_cliente || 'Sin empresa'}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3 text-xs text-slate-300 font-mono">
-                            {pedido.created_at ? new Date(pedido.created_at).toLocaleDateString('es-AR') : 'N/A'}
-                          </td>
-                          <td className="px-4 py-3">
-                            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wide ${getStatusBadgeClass(pedido.estado)}`}>
-                              {getStatusLabel(pedido.estado)}
-                            </span>
-                          </td>
-                          {!isEncargado && (
-                            <td className="px-4 py-3">
-                              {(() => {
-                                const precio = Number(pedido.precio) || 0
-                                const paidAmount = pedido.pagos
-                                  ? pedido.pagos.filter((p: any) => p.estado === 'pagado').reduce((sum: number, p: any) => sum + Number(p.monto), 0)
-                                  : (pedido.pago && pedido.pago.estado === 'pagado' ? Number(pedido.pago.monto) : 0)
+                <div>
+                  {/* VISTA EN TARJETAS PARA MOBILE (< md) CON LÍMITE DE 5 POR PÁGINA */}
+                  <div className="md:hidden space-y-3 p-3">
+                    <div className="max-h-[420px] overflow-y-auto space-y-3 pr-1">
+                      {sortedPedidos
+                        .slice((mobilePedidosPage - 1) * 5, mobilePedidosPage * 5)
+                        .map((pedido) => (
+                          <div key={pedido.id} className="bg-slate-950/60 border border-slate-800/90 rounded-xl p-3.5 space-y-2.5 shadow-md text-left">
+                            {/* Header */}
+                            <div className="flex items-start justify-between gap-2 border-b border-slate-800/80 pb-2">
+                              <div>
+                                <span className="text-[11px] font-mono font-bold text-white bg-slate-900 border border-slate-800 px-2 py-0.5 rounded inline-block mb-1">
+                                  {pedido.codigo}
+                                </span>
+                                <h3 className="font-bold text-white text-sm block leading-tight">
+                                  {pedido.cliente?.nombre_empresa || pedido.cliente?.nombre_cliente || 'Sin empresa'}
+                                </h3>
+                              </div>
+                              <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wide shrink-0 ${getStatusBadgeClass(pedido.estado)}`}>
+                                {getStatusLabel(pedido.estado)}
+                              </span>
+                            </div>
 
-                                const pct = precio > 0 ? Math.round((paidAmount / precio) * 100) : 0
+                            {/* Detalles: Fecha y Cobro */}
+                            <div className="grid grid-cols-2 gap-2 text-xs">
+                              <div>
+                                <span className="text-slate-500 text-[10px] block mb-0.5">Fecha Creación</span>
+                                <span className="text-slate-300 font-mono text-xs">
+                                  {pedido.created_at ? new Date(pedido.created_at).toLocaleDateString('es-AR') : 'N/A'}
+                                </span>
+                              </div>
 
-                                if (paidAmount <= 0) {
-                                  return <span className="text-slate-600 italic text-xs">Sin Pago</span>
-                                }
+                              {!isEncargado && (
+                                <div>
+                                  <span className="text-slate-500 text-[10px] block mb-0.5">Cobro</span>
+                                  {(() => {
+                                    const precio = Number(pedido.precio) || 0
+                                    const paidAmount = pedido.pagos
+                                      ? pedido.pagos.filter((p: any) => p.estado === 'pagado').reduce((sum: number, p: any) => sum + Number(p.monto), 0)
+                                      : (pedido.pago && pedido.pago.estado === 'pagado' ? Number(pedido.pago.monto) : 0)
+                                    const pct = precio > 0 ? Math.round((paidAmount / precio) * 100) : 0
+                                    const isFullyPaid = paidAmount >= precio
 
-                                const isFullyPaid = paidAmount >= precio
-                                return (
-                                  <div className="flex flex-col">
-                                    <span className="font-semibold text-white font-mono text-xs">{formatCurrency(paidAmount)}</span>
-                                    <span className={`inline-flex items-center self-start px-1.5 py-0.5 rounded text-[9px] font-bold uppercase mt-0.5 ${isFullyPaid
-                                      ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-                                      : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
-                                      }`}>
-                                      {isFullyPaid ? 'Cobrado' : `Parcial (${pct}%)`}
-                                    </span>
-                                  </div>
-                                )
-                              })()}
-                            </td>
-                          )}
-                          <td className="px-4 py-3 text-center">
-                            <button
-                              onClick={() => setSelectedPedidoForCommentModal(pedido)}
-                              className="inline-flex items-center gap-1 bg-blue-600/20 hover:bg-blue-600/40 text-blue-300 border border-blue-500/30 px-2.5 py-1 rounded text-xs font-bold transition shadow-sm"
-                              title="Ver detalle del pedido"
-                            >
-                              👁️ Ver Pedido
-                            </button>
-                          </td>
+                                    if (paidAmount <= 0) {
+                                      return <span className="text-slate-500 italic text-xs">Sin Pago</span>
+                                    }
+                                    return (
+                                      <div className="flex items-center gap-1.5 mt-0.5">
+                                        <span className="font-bold text-white font-mono text-xs">{formatCurrency(paidAmount)}</span>
+                                        <span className={`px-1.5 py-0.2 text-[9px] font-extrabold rounded ${isFullyPaid ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'}`}>
+                                          {isFullyPaid ? 'Cobrado' : `${pct}%`}
+                                        </span>
+                                      </div>
+                                    )
+                                  })()}
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Acciones */}
+                            <div className="pt-2 border-t border-slate-800/80 flex justify-end">
+                              <button
+                                onClick={() => setSelectedPedidoForCommentModal(pedido)}
+                                className="inline-flex items-center gap-1 bg-blue-600/20 hover:bg-blue-600/40 text-blue-300 border border-blue-500/30 px-3 py-1.5 rounded-lg text-xs font-bold transition shadow-sm w-full justify-center"
+                              >
+                                👁️ Ver Pedido
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                    </div>
+
+                    {/* Controles de Paginación Mobile */}
+                    {sortedPedidos.length > 5 && (
+                      <div className="flex items-center justify-between border-t border-slate-800/80 pt-3 text-xs">
+                        <span className="text-slate-400 font-medium text-[11px]">
+                          {((mobilePedidosPage - 1) * 5) + 1} - {Math.min(mobilePedidosPage * 5, sortedPedidos.length)} de {sortedPedidos.length}
+                        </span>
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            disabled={mobilePedidosPage === 1}
+                            onClick={() => setMobilePedidosPage(prev => Math.max(1, prev - 1))}
+                            className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 disabled:opacity-30 rounded text-slate-200 font-bold transition"
+                          >
+                            Anterior
+                          </button>
+                          <span className="text-slate-300 font-bold font-mono text-[11px] px-1">
+                            {mobilePedidosPage} / {Math.ceil(sortedPedidos.length / 5)}
+                          </span>
+                          <button
+                            disabled={mobilePedidosPage >= Math.ceil(sortedPedidos.length / 5)}
+                            onClick={() => setMobilePedidosPage(prev => Math.min(Math.ceil(sortedPedidos.length / 5), prev + 1))}
+                            className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 disabled:opacity-30 rounded text-slate-200 font-bold transition"
+                          >
+                            Siguiente
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* VISTA EN TABLA PARA ESCRITORIO (hidden md:block) */}
+                  <div className="hidden md:block overflow-x-auto">
+                    <table className="w-full text-left border-collapse">
+                      <thead>
+                        <tr className="border-b border-slate-800 bg-slate-950/40 text-slate-400 font-semibold text-xs uppercase tracking-wider">
+                          <th
+                            onClick={() => {
+                              if (sortField === 'codigo') setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc')
+                              else { setSortField('codigo'); setSortOrder('asc') }
+                            }}
+                            className="px-4 py-3 cursor-pointer hover:text-white transition"
+                          >
+                            Código {sortField === 'codigo' && (sortOrder === 'asc' ? '↑' : '↓')}
+                          </th>
+                          <th
+                            onClick={() => {
+                              if (sortField === 'cliente') setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc')
+                              else { setSortField('cliente'); setSortOrder('asc') }
+                            }}
+                            className="px-4 py-3 cursor-pointer hover:text-white transition"
+                          >
+                            Cliente / Empresa {sortField === 'cliente' && (sortOrder === 'asc' ? '↑' : '↓')}
+                          </th>
+                          <th
+                            onClick={() => {
+                              if (sortField === 'created_at') setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc')
+                              else { setSortField('created_at'); setSortOrder('asc') }
+                            }}
+                            className="px-4 py-3 cursor-pointer hover:text-white transition"
+                          >
+                            Fecha Creación {sortField === 'created_at' && (sortOrder === 'asc' ? '↑' : '↓')}
+                          </th>
+                          <th
+                            onClick={() => {
+                              if (sortField === 'estado') setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc')
+                              else { setSortField('estado'); setSortOrder('asc') }
+                            }}
+                            className="px-4 py-3 cursor-pointer hover:text-white transition"
+                          >
+                            Estado {sortField === 'estado' && (sortOrder === 'asc' ? '↑' : '↓')}
+                          </th>
+                          {!isEncargado && <th className="px-4 py-3">Dinero</th>}
+                          <th className="px-4 py-3 text-center">Acciones</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                      </thead>
+                      <tbody className="divide-y divide-slate-800 text-sm">
+                        {sortedPedidos.map((pedido) => (
+                          <tr key={pedido.id} className="hover:bg-slate-800/40 text-slate-300 transition duration-150">
+                            <td className="px-4 py-3 font-mono font-bold text-white text-xs">{pedido.codigo}</td>
+                            <td className="px-4 py-3">
+                              <span className="font-semibold text-white text-xs">
+                                {pedido.cliente?.nombre_empresa || pedido.cliente?.nombre_cliente || 'Sin empresa'}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 text-xs text-slate-300 font-mono">
+                              {pedido.created_at ? new Date(pedido.created_at).toLocaleDateString('es-AR') : 'N/A'}
+                            </td>
+                            <td className="px-4 py-3">
+                              <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wide ${getStatusBadgeClass(pedido.estado)}`}>
+                                {getStatusLabel(pedido.estado)}
+                              </span>
+                            </td>
+                            {!isEncargado && (
+                              <td className="px-4 py-3">
+                                {(() => {
+                                  const precio = Number(pedido.precio) || 0
+                                  const paidAmount = pedido.pagos
+                                    ? pedido.pagos.filter((p: any) => p.estado === 'pagado').reduce((sum: number, p: any) => sum + Number(p.monto), 0)
+                                    : (pedido.pago && pedido.pago.estado === 'pagado' ? Number(pedido.pago.monto) : 0)
+
+                                  const pct = precio > 0 ? Math.round((paidAmount / precio) * 100) : 0
+
+                                  if (paidAmount <= 0) {
+                                    return <span className="text-slate-600 italic text-xs">Sin Pago</span>
+                                  }
+
+                                  const isFullyPaid = paidAmount >= precio
+                                  return (
+                                    <div className="flex flex-col">
+                                      <span className="font-semibold text-white font-mono text-xs">{formatCurrency(paidAmount)}</span>
+                                      <span className={`inline-flex items-center self-start px-1.5 py-0.5 rounded text-[9px] font-bold uppercase mt-0.5 ${isFullyPaid
+                                        ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                                        : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
+                                        }`}>
+                                        {isFullyPaid ? 'Cobrado' : `Parcial (${pct}%)`}
+                                      </span>
+                                    </div>
+                                  )
+                                })()}
+                              </td>
+                            )}
+                            <td className="px-4 py-3 text-center">
+                              <button
+                                onClick={() => setSelectedPedidoForCommentModal(pedido)}
+                                className="inline-flex items-center gap-1 bg-blue-600/20 hover:bg-blue-600/40 text-blue-300 border border-blue-500/30 px-2.5 py-1 rounded text-xs font-bold transition shadow-sm"
+                                title="Ver detalle del pedido"
+                              >
+                                👁️ Ver Pedido
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
               )}
             </div>
@@ -630,58 +739,140 @@ export default function DashboardPage() {
                     </span>
                   </div>
                 ) : (
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left border-collapse">
-                      <thead>
-                        <tr className="border-b border-slate-800 bg-slate-950/40 text-slate-400 font-semibold text-xs uppercase tracking-wider">
-                          <th className="px-4 py-3">Cliente / Empresa</th>
-                          <th className="px-4 py-3 text-right">Saldo Pendiente</th>
-                          <th className="px-4 py-3 text-center">Acción</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-800 text-sm">
-                        {completedUnpaidPedidos.map((pedido) => {
-                          const precio = Number(pedido.precio) || 0
-                          const paidAmount = pedido.pagos
-                            ? pedido.pagos.filter((pay: any) => pay.estado === 'pagado').reduce((s: number, pay: any) => s + Number(pay.monto), 0)
-                            : (pedido.pago && pedido.pago.estado === 'pagado' ? Number(pedido.pago.monto) : 0)
-                          const pending = Math.max(0, precio - paidAmount)
+                  <div>
+                    {/* VISTA EN TARJETAS PARA MOBILE (< md) CON LÍMITE DE 5 POR PÁGINA */}
+                    <div className="md:hidden space-y-3 p-3">
+                      <div className="max-h-[380px] overflow-y-auto space-y-2.5 pr-1">
+                        {completedUnpaidPedidos
+                          .slice((mobileUnpaidPage - 1) * 5, mobileUnpaidPage * 5)
+                          .map((pedido) => {
+                            const precio = Number(pedido.precio) || 0
+                            const paidAmount = pedido.pagos
+                              ? pedido.pagos.filter((pay: any) => pay.estado === 'pagado').reduce((s: number, pay: any) => s + Number(pay.monto), 0)
+                              : (pedido.pago && pedido.pago.estado === 'pagado' ? Number(pedido.pago.monto) : 0)
+                            const pending = Math.max(0, precio - paidAmount)
 
-                          return (
-                            <tr
-                              key={pedido.id}
-                              className="hover:bg-slate-800/40 text-slate-300 transition duration-150 cursor-pointer"
-                              onClick={() => setSelectedPedidoForCommentModal(pedido)}
-                            >
-                              <td className="px-4 py-3">
-                                <div className="flex flex-col">
-                                  <span className="font-semibold text-white text-xs">{pedido.cliente?.nombre_cliente || 'Sin cliente'}</span>
-                                  <span className="text-[11px] text-slate-400">{pedido.cliente?.nombre_empresa || 'Empresa'}</span>
-                                  <span className="text-[10px] text-slate-500 font-mono mt-0.5">{pedido.codigo}</span>
+                            return (
+                              <div
+                                key={pedido.id}
+                                className="bg-slate-950/60 border border-slate-800/90 rounded-xl p-3.5 space-y-2 shadow-md text-left cursor-pointer hover:border-slate-700 transition"
+                                onClick={() => setSelectedPedidoForCommentModal(pedido)}
+                              >
+                                <div className="flex items-start justify-between gap-2">
+                                  <div>
+                                    <span className="text-[10px] font-mono text-slate-400 block">{pedido.codigo}</span>
+                                    <h3 className="font-bold text-white text-sm leading-tight mt-0.5">
+                                      {pedido.cliente?.nombre_cliente || 'Sin cliente'}
+                                    </h3>
+                                    <span className="text-xs text-slate-400 block">{pedido.cliente?.nombre_empresa || 'Empresa'}</span>
+                                  </div>
+                                  <div className="text-right">
+                                    <span className="text-[10px] text-slate-400 block">Saldo Pendiente</span>
+                                    <span className="font-bold text-amber-400 font-mono text-sm block">
+                                      {formatCurrency(pending)}
+                                    </span>
+                                  </div>
                                 </div>
-                              </td>
-                              <td className="px-4 py-3 text-right">
-                                <span className="font-bold text-amber-400 font-mono text-xs">
-                                  {formatCurrency(pending)}
-                                </span>
-                              </td>
-                              <td className="px-4 py-3 text-center">
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation()
-                                    setSelectedPedidoForCommentModal(pedido)
-                                  }}
-                                  className="inline-flex items-center gap-1 bg-blue-600/20 hover:bg-blue-600/40 text-blue-300 border border-blue-500/30 px-2.5 py-1 rounded text-xs font-semibold transition"
-                                  title="Ver pedido y comentar"
-                                >
-                                  💬 Ver / Comentar
-                                </button>
-                              </td>
-                            </tr>
-                          )
-                        })}
-                      </tbody>
-                    </table>
+
+                                <div className="pt-2 border-t border-slate-800/80 flex justify-end">
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      setSelectedPedidoForCommentModal(pedido)
+                                    }}
+                                    className="inline-flex items-center gap-1 bg-blue-600/20 hover:bg-blue-600/40 text-blue-300 border border-blue-500/30 px-3 py-1 rounded text-xs font-semibold transition w-full justify-center"
+                                  >
+                                    💬 Ver / Comentar
+                                  </button>
+                                </div>
+                              </div>
+                            )
+                          })}
+                      </div>
+
+                      {/* Controles de Paginación Mobile */}
+                      {completedUnpaidPedidos.length > 5 && (
+                        <div className="flex items-center justify-between border-t border-slate-800/80 pt-3 text-xs">
+                          <span className="text-slate-400 font-medium text-[11px]">
+                            {((mobileUnpaidPage - 1) * 5) + 1} - {Math.min(mobileUnpaidPage * 5, completedUnpaidPedidos.length)} de {completedUnpaidPedidos.length}
+                          </span>
+                          <div className="flex items-center gap-1.5">
+                            <button
+                              disabled={mobileUnpaidPage === 1}
+                              onClick={() => setMobileUnpaidPage(prev => Math.max(1, prev - 1))}
+                              className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 disabled:opacity-30 rounded text-slate-200 font-bold transition"
+                            >
+                              Anterior
+                            </button>
+                            <span className="text-slate-300 font-bold font-mono text-[11px] px-1">
+                              {mobileUnpaidPage} / {Math.ceil(completedUnpaidPedidos.length / 5)}
+                            </span>
+                            <button
+                              disabled={mobileUnpaidPage >= Math.ceil(completedUnpaidPedidos.length / 5)}
+                              onClick={() => setMobileUnpaidPage(prev => Math.min(Math.ceil(completedUnpaidPedidos.length / 5), prev + 1))}
+                              className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 disabled:opacity-30 rounded text-slate-200 font-bold transition"
+                            >
+                              Siguiente
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* VISTA EN TABLA PARA ESCRITORIO (hidden md:block) */}
+                    <div className="hidden md:block overflow-x-auto">
+                      <table className="w-full text-left border-collapse">
+                        <thead>
+                          <tr className="border-b border-slate-800 bg-slate-950/40 text-slate-400 font-semibold text-xs uppercase tracking-wider">
+                            <th className="px-4 py-3">Cliente / Empresa</th>
+                            <th className="px-4 py-3 text-right">Saldo Pendiente</th>
+                            <th className="px-4 py-3 text-center">Acción</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-800 text-sm">
+                          {completedUnpaidPedidos.map((pedido) => {
+                            const precio = Number(pedido.precio) || 0
+                            const paidAmount = pedido.pagos
+                              ? pedido.pagos.filter((pay: any) => pay.estado === 'pagado').reduce((s: number, pay: any) => s + Number(pay.monto), 0)
+                              : (pedido.pago && pedido.pago.estado === 'pagado' ? Number(pedido.pago.monto) : 0)
+                            const pending = Math.max(0, precio - paidAmount)
+
+                            return (
+                              <tr
+                                key={pedido.id}
+                                className="hover:bg-slate-800/40 text-slate-300 transition duration-150 cursor-pointer"
+                                onClick={() => setSelectedPedidoForCommentModal(pedido)}
+                              >
+                                <td className="px-4 py-3">
+                                  <div className="flex flex-col">
+                                    <span className="font-semibold text-white text-xs">{pedido.cliente?.nombre_cliente || 'Sin cliente'}</span>
+                                    <span className="text-[11px] text-slate-400">{pedido.cliente?.nombre_empresa || 'Empresa'}</span>
+                                    <span className="text-[10px] text-slate-500 font-mono mt-0.5">{pedido.codigo}</span>
+                                  </div>
+                                </td>
+                                <td className="px-4 py-3 text-right">
+                                  <span className="font-bold text-amber-400 font-mono text-xs">
+                                    {formatCurrency(pending)}
+                                  </span>
+                                </td>
+                                <td className="px-4 py-3 text-center">
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      setSelectedPedidoForCommentModal(pedido)
+                                    }}
+                                    className="inline-flex items-center gap-1 bg-blue-600/20 hover:bg-blue-600/40 text-blue-300 border border-blue-500/30 px-2.5 py-1 rounded text-xs font-semibold transition"
+                                    title="Ver pedido y comentar"
+                                  >
+                                    💬 Ver / Comentar
+                                  </button>
+                                </td>
+                              </tr>
+                            )
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
                 )}
               </div>
