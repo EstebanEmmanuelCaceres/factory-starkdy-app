@@ -224,8 +224,8 @@ export default function ProductImageGallery({ productId, productName, onImagesUp
                     alt={`${productName} imagen`}
                     className="w-full h-full object-cover group-hover:scale-105 transition duration-200"
                     onError={(e) => {
-                      // Fallback visual en caso de URL rota
-                      (e.target as HTMLImageElement).src = 'https://via.placeholder.com/200?text=Error+Imagen'
+                      // Fallback visual en caso de URL rota usando data URI SVG para no depender de servidores externos
+                      (e.target as HTMLImageElement).src = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200' viewBox='0 0 200 200'><rect width='200' height='200' fill='%230f172a'/><text x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' fill='%2364748b' font-family='sans-serif' font-size='13'>Imagen no disponible</text></svg>"
                     }}
                   />
 

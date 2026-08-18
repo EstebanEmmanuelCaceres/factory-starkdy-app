@@ -3032,6 +3032,9 @@ export default function PedidosPage() {
                       src={coverUrl}
                       alt={`Portada ${selectedPedidoForView.codigo}`}
                       className="relative z-10 max-h-full max-w-full object-contain p-3 transition duration-200"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).src = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200' viewBox='0 0 200 200'><rect width='200' height='200' fill='%230f172a'/><text x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' fill='%2364748b' font-family='sans-serif' font-size='13'>Imagen no disponible</text></svg>"
+                      }}
                     />
 
                     {/* Badge y Botón de Acción flotante */}
