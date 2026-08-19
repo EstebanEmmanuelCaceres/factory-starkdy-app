@@ -57,8 +57,7 @@ class CloudinaryService
      */
     public function uploadImage($file, ?string $folder = null): array
     {
-        $folderName = $folder ?? config('cloudinary.folder', 'factory_productos');
-
+        $folderName = $folder ?? "factory_productos";
         if ($this->isConfigured && $this->cloudinary !== null) {
             try {
                 $filePath = $file instanceof UploadedFile ? $file->getRealPath() : $file;
@@ -70,6 +69,8 @@ class CloudinaryService
                     'overwrite' => true,
                 ]);
 
+                Log::info('Imagen subida exitosamente a Cloudinary: ' . ($result['secure_url'] ?? $result['url']));
+
                 return [
                     'url' => $result['secure_url'] ?? $result['url'],
                     'path_almacenamiento' => $result['public_id'] ?? null,
@@ -79,6 +80,8 @@ class CloudinaryService
             } catch (\Exception $e) {
                 Log::error('Error al subir imagen a Cloudinary: ' . $e->getMessage());
             }
+        } else {
+            Log::warning('Cloudinary no está configurado o falló su inicialización. Usando almacenamiento local de fallback.');
         }
 
         // Fallback a almacenamiento local público

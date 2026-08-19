@@ -81,7 +81,7 @@ class PedidoImagenController extends Controller
         // 1. Procesar archivo individual "imagen" con CloudinaryService
         if ($request->hasFile('imagen')) {
             $file = $request->file('imagen');
-            $uploadResult = $this->cloudinaryService->uploadImage($file);
+            $uploadResult = $this->cloudinaryService->uploadImage($file, "factory_pedidos");
 
             $maxOrden++;
             $isPrincipal = !$hasPrincipal && count($createdImages) === 0;
