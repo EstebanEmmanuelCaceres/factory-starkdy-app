@@ -30,6 +30,8 @@ class PedidoController extends Controller
                 'user:id,name',
                 'productos',
                 'productos.imagenPrincipal',
+                'imagenPrincipal',
+                'imagenes',
                 'pago',
                 'pagos',
                 'comentarios:id,pedido_id,user_id,cuerpo,created_at,updated_at',
@@ -76,10 +78,20 @@ class PedidoController extends Controller
             $query->where('user_id', $request->input('user_id'));
         }
 
-        // Restricción estricta por rol: Si el usuario autenticado es Vendedor, solo ve sus pedidos
+        // Restricción por rol:
+        // - Si el usuario autenticado es Vendedor o Diseñador, solo ve sus pedidos.
+        // - Si el usuario pertenece a la parte de taller (Operario), NO ve los pedidos en estado 'pendiente'.
+        // - Encargados, Supervisores y Administradores ven todos los pedidos (incluyendo los pendientes de todos los vendedores).
         $currentUser = auth()->user();
-        if ($currentUser && $currentUser->role?->slug === 'vendedor') {
-            $query->where('user_id', $currentUser->id);
+        if ($currentUser) {
+            $userRole = $currentUser->role?->slug;
+            if ($userRole === 'vendedor' || $userRole === 'disenador') {
+                $query->where('user_id', $currentUser->id);
+            } elseif (in_array($userRole, ['operario', 'operator'])) {
+                $query->whereHas('ultimoEstado', function ($q) {
+                    $q->where('estado', '!=', 'pendiente');
+                });
+            }
         }
 
         $pedidos = $query->latest()->get();
@@ -170,6 +182,25 @@ class PedidoController extends Controller
             }
         }
 
+        $cliente = Cliente::find($clienteId);
+        if ($cliente && (float) ($cliente->saldo ?? 0) > 0) {
+            $limite = (float) $cliente->saldo;
+            $consumidoActual = (float) $cliente->total_pedidos;
+            $nuevoPrecio = (float) ($request->input('precio') ?? 0);
+            $totalConNuevo = $consumidoActual + $nuevoPrecio;
+
+            if ($totalConNuevo > $limite) {
+                $disponible = max(0, $limite - $consumidoActual);
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'No se puede crear el pedido: El monto del nuevo pedido ($' . number_format($nuevoPrecio, 2) . ') sumado a los pedidos existentes ($' . number_format($consumidoActual, 2) . ') supera el límite de crédito asignado ($' . number_format($limite, 2) . '). Crédito disponible: $' . number_format($disponible, 2) . '.',
+                    'errors' => [
+                        'cliente_id' => ['El cliente sobrepasa su límite de crédito asignado.']
+                    ]
+                ], 422);
+            }
+        }
+
         $data = $request->only(['codigo', 'prioridad', 'fecha_entrega', 'precio', 'comentario', 'tipo_pago']);
         $data['tipo_pago'] = $data['tipo_pago'] ?? 'parcial';
         $data['cliente_id'] = $clienteId;
@@ -217,6 +248,8 @@ class PedidoController extends Controller
             'productos',
             'productos.imagenPrincipal',
             'productos.imagenes',
+            'imagenPrincipal',
+            'imagenes',
             'pago',
             'pagos',
             'comentarios',
@@ -228,6 +261,17 @@ class PedidoController extends Controller
                 'status' => 'error',
                 'message' => 'Pedido no encontrado'
             ], 404);
+        }
+
+        $currentUser = auth()->user();
+        if ($currentUser) {
+            $userRole = $currentUser->role?->slug;
+            if (in_array($userRole, ['operario', 'operator', 'encargado', 'supervisor']) && $pedido->estado === 'pendiente') {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'El pedido se encuentra pendiente y aún no ha sido habilitado para producción.'
+                ], 403);
+            }
         }
 
         return response()->json([

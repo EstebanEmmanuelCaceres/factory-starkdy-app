@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import RoleGuard from '@/components/RoleGuard'
+import Modal from '@/components/Modal'
 import { fetchClientes, type Cliente } from '@/lib/clientes'
 
 interface TransactionItem {
@@ -319,26 +320,30 @@ function SaldosContent() {
       )}
 
       {/* Modal de Historial Completo / Pagos Anteriores */}
-      {isHistoryModalOpen && selectedClienteForHistory && (() => {
-        const history = getClientHistory(selectedClienteForHistory)
-        const pds = selectedClienteForHistory.pedidos || []
-        const totalPedidos = pds.reduce((sum, p) => sum + (p.precio ? parseFloat(p.precio.toString()) : 0), 0)
-        
-        // Suma de cobros registrados
-        const totalPagos = pds.reduce((sum, p) => {
-          const payments = p.pagos || []
-          const paidAmount = payments
-            .filter(pay => pay.estado === 'pagado')
-            .reduce((paySum, pay) => paySum + Number(pay.monto), 0)
-          return sum + paidAmount
-        }, 0)
+      <Modal
+        isOpen={isHistoryModalOpen && !!selectedClienteForHistory}
+        onClose={() => setIsHistoryModalOpen(false)}
+        className="max-w-4xl p-6 relative"
+      >
+        {selectedClienteForHistory && (() => {
+          const history = getClientHistory(selectedClienteForHistory)
+          const pds = selectedClienteForHistory.pedidos || []
+          const totalPedidos = pds.reduce((sum, p) => sum + (p.precio ? parseFloat(p.precio.toString()) : 0), 0)
+          
+          // Suma de cobros registrados
+          const totalPagos = pds.reduce((sum, p) => {
+            const payments = p.pagos || []
+            const paidAmount = payments
+              .filter(pay => pay.estado === 'pagado')
+              .reduce((paySum, pay) => paySum + Number(pay.monto), 0)
+            return sum + paidAmount
+          }, 0)
 
-        const totalPagado = Number(selectedClienteForHistory.ingreso || 0) + totalPagos
-        const saldoPendiente = totalPedidos - totalPagado
-        
-        return (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 backdrop-blur-sm p-4">
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-4xl shadow-2xl p-6 relative animate-in fade-in zoom-in-95 duration-150 max-h-[90vh] overflow-y-auto">
+          const totalPagado = Number(selectedClienteForHistory.ingreso || 0) + totalPagos
+          const saldoPendiente = totalPedidos - totalPagado
+          
+          return (
+            <div>
               <button
                 onClick={() => setIsHistoryModalOpen(false)}
                 className="absolute top-4 right-4 text-slate-400 hover:text-white transition text-lg"
@@ -442,9 +447,9 @@ function SaldosContent() {
                 </button>
               </div>
             </div>
-          </div>
-        )
-      })()}
+          )
+        })()}
+      </Modal>
     </div>
   )
 }

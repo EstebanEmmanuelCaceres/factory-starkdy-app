@@ -2,21 +2,21 @@
 
 import { useState, useEffect, useRef } from 'react'
 import {
-  fetchProductImages,
-  uploadProductImages,
-  setPrimaryProductImage,
-  deleteProductImage,
-  type ProductImage
-} from '@/lib/entities/productImages'
+  fetchOrderImages,
+  uploadOrderImages,
+  setPrimaryOrderImage,
+  deleteOrderImage,
+  type OrderImage
+} from '@/lib/entities/orderImages'
 
-interface ProductImageGalleryProps {
-  productId: number
-  productName: string
+interface OrderImageGalleryProps {
+  orderId: number
+  orderCode?: string
   onImagesUpdated?: () => void
 }
 
-export default function ProductImageGallery({ productId, productName, onImagesUpdated }: ProductImageGalleryProps) {
-  const [images, setImages] = useState<ProductImage[]>([])
+export default function OrderImageGallery({ orderId, orderCode, onImagesUpdated }: OrderImageGalleryProps) {
+  const [images, setImages] = useState<OrderImage[]>([])
   const [loading, setLoading] = useState(true)
   const [uploading, setUploading] = useState(false)
   const [error, setError] = useState('')
@@ -28,10 +28,10 @@ export default function ProductImageGallery({ productId, productName, onImagesUp
     setLoading(true)
     setError('')
     try {
-      const data = await fetchProductImages(productId)
+      const data = await fetchOrderImages(orderId)
       setImages(data)
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Error al cargar las imágenes')
+      setError(err instanceof Error ? err.message : 'Error al cargar las imágenes del pedido')
     } finally {
       setLoading(false)
     }
@@ -39,7 +39,7 @@ export default function ProductImageGallery({ productId, productName, onImagesUp
 
   useEffect(() => {
     loadImages()
-  }, [productId])
+  }, [orderId])
 
   const notifyUpdate = () => {
     if (onImagesUpdated) onImagesUpdated()
@@ -56,9 +56,9 @@ export default function ProductImageGallery({ productId, productName, onImagesUp
     setUploading(true)
     setError('')
     try {
-      const updated = await uploadProductImages(productId, filesArray)
+      const updated = await uploadOrderImages(orderId, filesArray)
       setImages(updated)
-      showNotification('Imagen(es) subida(s) correctamente')
+      showNotification('Imagen(es) del pedido subida(s) correctamente')
       notifyUpdate()
       if (fileInputRef.current) fileInputRef.current.value = ''
     } catch (err: unknown) {
@@ -74,7 +74,7 @@ export default function ProductImageGallery({ productId, productName, onImagesUp
     setUploading(true)
     setError('')
     try {
-      const updated = await uploadProductImages(productId, undefined, [urlInput.trim()])
+      const updated = await uploadOrderImages(orderId, undefined, [urlInput.trim()])
       setImages(updated)
       setUrlInput('')
       showNotification('Imagen agregada desde URL')
@@ -89,9 +89,9 @@ export default function ProductImageGallery({ productId, productName, onImagesUp
   const handleSetPrimary = async (imageId: number) => {
     setError('')
     try {
-      const updated = await setPrimaryProductImage(productId, imageId)
+      const updated = await setPrimaryOrderImage(orderId, imageId)
       setImages(updated)
-      showNotification('Logo / Imagen principal actualizada')
+      showNotification('Portada / Imagen principal del pedido actualizada')
       notifyUpdate()
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Error al actualizar imagen principal')
@@ -99,10 +99,10 @@ export default function ProductImageGallery({ productId, productName, onImagesUp
   }
 
   const handleDelete = async (imageId: number) => {
-    if (!confirm('¿Estás seguro de que deseas eliminar esta imagen?')) return
+    if (!confirm('¿Estás seguro de que deseas eliminar esta imagen del pedido?')) return
     setError('')
     try {
-      const updated = await deleteProductImage(productId, imageId)
+      const updated = await deleteOrderImage(orderId, imageId)
       setImages(updated)
       showNotification('Imagen eliminada')
       notifyUpdate()
@@ -130,7 +130,7 @@ export default function ProductImageGallery({ productId, productName, onImagesUp
 
       {/* Zona de Carga / Upload */}
       <div className="bg-slate-950/60 border border-slate-800 rounded-xl p-4 space-y-4">
-        <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Subir nuevas imágenes</h4>
+        <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Subir nuevas imágenes / planos del pedido</h4>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {/* Subir archivo local */}
@@ -156,12 +156,12 @@ export default function ProductImageGallery({ productId, productName, onImagesUp
           <form onSubmit={handleUrlSubmit} className="border border-slate-800 bg-slate-900/40 rounded-xl p-4 flex flex-col justify-between">
             <div>
               <span className="text-xs font-semibold text-slate-200 block mb-1">Agregar por URL externa</span>
-              <p className="text-[10px] text-slate-500 mb-2">Ingresa el enlace directo de una imagen hospedada online.</p>
+              <p className="text-[10px] text-slate-500 mb-2">Ingresa el enlace directo de una imagen u orden de trabajo online.</p>
             </div>
             <div className="flex gap-2">
               <input
                 type="url"
-                placeholder="https://ejemplo.com/imagen.jpg"
+                placeholder="https://ejemplo.com/plano.jpg"
                 value={urlInput}
                 onChange={(e) => setUrlInput(e.target.value)}
                 className="flex-1 bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-blue-500 transition"
@@ -189,21 +189,21 @@ export default function ProductImageGallery({ productId, productName, onImagesUp
       <div>
         <div className="flex justify-between items-center mb-3">
           <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2">
-            <span>🖼️</span> Galería del Producto ({images.length})
+            <span>🖼️</span> Galería del Pedido {orderCode ? `(${orderCode})` : ''} ({images.length})
           </h4>
-          <span className="text-[11px] text-slate-500">La primera imagen cargada es el <strong>Logo / Portada</strong></span>
+          <span className="text-[11px] text-slate-500">La primera imagen cargada es la <strong>Portada / Plano Principal</strong></span>
         </div>
 
         {loading ? (
           <div className="py-12 flex flex-col items-center justify-center text-slate-400 gap-2">
             <div className="animate-spin rounded-full h-6 w-6 border-2 border-blue-500 border-t-transparent"></div>
-            <span className="text-xs">Cargando imágenes...</span>
+            <span className="text-xs">Cargando imágenes del pedido...</span>
           </div>
         ) : images.length === 0 ? (
           <div className="py-12 border border-slate-800/80 rounded-xl bg-slate-950/30 flex flex-col items-center justify-center text-slate-500 gap-2">
             <span className="text-3xl">🖼️</span>
-            <span className="text-xs font-medium">Este producto aún no tiene imágenes asignadas.</span>
-            <span className="text-[10px] text-slate-600">Sube la primera imagen para establecer el logo del producto.</span>
+            <span className="text-xs font-medium">Este pedido aún no tiene imágenes o planos adjuntos.</span>
+            <span className="text-[10px] text-slate-600">Sube la primera imagen para establecer la portada del pedido.</span>
           </div>
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
@@ -221,19 +221,18 @@ export default function ProductImageGallery({ productId, productName, onImagesUp
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={img.url}
-                    alt={`${productName} imagen`}
+                    alt={`Pedido ${orderCode || ''} imagen`}
                     className="w-full h-full object-cover group-hover:scale-105 transition duration-200"
                     onError={(e) => {
-                      // Fallback visual en caso de URL rota usando data URI SVG para no depender de servidores externos
                       (e.target as HTMLImageElement).src = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200' viewBox='0 0 200 200'><rect width='200' height='200' fill='%230f172a'/><text x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' fill='%2364748b' font-family='sans-serif' font-size='13'>Imagen no disponible</text></svg>"
                     }}
                   />
 
-                  {/* Badge Logo / Secundaria */}
+                  {/* Badge Portada / Secundaria */}
                   <div className="absolute top-2 left-2 z-10">
                     {img.es_principal ? (
                       <span className="bg-amber-500 text-slate-950 font-extrabold text-[10px] uppercase px-2 py-0.5 rounded-full shadow-lg border border-amber-300 flex items-center gap-1">
-                        ⭐ Logo
+                        ⭐ Portada
                       </span>
                     ) : (
                       <span className="bg-slate-900/80 text-slate-400 font-medium text-[10px] px-2 py-0.5 rounded-full border border-slate-700 backdrop-blur-sm">
@@ -250,7 +249,7 @@ export default function ProductImageGallery({ productId, productName, onImagesUp
                         onClick={() => handleSetPrimary(img.id)}
                         className="w-full bg-amber-500/20 hover:bg-amber-500 border border-amber-500/50 text-amber-300 hover:text-slate-950 text-[11px] font-bold py-1.5 px-2 rounded-lg transition"
                       >
-                        ★ Hacer Logo
+                        ★ Hacer Portada
                       </button>
                     )}
                     <button

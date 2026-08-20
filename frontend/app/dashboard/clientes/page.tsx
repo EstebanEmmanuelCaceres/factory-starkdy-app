@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import RoleGuard from '@/components/RoleGuard'
+import Modal from '@/components/Modal'
 import {
   clientesWithPedidos,
   createCliente,
@@ -43,8 +44,6 @@ export default function ClientesPage() {
     provincia: '',
     cp: '',
     localidad: '',
-    ingreso: 0,
-    valor_total: 0,
     saldo: 0,
     observaciones: ''
   })
@@ -107,8 +106,6 @@ export default function ClientesPage() {
       provincia: '',
       cp: '',
       localidad: '',
-      ingreso: 0,
-      valor_total: 0,
       saldo: 0,
       observaciones: ''
     })
@@ -128,8 +125,6 @@ export default function ClientesPage() {
       provincia: cliente.provincia || '',
       cp: cliente.cp || '',
       localidad: cliente.localidad || '',
-      ingreso: cliente.ingreso ?? 0,
-      valor_total: cliente.valor_total ?? 0,
       saldo: cliente.saldo ?? 0,
       observaciones: cliente.observaciones || ''
     })
@@ -156,8 +151,6 @@ export default function ClientesPage() {
         provincia: formData.provincia?.trim() || null,
         cp: formData.cp?.trim() || null,
         localidad: formData.localidad?.trim() || null,
-        ingreso: Number(formData.ingreso) || 0,
-        valor_total: Number(formData.valor_total) || 0,
         saldo: Number(formData.saldo) || 0,
         observaciones: formData.observaciones?.trim() || null
       }
@@ -183,8 +176,6 @@ export default function ClientesPage() {
     const provinciaValue = formData.provincia?.trim() || null
     const cpValue = formData.cp?.trim() || null
     const localidadValue = formData.localidad?.trim() || null
-    const ingresoValue = Number(formData.ingreso) || 0
-    const valorTotalValue = Number(formData.valor_total) || 0
     const saldoValue = Number(formData.saldo) || 0
     const observacionesValue = formData.observaciones?.trim() || null
 
@@ -211,12 +202,6 @@ export default function ClientesPage() {
     }
     if (localidadValue !== selectedCliente.localidad) {
       payload.localidad = localidadValue
-    }
-    if (ingresoValue !== selectedCliente.ingreso) {
-      payload.ingreso = ingresoValue
-    }
-    if (valorTotalValue !== selectedCliente.valor_total) {
-      payload.valor_total = valorTotalValue
     }
     if (saldoValue !== selectedCliente.saldo) {
       payload.saldo = saldoValue
@@ -524,8 +509,7 @@ export default function ClientesPage() {
 
         {/* Modal de Creación */}
         {isCreateModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 backdrop-blur-sm p-4">
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-lg shadow-2xl p-6 relative animate-in fade-in zoom-in-95 duration-150">
+          <Modal isOpen={isCreateModalOpen} onClose={() => setIsCreateModalOpen(false)} className="max-w-lg p-6">
               <h2 className="text-xl font-bold text-white mb-4">Registrar Nuevo Cliente</h2>
               <form onSubmit={handleCreateSubmit} className="space-y-4 text-slate-300 max-h-[75vh] overflow-y-auto pr-2">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -652,43 +636,21 @@ export default function ClientesPage() {
                   />
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
-                      Valor Total ($)
-                    </label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={formData.valor_total}
-                      onChange={(e) => setFormData({ ...formData, valor_total: Number(e.target.value) })}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
-                      Ingreso ($)
-                    </label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={formData.ingreso}
-                      onChange={(e) => setFormData({ ...formData, ingreso: Number(e.target.value) })}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
-                      Saldo ($)
-                    </label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={formData.saldo}
-                      onChange={(e) => setFormData({ ...formData, saldo: Number(e.target.value) })}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition"
-                    />
-                  </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
+                    Límite de Crédito / Saldo ($)
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={formData.saldo}
+                    onChange={(e) => setFormData({ ...formData, saldo: Number(e.target.value) })}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition"
+                    placeholder="0.00 (Dejar en 0 o vacío para Sin Límite)"
+                  />
+                  <span className="text-[11px] text-slate-500 mt-1 block">
+                    Si se ingresa un monto mayor a 0, este valor será el límite máximo de crédito permitido para los pedidos del cliente.
+                  </span>
                 </div>
 
                 <div>
@@ -732,14 +694,12 @@ export default function ClientesPage() {
                   </button>
                 </div>
               </form>
-            </div>
-          </div>
+          </Modal>
         )}
 
         {/* Modal de Edición */}
         {isEditModalOpen && selectedCliente && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 backdrop-blur-sm p-4">
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-lg shadow-2xl p-6 relative animate-in fade-in zoom-in-95 duration-150">
+          <Modal isOpen={isEditModalOpen} onClose={() => setIsEditModalOpen(false)} className="max-w-lg p-6">
               <h2 className="text-xl font-bold text-white mb-4">Editar Cliente</h2>
               <form onSubmit={handleEditSubmit} className="space-y-4 text-slate-300 max-h-[75vh] overflow-y-auto pr-2">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -858,43 +818,21 @@ export default function ClientesPage() {
                   />
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
-                      Valor Total ($)
-                    </label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={formData.valor_total}
-                      onChange={(e) => setFormData({ ...formData, valor_total: Number(e.target.value) })}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
-                      Ingreso ($)
-                    </label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={formData.ingreso}
-                      onChange={(e) => setFormData({ ...formData, ingreso: Number(e.target.value) })}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
-                      Saldo ($)
-                    </label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={formData.saldo}
-                      onChange={(e) => setFormData({ ...formData, saldo: Number(e.target.value) })}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition"
-                    />
-                  </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
+                    Límite de Crédito / Saldo ($)
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={formData.saldo}
+                    onChange={(e) => setFormData({ ...formData, saldo: Number(e.target.value) })}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition"
+                    placeholder="0.00 (Dejar en 0 o vacío para Sin Límite)"
+                  />
+                  <span className="text-[11px] text-slate-500 mt-1 block">
+                    Si es 0 o vacío, el cliente operará sin límite. Si es mayor a 0, se aplicará como tope máximo de crédito.
+                  </span>
                 </div>
 
                 <div>
@@ -936,14 +874,12 @@ export default function ClientesPage() {
                   </button>
                 </div>
               </form>
-            </div>
-          </div>
+          </Modal>
         )}
 
         {/* Modal de Vista de Detalles (Read-only) */}
         {isViewModalOpen && viewingCliente && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 backdrop-blur-sm p-4 text-slate-300">
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-lg shadow-2xl p-6 relative animate-in fade-in zoom-in-95 duration-150">
+          <Modal isOpen={isViewModalOpen} onClose={() => setIsViewModalOpen(false)} className="max-w-lg p-6 text-slate-300">
               <h2 className="text-xl font-bold text-white mb-4">Detalles Completos del Cliente</h2>
               <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-2 text-left">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -1058,31 +994,38 @@ export default function ClientesPage() {
                   />
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
-                      Valor Total
-                    </label>
-                    <div className="w-full bg-slate-950/50 border border-slate-850 rounded-lg px-3.5 py-2 text-sm text-blue-400 font-bold opacity-80 select-none">
-                      ${Number(viewingCliente.valor_total || 0).toFixed(2)}
+                <div>
+                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
+                    Estado de Crédito / Límite
+                  </label>
+                  {Number(viewingCliente.saldo || 0) <= 0 ? (
+                    <div className="w-full bg-slate-950/50 border border-slate-850 rounded-lg px-3.5 py-2 text-sm font-bold text-slate-400 flex items-center justify-between opacity-80 select-none">
+                      <span>Monto Límite: Sin Límite ($0.00)</span>
+                      <span className="text-xs text-emerald-400 font-normal">♾️ Sin Restricción</span>
                     </div>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
-                      Ingreso
-                    </label>
-                    <div className="w-full bg-slate-950/50 border border-slate-850 rounded-lg px-3.5 py-2 text-sm text-emerald-400 font-bold opacity-80 select-none">
-                      ${Number(viewingCliente.ingreso || 0).toFixed(2)}
+                  ) : (
+                    <div className="bg-slate-950/50 border border-slate-850 rounded-lg p-3.5 space-y-2 text-xs">
+                      <div className="flex justify-between items-center text-slate-300">
+                        <span>Límite Asignado:</span>
+                        <span className="font-bold text-white">${Number(viewingCliente.saldo || 0).toFixed(2)}</span>
+                      </div>
+                      <div className="flex justify-between items-center text-slate-300">
+                        <span>Total en Pedidos:</span>
+                        <span className="font-bold text-amber-400">${Number(viewingCliente.total_pedidos || 0).toFixed(2)}</span>
+                      </div>
+                      <div className="flex justify-between items-center border-t border-slate-800 pt-1.5">
+                        <span className="font-semibold text-slate-400">Crédito Disponible:</span>
+                        <span className={`font-bold ${viewingCliente.alcanzo_limite ? 'text-rose-400' : 'text-emerald-400'}`}>
+                          ${Number(viewingCliente.saldo_disponible || 0).toFixed(2)}
+                        </span>
+                      </div>
+                      {viewingCliente.alcanzo_limite && (
+                        <div className="mt-1 bg-rose-500/10 border border-rose-500/20 p-2 rounded text-[11px] text-rose-300 font-bold text-center">
+                          🚨 Límite Alcanzado (Consumido: ${Number(viewingCliente.total_pedidos || 0).toFixed(2)} / Límite: ${Number(viewingCliente.saldo || 0).toFixed(2)})
+                        </div>
+                      )}
                     </div>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
-                      Saldo
-                    </label>
-                    <div className={`w-full bg-slate-950/50 border border-slate-850 rounded-lg px-3.5 py-2 text-sm font-bold opacity-80 select-none ${Number(viewingCliente.saldo || 0) > 0 ? 'text-amber-500' : 'text-slate-300'}`}>
-                      ${Number(viewingCliente.saldo || 0).toFixed(2)}
-                    </div>
-                  </div>
+                  )}
                 </div>
 
                 <div>
@@ -1107,8 +1050,7 @@ export default function ClientesPage() {
                   </button>
                 </div>
               </div>
-            </div>
-          </div>
+          </Modal>
         )}
       </main>
     </RoleGuard>

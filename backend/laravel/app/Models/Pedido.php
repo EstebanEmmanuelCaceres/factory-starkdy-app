@@ -252,5 +252,22 @@ class Pedido extends Model
             $pedido->generarTareas();
         }
     }
+
+    /**
+     * Relación Uno a Muchos con Imágenes del Pedido.
+     */
+    public function imagenes(): HasMany
+    {
+        return $this->hasMany(PedidoImagen::class, 'pedido_id')->orderBy('es_principal', 'desc')->orderBy('orden', 'asc');
+    }
+
+    /**
+     * Relación Uno a Uno con la Imagen Principal / Portada del Pedido.
+     */
+    public function imagenPrincipal(): HasOne
+    {
+        return $this->hasOne(PedidoImagen::class, 'pedido_id')->where('es_principal', true);
+    }
 }
+
 

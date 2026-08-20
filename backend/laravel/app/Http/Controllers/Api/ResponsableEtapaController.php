@@ -57,6 +57,13 @@ class ResponsableEtapaController extends Controller
             });
         }
 
+        $currentUser = auth()->user();
+        if ($currentUser && in_array($currentUser->role?->slug, ['operario', 'operator', 'encargado', 'supervisor'])) {
+            $query->whereHas('pedido.ultimoEstado', function ($q) {
+                $q->where('estado', '!=', 'pendiente');
+            });
+        }
+
         $asignaciones = $query->latest()->get();
 
         foreach ($asignaciones as $item) {
@@ -87,7 +94,7 @@ class ResponsableEtapaController extends Controller
             'pedido_id' => 'required|exists:pedidos,id',
             'etapa_producto_id' => 'nullable|exists:etapas_productos,id',
             'etapa_id' => 'nullable|exists:etapas_productos,id',
-            'user_id' => 'required|exists:users,id',
+            'user_id' => 'nullable|exists:users,id',
         ]);
 
         if ($validator->fails()) {
@@ -108,10 +115,10 @@ class ResponsableEtapaController extends Controller
 
         $pedido = Pedido::find($request->input('pedido_id'));
         $etapaProducto = EtapaProducto::find($etapaProductoId);
-        $user = User::find($request->input('user_id'));
+        $user = $request->filled('user_id') ? User::find($request->input('user_id')) : null;
 
-        // 1. Verificar si el usuario es un operario
-        if (!$user->isOperator()) {
+        // 1. Verificar si el usuario es un operario (si fue especificado)
+        if ($user && !$user->isOperator()) {
             return response()->json([
                 'status' => 'error',
                 'message' => 'El usuario asignado debe tener el rol de operario'
@@ -134,7 +141,7 @@ class ResponsableEtapaController extends Controller
                 'etapa_producto_id' => $etapaProducto->id,
             ],
             [
-                'user_id' => $user->id,
+                'user_id' => $user?->id,
                 'estado' => $request->input('estado', 'pendiente'),
             ]
         );
@@ -143,7 +150,7 @@ class ResponsableEtapaController extends Controller
 
         return response()->json([
             'status' => 'success',
-            'message' => 'Tarea asignada correctamente al operario',
+            'message' => $user ? 'Tarea asignada correctamente al operario' : 'Tarea desasignada correctamente',
             'data' => $asignacion
         ], 200);
     }

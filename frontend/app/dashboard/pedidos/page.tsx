@@ -2,6 +2,9 @@
 
 import { useEffect, useState } from 'react'
 import RoleGuard from '@/components/RoleGuard'
+import OrderImageGallery from '@/components/OrderImageGallery'
+import Modal from '@/components/Modal'
+import { fetchOrderImages } from '@/lib/entities/orderImages'
 import {
   fetchPedidos,
   createPedido,
@@ -51,6 +54,10 @@ export default function PedidosPage() {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
   const [selectedPedido, setSelectedPedido] = useState<Pedido | null>(null)
+
+  // Estados para Gestión de Imágenes del Pedido
+  const [isImagesModalOpen, setIsImagesModalOpen] = useState(false)
+  const [selectedPedidoForImages, setSelectedPedidoForImages] = useState<Pedido | null>(null)
 
   // Estados para el Modal de Visualización Trello
   const [isViewModalOpen, setIsViewModalOpen] = useState(false)
@@ -134,8 +141,6 @@ export default function PedidosPage() {
     provincia: '',
     cp: '',
     localidad: '',
-    ingreso: 0,
-    valor_total: 0,
     saldo: 0,
     observaciones: ''
   })
@@ -245,6 +250,11 @@ export default function PedidosPage() {
   const showNotification = (message: string) => {
     setSuccessMessage(message)
     setTimeout(() => setSuccessMessage(''), 3000)
+  }
+
+  const handleOpenImagesModal = (pedido: Pedido) => {
+    setSelectedPedidoForImages(pedido)
+    setIsImagesModalOpen(true)
   }
 
   const handleOpenCreateModal = () => {
@@ -397,8 +407,6 @@ export default function PedidosPage() {
       provincia: '',
       cp: '',
       localidad: '',
-      ingreso: 0,
-      valor_total: 0,
       saldo: 0,
       observaciones: ''
     })
@@ -419,8 +427,6 @@ export default function PedidosPage() {
         provincia: clienteFormData.provincia?.trim() || null,
         cp: clienteFormData.cp?.trim() || null,
         localidad: clienteFormData.localidad?.trim() || null,
-        ingreso: Number(clienteFormData.ingreso) || 0,
-        valor_total: Number(clienteFormData.valor_total) || 0,
         saldo: Number(clienteFormData.saldo) || 0,
         observaciones: clienteFormData.observaciones?.trim() || null
       }
@@ -457,8 +463,6 @@ export default function PedidosPage() {
       provincia: clienteFormData.provincia?.trim() || null,
       cp: clienteFormData.cp?.trim() || null,
       localidad: clienteFormData.localidad?.trim() || null,
-      ingreso: Number(clienteFormData.ingreso) || 0,
-      valor_total: Number(clienteFormData.valor_total) || 0,
       saldo: Number(clienteFormData.saldo) || 0,
       observaciones: clienteFormData.observaciones?.trim() || null
     }
@@ -476,8 +480,8 @@ export default function PedidosPage() {
       provincia: payload.provincia,
       cp: payload.cp,
       localidad: payload.localidad,
-      ingreso: payload.ingreso,
-      valor_total: payload.valor_total,
+      ingreso: 0,
+      valor_total: 0,
       saldo: payload.saldo,
       observaciones: payload.observaciones,
       created_at: '',
@@ -649,6 +653,19 @@ export default function PedidosPage() {
     // Cargar asignaciones de tareas para este pedido
     await loadTaskAssignments(pedido.id)
 
+    // Precargar imágenes del pedido para la portada estilo Trello
+    try {
+      const orderImgs = await fetchOrderImages(pedido.id)
+      const primaryImg = orderImgs.find(img => img.es_principal) || orderImgs[0]
+      setSelectedPedidoForView(prev => prev && prev.id === pedido.id ? {
+        ...prev,
+        imagenes: orderImgs,
+        imagen_principal: primaryImg
+      } : prev)
+    } catch (err) {
+      console.error('Error al precargar imágenes del pedido:', err)
+    }
+
     // Cargar las etapas asociadas a los productos del pedido
     const productIds = pedido.productos?.map((p) => p.id) || []
     if (productIds.length > 0) {
@@ -810,6 +827,8 @@ export default function PedidosPage() {
 
   const getStatusLabel = (status: string) => {
     switch (status) {
+      case 'listo_para_produccion':
+        return 'Listo para Producción'
       case 'completado':
         return 'Completado'
       case 'completado_pd':
@@ -830,6 +849,8 @@ export default function PedidosPage() {
     switch (status) {
       case 'bloqueada':
         return 'bg-slate-800/80 text-slate-500 border border-slate-700/60'
+      case 'listo_para_produccion':
+        return 'bg-cyan-500/10 text-cyan-400 border border-cyan-500/20'
       case 'completado':
         return 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
       case 'completado_pd':
@@ -852,6 +873,9 @@ export default function PedidosPage() {
       if (!currentUser) return false
       if (currentUser.role === 'vendedor' || currentUser.role === 'disenador') {
         return p.user_id === currentUser.id
+      }
+      if (['operario', 'operator'].includes(currentUser.role)) {
+        return p.estado !== 'pendiente'
       }
       return true
     })
@@ -988,6 +1012,7 @@ export default function PedidosPage() {
             >
               <option value="">Todos los Estados</option>
               <option value="pendiente">Pendiente</option>
+              <option value="listo_para_produccion">Listo para producción</option>
               <option value="en_progreso">En Progreso</option>
               <option value="completado">Completado</option>
               <option value="completado_pd">Completado - Pend. Pago (PD)</option>
@@ -1034,145 +1059,380 @@ export default function PedidosPage() {
               )}
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse">
-                <thead>
-                  <tr className="border-b border-slate-800 bg-slate-950/40 text-slate-400 font-semibold text-xs uppercase tracking-wider select-none">
-                    <th onClick={() => handleSort('cliente')} className="px-6 py-4 cursor-pointer hover:text-white transition text-left">
-                      Cliente {sortField === 'cliente' ? (sortDirection === 'asc' ? ' ▲' : ' ▼') : ''}
-                    </th>
-                    <th onClick={() => handleSort('productos')} className="px-6 py-4 text-center cursor-pointer hover:text-white transition">
-                      Productos {sortField === 'productos' ? (sortDirection === 'asc' ? ' ▲' : ' ▼') : ''}
-                    </th>
-                    <th onClick={() => handleSort('prioridad')} className="px-6 py-4 cursor-pointer hover:text-white transition text-left">
-                      Prioridad {sortField === 'prioridad' ? (sortDirection === 'asc' ? ' ▲' : ' ▼') : ''}
-                    </th>
-                    <th onClick={() => handleSort('estado')} className="px-6 py-4 cursor-pointer hover:text-white transition text-left">
-                      Estado {sortField === 'estado' ? (sortDirection === 'asc' ? ' ▲' : ' ▼') : ''}
-                    </th>
-                    <th onClick={() => handleSort('created_at')} className="px-6 py-4 cursor-pointer hover:text-white transition text-left">
-                      Fecha Creación {sortField === 'created_at' || sortField === 'fecha_entrega' ? (sortDirection === 'asc' ? ' ▲' : ' ▼') : ''}
-                    </th>
-                    <th onClick={() => handleSort('precio')} className="px-6 py-4 text-right cursor-pointer hover:text-white transition">
-                      Precio {sortField === 'precio' ? (sortDirection === 'asc' ? ' ▲' : ' ▼') : ''}
-                    </th>
-                    <th onClick={() => handleSort('user')} className="px-6 py-4 cursor-pointer hover:text-white transition text-left">
-                      Registrado por {sortField === 'user' ? (sortDirection === 'asc' ? ' ▲' : ' ▼') : ''}
-                    </th>
-                    <th className="px-6 py-4 text-right">Acciones</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-800 text-sm">
-                  {displayedPedidos.map((pedido) => (
-                    <tr key={pedido.id} className="hover:bg-slate-800/40 text-slate-300 transition duration-100">
-                      <td className="px-6 py-4">
-                        <span className="font-semibold text-white">
-                          {pedido.cliente?.nombre_empresa || pedido.cliente?.nombre_cliente || 'Sin empresa'}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 max-w-xs">
+            <div>
+              {/* VISTA EN TARJETAS PARA MOBILE (< md) */}
+              <div className="md:hidden space-y-3 p-3">
+                {displayedPedidos.map((pedido) => {
+                  const coverUrl =
+                    pedido.imagen_principal?.url ||
+                    pedido.imagenes?.find((img) => img.es_principal)?.url ||
+                    pedido.imagenes?.[0]?.url ||
+                    pedido.productos?.find((prod) => prod.imagen_principal?.url)?.imagen_principal?.url ||
+                    pedido.productos?.[0]?.imagen_principal?.url ||
+                    pedido.productos?.[0]?.imagenes?.[0]?.url
+
+                  return (
+                    <div key={pedido.id} className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-3 shadow-xl text-left">
+                      {/* Encabezado de la Tarjeta */}
+                      <div className="flex items-start justify-between gap-2 border-b border-slate-800 pb-2.5">
+                        <div className="flex items-center gap-3">
+                          {coverUrl ? (
+                            <div
+                              onClick={() => handleOpenImagesModal(pedido)}
+                              className="w-12 h-12 rounded-lg overflow-hidden border border-slate-700 bg-slate-950 flex-shrink-0 relative cursor-pointer group shadow"
+                              title="Ver o editar imágenes del pedido"
+                            >
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img
+                                src={coverUrl}
+                                alt={`Portada ${pedido.codigo}`}
+                                className="w-full h-full object-cover group-hover:scale-110 transition duration-200"
+                              />
+                            </div>
+                          ) : (
+                            <div
+                              onClick={() => handleOpenImagesModal(pedido)}
+                              className="w-12 h-12 rounded-lg border border-slate-800/80 bg-slate-950/50 flex-shrink-0 flex items-center justify-center text-slate-600 text-sm cursor-pointer hover:border-slate-700 transition"
+                              title="Sin imagen - Hacer clic para agregar"
+                            >
+                              📷
+                            </div>
+                          )}
+                          <div>
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className="text-xs font-mono font-bold text-white bg-slate-950 border border-slate-800 px-2 py-0.5 rounded">
+                                {pedido.codigo}
+                              </span>
+                            </div>
+                            <span className="font-bold text-white text-base block">
+                              {pedido.cliente?.nombre_empresa || pedido.cliente?.nombre_cliente || 'Sin empresa'}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="flex flex-col items-end gap-1">
+                          <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-extrabold capitalize ${getPriorityBadgeClass(pedido.prioridad)}`}>
+                            {pedido.prioridad}
+                          </span>
+                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wide ${getStatusBadgeClass(pedido.estado)}`}>
+                            {getStatusLabel(pedido.estado)}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Productos */}
+                      <div className="space-y-1">
+                        <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Productos</span>
                         {pedido.productos && pedido.productos.length > 0 ? (
-                          <div className="flex flex-col gap-1.5 items-stretch justify-center">
-                            {pedido.productos.slice(0, 2).map((prod) => {
+                          <div className="flex flex-wrap gap-1.5">
+                            {pedido.productos.map((prod) => {
                               const qty = (prod as any).pivot?.cantidad
                               return (
                                 <span
                                   key={prod.id}
-                                  className="bg-slate-950 border border-slate-800 text-slate-200 text-sm px-3 py-1.5 rounded-lg text-center font-medium shadow-sm transition hover:border-slate-700"
-                                  title={prod.descripcion || ''}
+                                  className="bg-slate-950 border border-slate-800 text-slate-200 text-xs px-2.5 py-1 rounded-lg font-medium shadow-sm"
                                 >
                                   {prod.nombre} {qty ? `(x${qty})` : ''}
                                 </span>
                               )
                             })}
-                            {pedido.productos.length > 2 && (
-                              <span className="text-[10px] text-slate-500 font-bold text-center mt-0.5 select-none">
-                                + {pedido.productos.length - 2} más
-                              </span>
-                            )}
                           </div>
                         ) : (
-                          <span className="text-slate-650 italic text-xs block text-center">Ninguno</span>
+                          <span className="text-slate-500 italic text-xs block">Sin productos asociados</span>
                         )}
-                      </td>
-                      <td className="px-6 py-4">
-                        <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold capitalize ${getPriorityBadgeClass(pedido.prioridad)}`}>
-                          {pedido.prioridad}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4">
-                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold uppercase tracking-wide ${getStatusBadgeClass(pedido.estado)}`}>
-                          {getStatusLabel(pedido.estado)}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 text-xs text-slate-400">
-                        {pedido.created_at ? (
-                          new Date(pedido.created_at).toLocaleDateString('es-ES', {
-                            year: 'numeric',
-                            month: 'short',
-                            day: 'numeric'
-                          })
-                        ) : (
-                          <span className="text-slate-600 italic">-</span>
-                        )}
-                      </td>
-                      <td className="px-6 py-4 text-right text-xs font-semibold text-white">
-                        {pedido.precio !== null && pedido.precio !== undefined ? (
-                          `$ ${parseFloat(pedido.precio.toString()).toLocaleString('es-AR', { minimumFractionDigits: 2 })}`
-                        ) : (
-                          <span className="text-slate-600 italic">-</span>
-                        )}
-                      </td>
-                      <td className="px-6 py-4 text-xs text-slate-400">{pedido.user?.name || 'Desconocido'}</td>
-                      <td className="px-6 py-4 text-right">
-                        <div className="flex justify-end gap-2.5">
-                          <button
-                            onClick={() => handleOpenViewModal(pedido)}
-                            className="text-blue-400 hover:text-blue-300 p-1 hover:bg-blue-500/10 rounded transition"
-                            title="Ver detalles del pedido (Trello)"
-                          >
-                            👁️
-                          </button>
-                          <button
-                            onClick={() => handleOpenPaymentsModal(pedido)}
-                            className="text-emerald-400 hover:text-emerald-300 p-1 hover:bg-emerald-500/10 rounded transition"
-                            title="Gestionar pagos del pedido"
-                          >
-                            💵
-                          </button>
-                          <button
-                            onClick={() => handleOpenEditModal(pedido)}
-                            className="text-slate-400 hover:text-white p-1 hover:bg-slate-800 rounded transition"
-                            title="Editar/Asignar pedido"
-                          >
-                            ✏️
-                          </button>
-                          <button
-                            onClick={() => handleDelete(pedido.id)}
-                            className="text-rose-400 hover:text-rose-300 p-1 hover:bg-rose-500/10 rounded transition"
-                            title="Dar de baja pedido"
-                          >
-                            🗑️
-                          </button>
+                      </div>
+
+                      {/* Detalles breves: Fecha, Precio, Registrador */}
+                      <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-850 text-xs">
+                        <div>
+                          <span className="text-slate-500 block mb-0.5">Fecha Creación</span>
+                          <span className="text-slate-300 font-medium">
+                            {pedido.created_at ? (
+                              new Date(pedido.created_at).toLocaleDateString('es-ES', {
+                                year: 'numeric',
+                                month: 'short',
+                                day: 'numeric'
+                              })
+                            ) : (
+                              '-'
+                            )}
+                          </span>
                         </div>
-                      </td>
+                        <div>
+                          <span className="text-slate-500 block mb-0.5">Precio</span>
+                          <span className="font-bold text-white">
+                            {pedido.precio !== null && pedido.precio !== undefined ? (
+                              `$ ${parseFloat(pedido.precio.toString()).toLocaleString('es-AR', { minimumFractionDigits: 2 })}`
+                            ) : (
+                              'Sin precio'
+                            )}
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-slate-500 block mb-0.5">Registrado por</span>
+                          <span className="text-slate-400">{pedido.user?.name || 'Desconocido'}</span>
+                        </div>
+                      </div>
+
+                      {/* Barra de Acciones */}
+                      <div className="flex flex-wrap items-center justify-end gap-2 pt-3 border-t border-slate-800">
+                        {pedido.estado === 'pendiente' && (
+                          <button
+                            onClick={async () => {
+                              try {
+                                await updatePedido(pedido.id, { estado: 'listo_para_produccion' })
+                                showNotification('Pedido enviado a producción correctamente')
+                                loadData()
+                              } catch (err: unknown) {
+                                setError(err instanceof Error ? err.message : 'Error al enviar a producción')
+                              }
+                            }}
+                            className="bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-500/40 text-xs px-2.5 py-1.5 rounded-lg font-semibold transition flex items-center gap-1"
+                            title="Pasar pedido a 'Listo para producción'"
+                          >
+                            🚀 Habilitar Producción
+                          </button>
+                        )}
+                        <button
+                          onClick={() => handleOpenImagesModal(pedido)}
+                          className="text-slate-300 hover:text-amber-400 p-2 bg-slate-950 border border-slate-800 hover:bg-slate-800 rounded-lg transition text-xs flex items-center gap-1 font-semibold"
+                          title="Gestionar imágenes y planos del pedido"
+                        >
+                          🖼️ <span className="text-[11px]">Fotos</span>
+                        </button>
+                        <button
+                          onClick={() => handleOpenViewModal(pedido)}
+                          className="text-blue-400 hover:text-blue-300 p-2 bg-slate-950 border border-slate-800 hover:bg-blue-500/10 rounded-lg transition text-xs flex items-center gap-1 font-semibold"
+                          title="Ver detalles del pedido"
+                        >
+                          👁️ <span className="text-[11px]">Ver</span>
+                        </button>
+                        <button
+                          onClick={() => handleOpenPaymentsModal(pedido)}
+                          className="text-emerald-400 hover:text-emerald-300 p-2 bg-slate-950 border border-slate-800 hover:bg-emerald-500/10 rounded-lg transition text-xs flex items-center gap-1 font-semibold"
+                          title="Gestionar pagos del pedido"
+                        >
+                          💵 <span className="text-[11px]">Pagos</span>
+                        </button>
+                        <button
+                          onClick={() => handleOpenEditModal(pedido)}
+                          className="text-slate-300 hover:text-white p-2 bg-slate-950 border border-slate-800 hover:bg-slate-800 rounded-lg transition text-xs flex items-center gap-1 font-semibold"
+                          title="Editar/Asignar pedido"
+                        >
+                          ✏️ <span className="text-[11px]">Editar</span>
+                        </button>
+                        <button
+                          onClick={() => handleDelete(pedido.id)}
+                          className="text-rose-400 hover:text-rose-300 p-2 bg-slate-950 border border-slate-800 hover:bg-rose-500/10 rounded-lg transition text-xs flex items-center gap-1 font-semibold"
+                          title="Dar de baja pedido"
+                        >
+                          🗑️
+                        </button>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+
+              {/* VISTA EN TABLA PARA ESCRITORIO (hidden md:block) */}
+              <div className="hidden md:block overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="border-b border-slate-800 bg-slate-950/40 text-slate-400 font-semibold text-xs uppercase tracking-wider select-none">
+                      <th className="px-6 py-4">Portada</th>
+                      <th onClick={() => handleSort('cliente')} className="px-6 py-4 cursor-pointer hover:text-white transition text-left">
+                        Cliente {sortField === 'cliente' ? (sortDirection === 'asc' ? ' ▲' : ' ▼') : ''}
+                      </th>
+                      <th onClick={() => handleSort('productos')} className="px-6 py-4 text-center cursor-pointer hover:text-white transition">
+                        Productos {sortField === 'productos' ? (sortDirection === 'asc' ? ' ▲' : ' ▼') : ''}
+                      </th>
+                      <th onClick={() => handleSort('prioridad')} className="px-6 py-4 cursor-pointer hover:text-white transition text-left">
+                        Prioridad {sortField === 'prioridad' ? (sortDirection === 'asc' ? ' ▲' : ' ▼') : ''}
+                      </th>
+                      <th onClick={() => handleSort('estado')} className="px-6 py-4 cursor-pointer hover:text-white transition text-left">
+                        Estado {sortField === 'estado' ? (sortDirection === 'asc' ? ' ▲' : ' ▼') : ''}
+                      </th>
+                      <th onClick={() => handleSort('created_at')} className="px-6 py-4 cursor-pointer hover:text-white transition text-left">
+                        Fecha Creación {sortField === 'created_at' || sortField === 'fecha_entrega' ? (sortDirection === 'asc' ? ' ▲' : ' ▼') : ''}
+                      </th>
+                      <th onClick={() => handleSort('precio')} className="px-6 py-4 text-right cursor-pointer hover:text-white transition">
+                        Precio {sortField === 'precio' ? (sortDirection === 'asc' ? ' ▲' : ' ▼') : ''}
+                      </th>
+                      <th onClick={() => handleSort('user')} className="px-6 py-4 cursor-pointer hover:text-white transition text-left">
+                        Registrado por {sortField === 'user' ? (sortDirection === 'asc' ? ' ▲' : ' ▼') : ''}
+                      </th>
+                      <th className="px-6 py-4 text-right">Acciones</th>
                     </tr>
-                  ))}
+                  </thead>
+                  <tbody className="divide-y divide-slate-800 text-sm">
+                    {displayedPedidos.map((pedido) => {
+                      const coverUrl =
+                        pedido.imagen_principal?.url ||
+                        pedido.imagenes?.find((img) => img.es_principal)?.url ||
+                        pedido.imagenes?.[0]?.url ||
+                        pedido.productos?.find((prod) => prod.imagen_principal?.url)?.imagen_principal?.url ||
+                        pedido.productos?.[0]?.imagen_principal?.url ||
+                        pedido.productos?.[0]?.imagenes?.[0]?.url
+
+                      return (
+                        <tr key={pedido.id} className="hover:bg-slate-800/40 text-slate-300 transition duration-100">
+                          <td className="px-6 py-4">
+                            {coverUrl ? (
+                              <div
+                                onClick={() => handleOpenImagesModal(pedido)}
+                                className="w-10 h-10 rounded-lg overflow-hidden border border-slate-700 bg-slate-950 relative flex items-center justify-center group shadow cursor-pointer hover:border-amber-500/80 transition duration-150"
+                                title="Ver o editar imágenes de portada del pedido"
+                              >
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img
+                                  src={coverUrl}
+                                  alt={`Portada ${pedido.codigo}`}
+                                  className="w-full h-full object-cover group-hover:scale-110 transition duration-200"
+                                />
+                              </div>
+                            ) : (
+                              <div
+                                onClick={() => handleOpenImagesModal(pedido)}
+                                className="w-10 h-10 rounded-lg border border-slate-800/80 bg-slate-950/50 flex items-center justify-center text-slate-600 text-xs cursor-pointer hover:border-slate-700 hover:text-slate-400 transition"
+                                title="Sin imagen - Hacer clic para agregar"
+                              >
+                                📷
+                              </div>
+                            )}
+                          </td>
+                          <td className="px-6 py-4">
+                            <span className="font-semibold text-white">
+                              {pedido.cliente?.nombre_empresa || pedido.cliente?.nombre_cliente || 'Sin empresa'}
+                            </span>
+                          </td>
+                        <td className="px-6 py-4 max-w-xs">
+                          {pedido.productos && pedido.productos.length > 0 ? (
+                            <div className="flex flex-col gap-1.5 items-stretch justify-center">
+                              {pedido.productos.slice(0, 2).map((prod) => {
+                                const qty = (prod as any).pivot?.cantidad
+                                return (
+                                  <span
+                                    key={prod.id}
+                                    className="bg-slate-950 border border-slate-800 text-slate-200 text-sm px-3 py-1.5 rounded-lg text-center font-medium shadow-sm transition hover:border-slate-700"
+                                    title={prod.descripcion || ''}
+                                  >
+                                    {prod.nombre} {qty ? `(x${qty})` : ''}
+                                  </span>
+                                )
+                              })}
+                              {pedido.productos.length > 2 && (
+                                <span className="text-[10px] text-slate-500 font-bold text-center mt-0.5 select-none">
+                                  + {pedido.productos.length - 2} más
+                                </span>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="text-slate-650 italic text-xs block text-center">Ninguno</span>
+                          )}
+                        </td>
+                        <td className="px-6 py-4">
+                          <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold capitalize ${getPriorityBadgeClass(pedido.prioridad)}`}>
+                            {pedido.prioridad}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4">
+                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold uppercase tracking-wide ${getStatusBadgeClass(pedido.estado)}`}>
+                            {getStatusLabel(pedido.estado)}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 text-xs text-slate-400">
+                          {pedido.created_at ? (
+                            new Date(pedido.created_at).toLocaleDateString('es-ES', {
+                              year: 'numeric',
+                              month: 'short',
+                              day: 'numeric'
+                            })
+                          ) : (
+                            <span className="text-slate-600 italic">-</span>
+                          )}
+                        </td>
+                        <td className="px-6 py-4 text-right text-xs font-semibold text-white">
+                          {pedido.precio !== null && pedido.precio !== undefined ? (
+                            `$ ${parseFloat(pedido.precio.toString()).toLocaleString('es-AR', { minimumFractionDigits: 2 })}`
+                          ) : (
+                            <span className="text-slate-600 italic">-</span>
+                          )}
+                        </td>
+                        <td className="px-6 py-4 text-xs text-slate-400">{pedido.user?.name || 'Desconocido'}</td>
+                        <td className="px-6 py-4 text-right">
+                          <div className="flex justify-end gap-2.5">
+                            {pedido.estado === 'pendiente' && (
+                              <button
+                                onClick={async () => {
+                                  try {
+                                    await updatePedido(pedido.id, { estado: 'listo_para_produccion' })
+                                    showNotification('Pedido enviado a producción correctamente')
+                                    loadData()
+                                  } catch (err: unknown) {
+                                    setError(err instanceof Error ? err.message : 'Error al enviar a producción')
+                                  }
+                                }}
+                                className="bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-500/40 text-xs px-2.5 py-1 rounded font-semibold transition flex items-center gap-1"
+                                title="Pasar pedido a 'Listo para producción'"
+                              >
+                                🚀 Habilitar Producción
+                              </button>
+                            )}
+                            <button
+                              onClick={() => handleOpenImagesModal(pedido)}
+                              className="text-slate-400 hover:text-amber-400 p-1 hover:bg-slate-800 rounded transition"
+                              title="Gestionar imágenes y planos del pedido"
+                            >
+                              🖼️
+                            </button>
+                            <button
+                              onClick={() => handleOpenViewModal(pedido)}
+                              className="text-blue-400 hover:text-blue-300 p-1 hover:bg-blue-500/10 rounded transition"
+                              title="Ver detalles del pedido (Trello)"
+                            >
+                              👁️
+                            </button>
+                            <button
+                              onClick={() => handleOpenPaymentsModal(pedido)}
+                              className="text-emerald-400 hover:text-emerald-300 p-1 hover:bg-emerald-500/10 rounded transition"
+                              title="Gestionar pagos del pedido"
+                            >
+                              💵
+                            </button>
+                            <button
+                              onClick={() => handleOpenEditModal(pedido)}
+                              className="text-slate-400 hover:text-white p-1 hover:bg-slate-800 rounded transition"
+                              title="Editar/Asignar pedido"
+                            >
+                              ✏️
+                            </button>
+                            <button
+                              onClick={() => handleDelete(pedido.id)}
+                              className="text-rose-400 hover:text-rose-300 p-1 hover:bg-rose-500/10 rounded transition"
+                              title="Dar de baja pedido"
+                            >
+                              🗑️
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    )
+                  })}
                 </tbody>
-              </table>
+                </table>
+              </div>
 
               {/* Controles de Paginación */}
               {totalPages > 1 && (
-                <div className="flex items-center justify-between border-t border-slate-800 bg-slate-950/20 px-6 py-4">
-                  <div className="text-xs text-slate-400">
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-slate-800 bg-slate-950/20 p-4 sm:px-6 sm:py-4">
+                  <div className="text-xs text-slate-400 text-center sm:text-left">
                     Mostrando <span className="font-semibold text-white">{(currentPage - 1) * 5 + 1}</span> a <span className="font-semibold text-white">{Math.min(currentPage * 5, filteredAndSortedPedidos.length)}</span> de <span className="font-semibold text-white">{filteredAndSortedPedidos.length}</span> pedidos
                   </div>
-                  <div className="flex gap-2">
+                  <div className="flex items-center gap-1.5 sm:gap-2">
                     <button
                       type="button"
                       disabled={currentPage === 1}
                       onClick={() => setCurrentPage(1)}
-                      className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 disabled:opacity-30 rounded text-xs text-slate-200 transition font-medium"
+                      className="px-2 py-1 sm:px-2.5 sm:py-1 bg-slate-800 hover:bg-slate-700 disabled:opacity-30 rounded text-xs text-slate-200 transition font-medium"
                     >
                       ⏮️
                     </button>
@@ -1180,18 +1440,18 @@ export default function PedidosPage() {
                       type="button"
                       disabled={currentPage === 1}
                       onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-                      className="px-3 py-1 bg-slate-800 hover:bg-slate-700 disabled:opacity-30 rounded text-xs text-slate-200 transition font-medium"
+                      className="px-2.5 py-1 sm:px-3 sm:py-1 bg-slate-800 hover:bg-slate-700 disabled:opacity-30 rounded text-xs text-slate-200 transition font-medium"
                     >
                       Anterior
                     </button>
-                    <span className="px-3 py-1 bg-slate-900 border border-slate-850 rounded text-xs text-slate-300 font-semibold self-center">
+                    <span className="px-2.5 py-1 sm:px-3 sm:py-1 bg-slate-900 border border-slate-850 rounded text-xs text-slate-300 font-semibold self-center">
                       Pág. {currentPage} de {totalPages}
                     </span>
                     <button
                       type="button"
                       disabled={currentPage === totalPages}
                       onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-                      className="px-3 py-1 bg-slate-800 hover:bg-slate-700 disabled:opacity-30 rounded text-xs text-slate-200 transition font-medium"
+                      className="px-2.5 py-1 sm:px-3 sm:py-1 bg-slate-800 hover:bg-slate-700 disabled:opacity-30 rounded text-xs text-slate-200 transition font-medium"
                     >
                       Siguiente
                     </button>
@@ -1199,7 +1459,7 @@ export default function PedidosPage() {
                       type="button"
                       disabled={currentPage === totalPages}
                       onClick={() => setCurrentPage(totalPages)}
-                      className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 disabled:opacity-30 rounded text-xs text-slate-200 transition font-medium"
+                      className="px-2 py-1 sm:px-2.5 sm:py-1 bg-slate-800 hover:bg-slate-700 disabled:opacity-30 rounded text-xs text-slate-200 transition font-medium"
                     >
                       ⏭️
                     </button>
@@ -1212,14 +1472,16 @@ export default function PedidosPage() {
 
         {/* Modal de Creación (Wizard) */}
         {isCreateModalOpen && (
-          <>
-            <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-sm" onClick={() => {
+          <Modal
+            isOpen={isCreateModalOpen}
+            onClose={() => {
               setIsCreateModalOpen(false)
               setWizardStep('select_client')
               setSelectedWizardClient(null)
               setCreatedPedidoResult(null)
-            }} />
-            <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-xl shadow-2xl p-6 max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in-95 duration-150">
+            }}
+            className="max-w-xl p-6"
+          >
               <h2 className="text-xl font-bold text-white mb-4">Registrar Nuevo Pedido</h2>
 
               {/* Stepper Indicator */}
@@ -1343,24 +1605,34 @@ export default function PedidosPage() {
                                   (c.email || '').toLowerCase().includes(query)
                                 )
                               })
-                              .map((c) => (
-                                <div
-                                  key={c.id}
-                                  onClick={() => {
-                                    setFormData({ ...formData, cliente_id: c.id.toString() })
-                                    setClientSearchText(`${c.nombre_cliente} - ${c.nombre_empresa}`)
-                                    setSelectedWizardClient(c)
-                                    setIsClientDropdownOpen(false)
-                                  }}
-                                  className="px-3.5 py-2 hover:bg-slate-900 cursor-pointer text-sm text-slate-300 hover:text-white transition flex justify-between"
-                                >
-                                  <div>
-                                    <span className="font-semibold block">{c.nombre_cliente}</span>
-                                    <span className="text-xs text-slate-500">{c.nombre_empresa}</span>
+                              .map((c) => {
+                                const isBlocked = Boolean(c.alcanzo_limite || (Number(c.saldo || 0) > 0 && Number(c.total_pedidos || 0) >= Number(c.saldo || 0)))
+                                return (
+                                  <div
+                                    key={c.id}
+                                    onClick={() => {
+                                      setFormData({ ...formData, cliente_id: c.id.toString() })
+                                      setClientSearchText(`${c.nombre_cliente} - ${c.nombre_empresa}`)
+                                      setSelectedWizardClient(c)
+                                      setIsClientDropdownOpen(false)
+                                    }}
+                                    className={`px-3.5 py-2 cursor-pointer text-sm transition flex justify-between items-center ${isBlocked ? 'bg-rose-950/20 hover:bg-rose-900/30 text-rose-300' : 'hover:bg-slate-900 text-slate-300 hover:text-white'}`}
+                                  >
+                                    <div>
+                                      <div className="flex items-center gap-2">
+                                        <span className="font-semibold">{c.nombre_cliente}</span>
+                                        {isBlocked && (
+                                          <span className="text-[10px] bg-rose-500/20 text-rose-400 font-bold px-1.5 py-0.5 rounded border border-rose-500/30">
+                                            🚨 Alcanzó el límite
+                                          </span>
+                                        )}
+                                      </div>
+                                      <span className="text-xs text-slate-500">{c.nombre_empresa}</span>
+                                    </div>
+                                    {c.email && <span className="text-xs text-slate-500">{c.email}</span>}
                                   </div>
-                                  {c.email && <span className="text-xs text-slate-500 self-center">{c.email}</span>}
-                                </div>
-                              ))}
+                                )
+                              })}
                             {clientes.filter((c) => {
                               const query = clientSearchText.toLowerCase()
                               return (
@@ -1379,10 +1651,14 @@ export default function PedidosPage() {
 
                       {/* Tarjeta de cliente seleccionado */}
                       {selectedWizardClient && (
-                        <div className="bg-slate-950/50 border border-slate-800 p-4 rounded-xl flex flex-col gap-1.5 animate-in fade-in slide-in-from-top-1 duration-150">
+                        <div className="bg-slate-950/50 border border-slate-800 p-4 rounded-xl flex flex-col gap-2 animate-in fade-in slide-in-from-top-1 duration-150">
                           <div className="flex items-center justify-between border-b border-slate-850 pb-2 mb-1">
                             <span className="text-xs font-bold text-blue-400 uppercase tracking-wider">Cliente Seleccionado</span>
-                            <span className="text-emerald-400 text-xs">✓ Listo</span>
+                            {selectedWizardClient.alcanzo_limite || (Number(selectedWizardClient.saldo || 0) > 0 && Number(selectedWizardClient.total_pedidos || 0) >= Number(selectedWizardClient.saldo || 0)) ? (
+                              <span className="text-rose-400 text-xs font-bold">⛔ Límite Alcanzado</span>
+                            ) : (
+                              <span className="text-emerald-400 text-xs">✓ Listo</span>
+                            )}
                           </div>
                           <div>
                             <span className="text-sm font-bold text-white">{selectedWizardClient.nombre_cliente}</span>
@@ -1392,6 +1668,39 @@ export default function PedidosPage() {
                             <div>📞 {selectedWizardClient.telefono || 'Sin teléfono'}</div>
                             <div>✉️ {selectedWizardClient.email || 'Sin correo'}</div>
                           </div>
+
+                          {Number(selectedWizardClient.saldo || 0) > 0 ? (
+                            <div className="bg-slate-900/60 border border-slate-800 p-3 rounded-lg text-xs space-y-1 mt-1">
+                              <div className="flex justify-between">
+                                <span className="text-slate-400">Límite de Crédito:</span>
+                                <span className="font-bold text-white">${Number(selectedWizardClient.saldo).toFixed(2)}</span>
+                              </div>
+                              <div className="flex justify-between">
+                                <span className="text-slate-400">Total en Pedidos:</span>
+                                <span className="font-bold text-amber-400">${Number(selectedWizardClient.total_pedidos || 0).toFixed(2)}</span>
+                              </div>
+                              <div className="flex justify-between border-t border-slate-800 pt-1">
+                                <span className="font-semibold text-slate-300">Crédito Disponible:</span>
+                                <span className={`font-bold ${(selectedWizardClient.alcanzo_limite || (Number(selectedWizardClient.total_pedidos || 0) >= Number(selectedWizardClient.saldo || 0))) ? 'text-rose-400' : 'text-emerald-400'}`}>
+                                  ${Number(selectedWizardClient.saldo_disponible ?? (Number(selectedWizardClient.saldo) - Number(selectedWizardClient.total_pedidos || 0))).toFixed(2)}
+                                </span>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="text-xs text-slate-400 bg-slate-900/40 p-2 rounded border border-slate-850">
+                              ♾️ Cliente sin límite de crédito configurado.
+                            </div>
+                          )}
+
+                          {(selectedWizardClient.alcanzo_limite || (Number(selectedWizardClient.saldo || 0) > 0 && Number(selectedWizardClient.total_pedidos || 0) >= Number(selectedWizardClient.saldo || 0))) && (
+                            <div className="mt-1 bg-rose-500/10 border border-rose-500/30 p-3 rounded-xl text-rose-300 text-xs font-semibold flex items-center gap-2.5">
+                              <span className="text-lg">⛔</span>
+                              <div>
+                                <span className="font-bold block text-sm mb-0.5">¡Ha alcanzado el límite de crédito!</span>
+                                Total en pedidos (${Number(selectedWizardClient.total_pedidos || 0).toFixed(2)}) alcanzó o superó el límite asignado (${Number(selectedWizardClient.saldo || 0).toFixed(2)}). Debe saldar o ampliar el límite para registrar nuevos pedidos.
+                              </div>
+                            </div>
+                          )}
                         </div>
                       )}
 
@@ -1405,7 +1714,7 @@ export default function PedidosPage() {
                         </button>
                         <button
                           type="button"
-                          disabled={!formData.cliente_id}
+                          disabled={!formData.cliente_id || Boolean(selectedWizardClient?.alcanzo_limite || (Number(selectedWizardClient?.saldo || 0) > 0 && Number(selectedWizardClient?.total_pedidos || 0) >= Number(selectedWizardClient?.saldo || 0)))}
                           onClick={() => setWizardStep('order_details')}
                           className="px-4 py-2 rounded-lg text-sm bg-blue-600 hover:bg-blue-500 disabled:bg-slate-800 disabled:text-slate-500 text-white font-medium shadow transition hover:scale-[1.02] active:scale-[0.98] disabled:scale-100"
                         >
@@ -1546,43 +1855,21 @@ export default function PedidosPage() {
                             />
                           </div>
 
-                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                            <div>
-                              <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
-                                Valor Total ($)
-                              </label>
-                              <input
-                                type="number"
-                                step="0.01"
-                                value={clienteFormData.valor_total}
-                                onChange={(e) => setClienteFormData({ ...clienteFormData, valor_total: Number(e.target.value) })}
-                                className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition"
-                              />
-                            </div>
-                            <div>
-                              <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
-                                Ingreso ($)
-                              </label>
-                              <input
-                                type="number"
-                                step="0.01"
-                                value={clienteFormData.ingreso}
-                                onChange={(e) => setClienteFormData({ ...clienteFormData, ingreso: Number(e.target.value) })}
-                                className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition"
-                              />
-                            </div>
-                            <div>
-                              <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
-                                Saldo ($)
-                              </label>
-                              <input
-                                type="number"
-                                step="0.01"
-                                value={clienteFormData.saldo}
-                                onChange={(e) => setClienteFormData({ ...clienteFormData, saldo: Number(e.target.value) })}
-                                className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition"
-                              />
-                            </div>
+                          <div>
+                            <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
+                              Saldo ($)
+                            </label>
+                            <input
+                              type="number"
+                              step="0.01"
+                              value={clienteFormData.saldo}
+                              onChange={(e) => setClienteFormData({ ...clienteFormData, saldo: Number(e.target.value) })}
+                              className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition"
+                              placeholder="0.00"
+                            />
+                            <span className="text-[11px] text-slate-500 mt-1 block">
+                              Si el saldo es negativo, la creación de pedidos estará deshabilitada para este cliente.
+                            </span>
                           </div>
 
                           <div>
@@ -2015,15 +2302,16 @@ export default function PedidosPage() {
                   </div>
                 </div>
               )}
-            </div>
-          </>
+          </Modal>
         )}
 
         {/* Modal de Edición */}
         {isEditModalOpen && selectedPedido && (
-          <>
-            <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-sm" onClick={() => setIsEditModalOpen(false)} />
-            <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-xl shadow-2xl p-6 max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in-95 duration-150">
+          <Modal
+            isOpen={isEditModalOpen}
+            onClose={() => setIsEditModalOpen(false)}
+            className="max-w-xl p-6"
+          >
               <h2 className="text-xl font-bold text-white mb-4">Editar Pedido</h2>
               <form onSubmit={handleEditSubmit} className="space-y-4 text-slate-300">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -2142,6 +2430,7 @@ export default function PedidosPage() {
                       className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition"
                     >
                       <option value="pendiente">Pendiente</option>
+                      <option value="listo_para_produccion">Listo para producción</option>
                       <option value="en_progreso">En Progreso</option>
                       <option value="completado">Completado</option>
                       <option value="completado_pd">Completado - Pendiente de pago (PD)</option>
@@ -2352,15 +2641,16 @@ export default function PedidosPage() {
                   </button>
                 </div>
               </form>
-            </div>
-          </>
+          </Modal>
         )}
 
         {/* Modal de Creación de Cliente Rápido */}
         {isCreateClienteModalOpen && (
-          <>
-            <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-sm" onClick={() => setIsCreateClienteModalOpen(false)} />
-            <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-lg shadow-2xl p-6 max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in-95 duration-150 text-slate-300">
+          <Modal
+            isOpen={isCreateClienteModalOpen}
+            onClose={() => setIsCreateClienteModalOpen(false)}
+            className="max-w-lg p-6 text-slate-300"
+          >
               <h2 className="text-xl font-bold text-white mb-4">Registrar Nuevo Cliente</h2>
               <form onSubmit={handleCreateClienteSubmit} className="space-y-4 max-h-[70vh] overflow-y-auto pr-2 text-left">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -2487,43 +2777,21 @@ export default function PedidosPage() {
                   />
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
-                      Valor Total ($)
-                    </label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={clienteFormData.valor_total}
-                      onChange={(e) => setClienteFormData({ ...clienteFormData, valor_total: Number(e.target.value) })}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
-                      Ingreso ($)
-                    </label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={clienteFormData.ingreso}
-                      onChange={(e) => setClienteFormData({ ...clienteFormData, ingreso: Number(e.target.value) })}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
-                      Saldo ($)
-                    </label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={clienteFormData.saldo}
-                      onChange={(e) => setClienteFormData({ ...clienteFormData, saldo: Number(e.target.value) })}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition"
-                    />
-                  </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
+                    Saldo ($)
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={clienteFormData.saldo}
+                    onChange={(e) => setClienteFormData({ ...clienteFormData, saldo: Number(e.target.value) })}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition"
+                    placeholder="0.00"
+                  />
+                  <span className="text-[11px] text-slate-500 mt-1 block">
+                    Si el saldo es negativo, la creación de pedidos estará deshabilitada para este cliente.
+                  </span>
                 </div>
 
                 <div>
@@ -2555,15 +2823,16 @@ export default function PedidosPage() {
                   </button>
                 </div>
               </form>
-            </div>
-          </>
+          </Modal>
         )}
 
         {/* Modal de Gestión de Pagos */}
         {isPaymentsModalOpen && selectedPedidoForPayments && (
-          <>
-            <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-sm" onClick={() => setIsPaymentsModalOpen(false)} />
-            <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-4xl shadow-2xl p-6 max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in-95 duration-150">
+          <Modal
+            isOpen={isPaymentsModalOpen}
+            onClose={() => setIsPaymentsModalOpen(false)}
+            className="max-w-4xl p-6"
+          >
               <button
                 onClick={() => setIsPaymentsModalOpen(false)}
                 className="absolute top-4 right-4 text-slate-400 hover:text-white transition text-lg"
@@ -2803,19 +3072,59 @@ export default function PedidosPage() {
                   Cerrar
                 </button>
               </div>
-
-            </div>
-          </>
+          </Modal>
         )}
 
         {isViewModalOpen && selectedPedidoForView && (() => {
           const pds = selectedPedidoForView.productos || []
           const displayedProducts = verTodosProductos ? pds : pds.slice(0, 2)
+          const coverUrl = selectedPedidoForView.imagen_principal?.url || selectedPedidoForView.imagenes?.[0]?.url
 
           return (
-            <>
-              <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm" onClick={() => { setIsViewModalOpen(false); setSelectedPedidoForView(null); }} />
-              <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-4xl shadow-2xl p-6 max-h-[90vh] overflow-y-auto flex flex-col animate-in fade-in zoom-in-95 duration-150">
+            <Modal
+              isOpen={isViewModalOpen}
+              onClose={() => { setIsViewModalOpen(false); setSelectedPedidoForView(null); }}
+              className="max-w-4xl p-6 flex flex-col"
+            >
+                {/* Header de Imagen / Portada estilo Trello */}
+                {coverUrl && (
+                  <div className="-mx-6 -mt-6 mb-5 relative h-48 sm:h-56 md:h-64 bg-slate-950/90 border-b border-slate-800/80 flex items-center justify-center overflow-hidden rounded-t-2xl group">
+                    {/* Fondo desenfocado ambiental */}
+                    <div
+                      className="absolute inset-0 bg-cover bg-center opacity-20 blur-2xl scale-110 pointer-events-none"
+                      style={{ backgroundImage: `url(${coverUrl})` }}
+                    />
+                    
+                    {/* Imagen principal con object-contain: si es chica se centra con márgenes; si es grande se achica proporcionalmente */}
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={coverUrl}
+                      alt={`Portada ${selectedPedidoForView.codigo}`}
+                      className="relative z-10 max-h-full max-w-full object-contain p-3 transition duration-200"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).src = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200' viewBox='0 0 200 200'><rect width='200' height='200' fill='%230f172a'/><text x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' fill='%2364748b' font-family='sans-serif' font-size='13'>Imagen no disponible</text></svg>"
+                      }}
+                    />
+
+                    {/* Badge y Botón de Acción flotante */}
+                    <div className="absolute top-3 left-3 z-20">
+                      <span className="bg-amber-500 text-slate-950 font-extrabold text-[10px] uppercase px-2.5 py-1 rounded-full shadow-lg border border-amber-300 flex items-center gap-1">
+                        ⭐ Portada del Pedido
+                      </span>
+                    </div>
+
+                    <div className="absolute bottom-3 right-3 z-20">
+                      <button
+                        type="button"
+                        onClick={() => handleOpenImagesModal(selectedPedidoForView)}
+                        className="bg-slate-900/90 hover:bg-slate-950 text-white text-xs font-bold px-3 py-1.5 rounded-lg border border-slate-700 backdrop-blur-md flex items-center gap-1.5 shadow-xl transition"
+                      >
+                        🖼️ Cambiar Portada / Ver Galería ({selectedPedidoForView.imagenes?.length || 1})
+                      </button>
+                    </div>
+                  </div>
+                )}
+
                 {/* Header de la Tarjeta Trello */}
                 <div className="flex items-start justify-between border-b border-slate-800 pb-4 mb-4">
                   <div className="text-left">
@@ -2838,6 +3147,7 @@ export default function PedidosPage() {
                         className="bg-slate-950 border border-slate-800 text-xs font-bold text-blue-400 focus:outline-none focus:border-blue-500 rounded-lg px-3 py-1 cursor-pointer transition hover:border-slate-700"
                       >
                         <option value="pendiente">Pendiente</option>
+                        <option value="listo_para_produccion">Listo para producción</option>
                         <option value="en_progreso">En Progreso</option>
                         <option value="completado">Completado</option>
                         <option value="completado_pd">Completado - pendiente de pago (PD)</option>
@@ -2854,16 +3164,54 @@ export default function PedidosPage() {
                     </p>
                   </div>
 
-                  <button
-                    onClick={() => {
-                      setIsViewModalOpen(false)
-                      setSelectedPedidoForView(null)
-                    }}
-                    className="text-slate-400 hover:text-white transition text-lg p-1 hover:bg-slate-800 rounded-lg"
-                    title="Cerrar"
-                  >
-                    ✕
-                  </button>
+                  {selectedPedidoForView.estado === 'pendiente' && (
+                    <div className="bg-amber-500/10 border border-amber-500/30 text-amber-300 px-4 py-3 rounded-xl mb-4 flex items-center justify-between gap-3">
+                      <div className="text-xs">
+                        <span className="font-bold block text-sm mb-0.5">⚠️ Pedido en Pendiente</span>
+                        Este pedido no es visible para los operarios hasta que lo pases a <strong>&quot;Listo para producción&quot;</strong>.
+                      </div>
+                      <button
+                        onClick={async () => {
+                          try {
+                            const updated = await updatePedido(selectedPedidoForView.id, { estado: 'listo_para_produccion' })
+                            setSelectedPedidoForView(updated)
+                            setPedidos(prev => prev.map(p => p.id === updated.id ? { ...p, estado: updated.estado } : p))
+                            showNotification('Pedido actualizado a "Listo para producción"')
+                          } catch (err: unknown) {
+                            setError(err instanceof Error ? err.message : 'Error al actualizar el estado')
+                          }
+                        }}
+                        className="bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs px-3.5 py-2 rounded-lg transition shadow-md whitespace-nowrap"
+                      >
+                        🚀 Pasar a Listo para Producción
+                      </button>
+                    </div>
+                  )}
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (selectedPedidoForView) {
+                          handleOpenImagesModal(selectedPedidoForView)
+                        }
+                      }}
+                      className="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-amber-300 text-xs font-semibold px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition"
+                      title="Gestionar Galería de Imágenes / Planos"
+                    >
+                      🖼️ Galería / Planos
+                    </button>
+                    <button
+                      onClick={() => {
+                        setIsViewModalOpen(false)
+                        setSelectedPedidoForView(null)
+                      }}
+                      className="text-slate-400 hover:text-white transition text-lg p-1 hover:bg-slate-800 rounded-lg"
+                      title="Cerrar"
+                    >
+                      ✕
+                    </button>
+                  </div>
                 </div>
 
                 {/* Cuerpo Principal: Dos Columnas */}
@@ -3112,10 +3460,48 @@ export default function PedidosPage() {
                     </div>
                   </div>
                 </div>
-              </div>
-            </>
+            </Modal>
           )
         })()}
+
+        {/* Modal de Gestión de Imágenes del Pedido */}
+        {isImagesModalOpen && selectedPedidoForImages && (
+          <Modal
+            isOpen={isImagesModalOpen}
+            onClose={() => {
+              setIsImagesModalOpen(false)
+              loadData()
+            }}
+            className="max-w-4xl p-6 flex flex-col text-slate-300"
+          >
+              <div className="flex justify-between items-center pb-4 border-b border-slate-800 mb-4">
+                <div>
+                  <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                    <span>🖼️</span> Galería de Imágenes y Planos del Pedido
+                  </h2>
+                  <p className="text-xs text-slate-400">
+                    Administra la portada e imágenes secundarias de: <span className="text-blue-400 font-semibold">{selectedPedidoForImages.codigo}</span>
+                  </p>
+                </div>
+                <button
+                  onClick={() => {
+                    setIsImagesModalOpen(false)
+                    loadData()
+                  }}
+                  className="text-slate-400 hover:text-white text-lg font-bold p-1"
+                  title="Cerrar modal"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <OrderImageGallery
+                orderId={selectedPedidoForImages.id}
+                orderCode={selectedPedidoForImages.codigo}
+                onImagesUpdated={() => loadData()}
+              />
+          </Modal>
+        )}
       </main>
     </RoleGuard>
   )

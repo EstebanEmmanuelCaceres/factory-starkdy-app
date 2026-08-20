@@ -5,6 +5,7 @@ import { useEffect, useState, useRef } from 'react'
 import RoleGuard from '@/components/RoleGuard'
 import Pagination from '@/components/Pagination'
 import ProductImageGallery from '@/components/ProductImageGallery'
+import Modal from '@/components/Modal'
 import {
   fetchProducts,
   createProduct,
@@ -551,8 +552,7 @@ export default function ProductosPage() {
 
         {/* Modal de Creación */}
         {isCreateModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 backdrop-blur-sm p-4">
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-lg shadow-2xl p-6 relative animate-in fade-in zoom-in-95 duration-150">
+          <Modal isOpen={isCreateModalOpen} onClose={() => setIsCreateModalOpen(false)} className="max-w-lg p-6">
               <h2 className="text-xl font-bold text-white mb-4">Crear Nuevo Producto</h2>
               <form onSubmit={handleCreateSubmit} className="space-y-4">
                 <div>
@@ -594,14 +594,12 @@ export default function ProductosPage() {
                   </button>
                 </div>
               </form>
-            </div>
-          </div>
+          </Modal>
         )}
 
         {/* Modal de Edición (PATCH) */}
         {isEditModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 backdrop-blur-sm p-4">
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-lg shadow-2xl p-6 relative animate-in fade-in zoom-in-95 duration-150">
+          <Modal isOpen={isEditModalOpen} onClose={() => setIsEditModalOpen(false)} className="max-w-lg p-6">
               <h2 className="text-xl font-bold text-white mb-4">Editar Producto (Parcial)</h2>
               <form onSubmit={handleEditSubmit} className="space-y-4">
                 <div>
@@ -643,14 +641,19 @@ export default function ProductosPage() {
                   </button>
                 </div>
               </form>
-            </div>
-          </div>
+          </Modal>
         )}
 
         {/* Modal de Gestión de Etapas */}
         {isStagesModalOpen && selectedProductForStages && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 backdrop-blur-sm p-4">
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-5xl h-[85vh] shadow-2xl p-6 relative flex flex-col animate-in fade-in zoom-in-95 duration-150 text-slate-300">
+          <Modal
+            isOpen={isStagesModalOpen}
+            onClose={() => {
+              if (hasUnsavedChanges && !confirm('Tienes cambios sin guardar en el servidor. ¿Deseas cerrar igualmente y descartar los cambios?')) return;
+              setIsStagesModalOpen(false)
+            }}
+            className="max-w-5xl h-[85vh] p-6 flex flex-col text-slate-300"
+          >
 
               {/* Header */}
               <div className="flex justify-between items-center pb-4 border-b border-slate-800 mb-4">
@@ -954,14 +957,19 @@ export default function ProductosPage() {
                   </form>
                 </div>
               </div>
-            </div>
-          </div>
+          </Modal>
         )}
 
         {/* Modal de Gestión de Imágenes */}
         {isImagesModalOpen && selectedProductForImages && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 backdrop-blur-sm p-4">
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-4xl max-h-[90vh] shadow-2xl p-6 relative flex flex-col animate-in fade-in zoom-in-95 duration-150 overflow-y-auto text-slate-300">
+          <Modal
+            isOpen={isImagesModalOpen}
+            onClose={() => {
+              setIsImagesModalOpen(false)
+              loadProducts()
+            }}
+            className="max-w-4xl p-6 flex flex-col text-slate-300"
+          >
               <div className="flex justify-between items-center pb-4 border-b border-slate-800 mb-4">
                 <div>
                   <h2 className="text-xl font-bold text-white flex items-center gap-2">
@@ -988,8 +996,7 @@ export default function ProductosPage() {
                 productName={selectedProductForImages.nombre}
                 onImagesUpdated={() => loadProducts()}
               />
-            </div>
-          </div>
+          </Modal>
         )}
       </main>
     </RoleGuard>

@@ -20,17 +20,23 @@ class CloudinaryService
         $apiKey = config('cloudinary.api_key');
         $apiSecret = config('cloudinary.api_secret');
 
-        if (!empty($cloudinaryUrl)) {
-            $this->cloudinary = new Cloudinary($cloudinaryUrl);
-            $this->isConfigured = true;
-        } elseif (!empty($cloudName) && !empty($apiKey) && !empty($apiSecret)) {
-            $config = new Configuration();
-            $config->cloud->cloudName = $cloudName;
-            $config->cloud->apiKey = $apiKey;
-            $config->cloud->apiSecret = $apiSecret;
-            $config->url->secure = true;
-            $this->cloudinary = new Cloudinary($config);
-            $this->isConfigured = true;
+        try {
+            if (!empty($cloudinaryUrl)) {
+                $this->cloudinary = new Cloudinary($cloudinaryUrl);
+                $this->isConfigured = true;
+            } elseif (!empty($cloudName) && !empty($apiKey) && !empty($apiSecret)) {
+                $config = new Configuration();
+                $config->cloud->cloudName = $cloudName;
+                $config->cloud->apiKey = $apiKey;
+                $config->cloud->apiSecret = $apiSecret;
+                $config->url->secure = true;
+                $this->cloudinary = new Cloudinary($config);
+                $this->isConfigured = true;
+            }
+        } catch (\Throwable $e) {
+            Log::warning('Error al inicializar Cloudinary SDK: ' . $e->getMessage());
+            $this->cloudinary = null;
+            $this->isConfigured = false;
         }
     }
 
@@ -51,8 +57,7 @@ class CloudinaryService
      */
     public function uploadImage($file, ?string $folder = null): array
     {
-        $folderName = $folder ?? config('cloudinary.folder', 'factory_productos');
-
+        $folderName = $folder ?? "factory_productos";
         if ($this->isConfigured && $this->cloudinary !== null) {
             try {
                 $filePath = $file instanceof UploadedFile ? $file->getRealPath() : $file;
@@ -64,6 +69,8 @@ class CloudinaryService
                     'overwrite' => true,
                 ]);
 
+                Log::info('Imagen subida exitosamente a Cloudinary: ' . ($result['secure_url'] ?? $result['url']));
+
                 return [
                     'url' => $result['secure_url'] ?? $result['url'],
                     'path_almacenamiento' => $result['public_id'] ?? null,
@@ -73,6 +80,8 @@ class CloudinaryService
             } catch (\Exception $e) {
                 Log::error('Error al subir imagen a Cloudinary: ' . $e->getMessage());
             }
+        } else {
+            Log::warning('Cloudinary no está configurado o falló su inicialización. Usando almacenamiento local de fallback.');
         }
 
         // Fallback a almacenamiento local público

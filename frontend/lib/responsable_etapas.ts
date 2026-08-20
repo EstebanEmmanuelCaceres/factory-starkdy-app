@@ -7,7 +7,7 @@ export interface ResponsableEtapa {
   id: number
   pedido_id: number
   etapa_id: number
-  user_id: number
+  user_id: number | null
   estado: string
   fecha_inicio: string | null
   fecha_fin: string | null
@@ -22,7 +22,7 @@ export interface ResponsableEtapa {
 export interface AssignTaskInput {
   pedido_id: number
   etapa_id: number
-  user_id: number
+  user_id: number | null
   estado?: string
 }
 
