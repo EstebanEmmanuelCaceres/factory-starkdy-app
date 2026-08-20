@@ -874,7 +874,7 @@ export default function PedidosPage() {
       if (currentUser.role === 'vendedor' || currentUser.role === 'disenador') {
         return p.user_id === currentUser.id
       }
-      if (['operario', 'operator', 'encargado', 'supervisor'].includes(currentUser.role)) {
+      if (['operario', 'operator'].includes(currentUser.role)) {
         return p.estado !== 'pendiente'
       }
       return true
@@ -1062,141 +1062,175 @@ export default function PedidosPage() {
             <div>
               {/* VISTA EN TARJETAS PARA MOBILE (< md) */}
               <div className="md:hidden space-y-3 p-3">
-                {displayedPedidos.map((pedido) => (
-                  <div key={pedido.id} className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-3 shadow-xl text-left">
-                    {/* Encabezado de la Tarjeta */}
-                    <div className="flex items-start justify-between gap-2 border-b border-slate-800 pb-2.5">
-                      <div>
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="text-xs font-mono font-bold text-white bg-slate-950 border border-slate-800 px-2 py-0.5 rounded">
-                            {pedido.codigo}
+                {displayedPedidos.map((pedido) => {
+                  const coverUrl =
+                    pedido.imagen_principal?.url ||
+                    pedido.imagenes?.find((img) => img.es_principal)?.url ||
+                    pedido.imagenes?.[0]?.url ||
+                    pedido.productos?.find((prod) => prod.imagen_principal?.url)?.imagen_principal?.url ||
+                    pedido.productos?.[0]?.imagen_principal?.url ||
+                    pedido.productos?.[0]?.imagenes?.[0]?.url
+
+                  return (
+                    <div key={pedido.id} className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-3 shadow-xl text-left">
+                      {/* Encabezado de la Tarjeta */}
+                      <div className="flex items-start justify-between gap-2 border-b border-slate-800 pb-2.5">
+                        <div className="flex items-center gap-3">
+                          {coverUrl ? (
+                            <div
+                              onClick={() => handleOpenImagesModal(pedido)}
+                              className="w-12 h-12 rounded-lg overflow-hidden border border-slate-700 bg-slate-950 flex-shrink-0 relative cursor-pointer group shadow"
+                              title="Ver o editar imágenes del pedido"
+                            >
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img
+                                src={coverUrl}
+                                alt={`Portada ${pedido.codigo}`}
+                                className="w-full h-full object-cover group-hover:scale-110 transition duration-200"
+                              />
+                            </div>
+                          ) : (
+                            <div
+                              onClick={() => handleOpenImagesModal(pedido)}
+                              className="w-12 h-12 rounded-lg border border-slate-800/80 bg-slate-950/50 flex-shrink-0 flex items-center justify-center text-slate-600 text-sm cursor-pointer hover:border-slate-700 transition"
+                              title="Sin imagen - Hacer clic para agregar"
+                            >
+                              📷
+                            </div>
+                          )}
+                          <div>
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className="text-xs font-mono font-bold text-white bg-slate-950 border border-slate-800 px-2 py-0.5 rounded">
+                                {pedido.codigo}
+                              </span>
+                            </div>
+                            <span className="font-bold text-white text-base block">
+                              {pedido.cliente?.nombre_empresa || pedido.cliente?.nombre_cliente || 'Sin empresa'}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="flex flex-col items-end gap-1">
+                          <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-extrabold capitalize ${getPriorityBadgeClass(pedido.prioridad)}`}>
+                            {pedido.prioridad}
+                          </span>
+                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wide ${getStatusBadgeClass(pedido.estado)}`}>
+                            {getStatusLabel(pedido.estado)}
                           </span>
                         </div>
-                        <span className="font-bold text-white text-base block">
-                          {pedido.cliente?.nombre_empresa || pedido.cliente?.nombre_cliente || 'Sin empresa'}
-                        </span>
                       </div>
-                      <div className="flex flex-col items-end gap-1">
-                        <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-extrabold capitalize ${getPriorityBadgeClass(pedido.prioridad)}`}>
-                          {pedido.prioridad}
-                        </span>
-                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wide ${getStatusBadgeClass(pedido.estado)}`}>
-                          {getStatusLabel(pedido.estado)}
-                        </span>
-                      </div>
-                    </div>
 
-                    {/* Productos */}
-                    <div className="space-y-1">
-                      <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Productos</span>
-                      {pedido.productos && pedido.productos.length > 0 ? (
-                        <div className="flex flex-wrap gap-1.5">
-                          {pedido.productos.map((prod) => {
-                            const qty = (prod as any).pivot?.cantidad
-                            return (
-                              <span
-                                key={prod.id}
-                                className="bg-slate-950 border border-slate-800 text-slate-200 text-xs px-2.5 py-1 rounded-lg font-medium shadow-sm"
-                              >
-                                {prod.nombre} {qty ? `(x${qty})` : ''}
-                              </span>
-                            )
-                          })}
+                      {/* Productos */}
+                      <div className="space-y-1">
+                        <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Productos</span>
+                        {pedido.productos && pedido.productos.length > 0 ? (
+                          <div className="flex flex-wrap gap-1.5">
+                            {pedido.productos.map((prod) => {
+                              const qty = (prod as any).pivot?.cantidad
+                              return (
+                                <span
+                                  key={prod.id}
+                                  className="bg-slate-950 border border-slate-800 text-slate-200 text-xs px-2.5 py-1 rounded-lg font-medium shadow-sm"
+                                >
+                                  {prod.nombre} {qty ? `(x${qty})` : ''}
+                                </span>
+                              )
+                            })}
+                          </div>
+                        ) : (
+                          <span className="text-slate-500 italic text-xs block">Sin productos asociados</span>
+                        )}
+                      </div>
+
+                      {/* Detalles breves: Fecha, Precio, Registrador */}
+                      <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-850 text-xs">
+                        <div>
+                          <span className="text-slate-500 block mb-0.5">Fecha Creación</span>
+                          <span className="text-slate-300 font-medium">
+                            {pedido.created_at ? (
+                              new Date(pedido.created_at).toLocaleDateString('es-ES', {
+                                year: 'numeric',
+                                month: 'short',
+                                day: 'numeric'
+                              })
+                            ) : (
+                              '-'
+                            )}
+                          </span>
                         </div>
-                      ) : (
-                        <span className="text-slate-500 italic text-xs block">Sin productos asociados</span>
-                      )}
-                    </div>
+                        <div>
+                          <span className="text-slate-500 block mb-0.5">Precio</span>
+                          <span className="font-bold text-white">
+                            {pedido.precio !== null && pedido.precio !== undefined ? (
+                              `$ ${parseFloat(pedido.precio.toString()).toLocaleString('es-AR', { minimumFractionDigits: 2 })}`
+                            ) : (
+                              'Sin precio'
+                            )}
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-slate-500 block mb-0.5">Registrado por</span>
+                          <span className="text-slate-400">{pedido.user?.name || 'Desconocido'}</span>
+                        </div>
+                      </div>
 
-                    {/* Detalles breves: Fecha, Precio, Registrador */}
-                    <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-850 text-xs">
-                      <div>
-                        <span className="text-slate-500 block mb-0.5">Fecha Creación</span>
-                        <span className="text-slate-300 font-medium">
-                          {pedido.created_at ? (
-                            new Date(pedido.created_at).toLocaleDateString('es-ES', {
-                              year: 'numeric',
-                              month: 'short',
-                              day: 'numeric'
-                            })
-                          ) : (
-                            '-'
-                          )}
-                        </span>
-                      </div>
-                      <div>
-                        <span className="text-slate-500 block mb-0.5">Precio</span>
-                        <span className="font-bold text-white">
-                          {pedido.precio !== null && pedido.precio !== undefined ? (
-                            `$ ${parseFloat(pedido.precio.toString()).toLocaleString('es-AR', { minimumFractionDigits: 2 })}`
-                          ) : (
-                            'Sin precio'
-                          )}
-                        </span>
-                      </div>
-                      <div>
-                        <span className="text-slate-500 block mb-0.5">Registrado por</span>
-                        <span className="text-slate-400">{pedido.user?.name || 'Desconocido'}</span>
-                      </div>
-                    </div>
-
-                    {/* Barra de Acciones */}
-                    <div className="flex flex-wrap items-center justify-end gap-2 pt-3 border-t border-slate-800">
-                      {pedido.estado === 'pendiente' && (
+                      {/* Barra de Acciones */}
+                      <div className="flex flex-wrap items-center justify-end gap-2 pt-3 border-t border-slate-800">
+                        {pedido.estado === 'pendiente' && (
+                          <button
+                            onClick={async () => {
+                              try {
+                                await updatePedido(pedido.id, { estado: 'listo_para_produccion' })
+                                showNotification('Pedido enviado a producción correctamente')
+                                loadData()
+                              } catch (err: unknown) {
+                                setError(err instanceof Error ? err.message : 'Error al enviar a producción')
+                              }
+                            }}
+                            className="bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-500/40 text-xs px-2.5 py-1.5 rounded-lg font-semibold transition flex items-center gap-1"
+                            title="Pasar pedido a 'Listo para producción'"
+                          >
+                            🚀 Habilitar Producción
+                          </button>
+                        )}
                         <button
-                          onClick={async () => {
-                            try {
-                              await updatePedido(pedido.id, { estado: 'listo_para_produccion' })
-                              showNotification('Pedido enviado a producción correctamente')
-                              loadData()
-                            } catch (err: unknown) {
-                              setError(err instanceof Error ? err.message : 'Error al enviar a producción')
-                            }
-                          }}
-                          className="bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-500/40 text-xs px-2.5 py-1.5 rounded-lg font-semibold transition flex items-center gap-1"
-                          title="Pasar pedido a 'Listo para producción'"
+                          onClick={() => handleOpenImagesModal(pedido)}
+                          className="text-slate-300 hover:text-amber-400 p-2 bg-slate-950 border border-slate-800 hover:bg-slate-800 rounded-lg transition text-xs flex items-center gap-1 font-semibold"
+                          title="Gestionar imágenes y planos del pedido"
                         >
-                          🚀 Habilitar Producción
+                          🖼️ <span className="text-[11px]">Fotos</span>
                         </button>
-                      )}
-                      <button
-                        onClick={() => handleOpenImagesModal(pedido)}
-                        className="text-slate-300 hover:text-amber-400 p-2 bg-slate-950 border border-slate-800 hover:bg-slate-800 rounded-lg transition text-xs flex items-center gap-1 font-semibold"
-                        title="Gestionar imágenes y planos del pedido"
-                      >
-                        🖼️ <span className="text-[11px]">Fotos</span>
-                      </button>
-                      <button
-                        onClick={() => handleOpenViewModal(pedido)}
-                        className="text-blue-400 hover:text-blue-300 p-2 bg-slate-950 border border-slate-800 hover:bg-blue-500/10 rounded-lg transition text-xs flex items-center gap-1 font-semibold"
-                        title="Ver detalles del pedido"
-                      >
-                        👁️ <span className="text-[11px]">Ver</span>
-                      </button>
-                      <button
-                        onClick={() => handleOpenPaymentsModal(pedido)}
-                        className="text-emerald-400 hover:text-emerald-300 p-2 bg-slate-950 border border-slate-800 hover:bg-emerald-500/10 rounded-lg transition text-xs flex items-center gap-1 font-semibold"
-                        title="Gestionar pagos del pedido"
-                      >
-                        💵 <span className="text-[11px]">Pagos</span>
-                      </button>
-                      <button
-                        onClick={() => handleOpenEditModal(pedido)}
-                        className="text-slate-300 hover:text-white p-2 bg-slate-950 border border-slate-800 hover:bg-slate-800 rounded-lg transition text-xs flex items-center gap-1 font-semibold"
-                        title="Editar/Asignar pedido"
-                      >
-                        ✏️ <span className="text-[11px]">Editar</span>
-                      </button>
-                      <button
-                        onClick={() => handleDelete(pedido.id)}
-                        className="text-rose-400 hover:text-rose-300 p-2 bg-slate-950 border border-slate-800 hover:bg-rose-500/10 rounded-lg transition text-xs flex items-center gap-1 font-semibold"
-                        title="Dar de baja pedido"
-                      >
-                        🗑️
-                      </button>
+                        <button
+                          onClick={() => handleOpenViewModal(pedido)}
+                          className="text-blue-400 hover:text-blue-300 p-2 bg-slate-950 border border-slate-800 hover:bg-blue-500/10 rounded-lg transition text-xs flex items-center gap-1 font-semibold"
+                          title="Ver detalles del pedido"
+                        >
+                          👁️ <span className="text-[11px]">Ver</span>
+                        </button>
+                        <button
+                          onClick={() => handleOpenPaymentsModal(pedido)}
+                          className="text-emerald-400 hover:text-emerald-300 p-2 bg-slate-950 border border-slate-800 hover:bg-emerald-500/10 rounded-lg transition text-xs flex items-center gap-1 font-semibold"
+                          title="Gestionar pagos del pedido"
+                        >
+                          💵 <span className="text-[11px]">Pagos</span>
+                        </button>
+                        <button
+                          onClick={() => handleOpenEditModal(pedido)}
+                          className="text-slate-300 hover:text-white p-2 bg-slate-950 border border-slate-800 hover:bg-slate-800 rounded-lg transition text-xs flex items-center gap-1 font-semibold"
+                          title="Editar/Asignar pedido"
+                        >
+                          ✏️ <span className="text-[11px]">Editar</span>
+                        </button>
+                        <button
+                          onClick={() => handleDelete(pedido.id)}
+                          className="text-rose-400 hover:text-rose-300 p-2 bg-slate-950 border border-slate-800 hover:bg-rose-500/10 rounded-lg transition text-xs flex items-center gap-1 font-semibold"
+                          title="Dar de baja pedido"
+                        >
+                          🗑️
+                        </button>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  )
+                })}
               </div>
 
               {/* VISTA EN TABLA PARA ESCRITORIO (hidden md:block) */}
@@ -1204,6 +1238,7 @@ export default function PedidosPage() {
                 <table className="w-full text-left border-collapse">
                   <thead>
                     <tr className="border-b border-slate-800 bg-slate-950/40 text-slate-400 font-semibold text-xs uppercase tracking-wider select-none">
+                      <th className="px-6 py-4">Portada</th>
                       <th onClick={() => handleSort('cliente')} className="px-6 py-4 cursor-pointer hover:text-white transition text-left">
                         Cliente {sortField === 'cliente' ? (sortDirection === 'asc' ? ' ▲' : ' ▼') : ''}
                       </th>
@@ -1229,13 +1264,46 @@ export default function PedidosPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-800 text-sm">
-                    {displayedPedidos.map((pedido) => (
-                      <tr key={pedido.id} className="hover:bg-slate-800/40 text-slate-300 transition duration-100">
-                        <td className="px-6 py-4">
-                          <span className="font-semibold text-white">
-                            {pedido.cliente?.nombre_empresa || pedido.cliente?.nombre_cliente || 'Sin empresa'}
-                          </span>
-                        </td>
+                    {displayedPedidos.map((pedido) => {
+                      const coverUrl =
+                        pedido.imagen_principal?.url ||
+                        pedido.imagenes?.find((img) => img.es_principal)?.url ||
+                        pedido.imagenes?.[0]?.url ||
+                        pedido.productos?.find((prod) => prod.imagen_principal?.url)?.imagen_principal?.url ||
+                        pedido.productos?.[0]?.imagen_principal?.url ||
+                        pedido.productos?.[0]?.imagenes?.[0]?.url
+
+                      return (
+                        <tr key={pedido.id} className="hover:bg-slate-800/40 text-slate-300 transition duration-100">
+                          <td className="px-6 py-4">
+                            {coverUrl ? (
+                              <div
+                                onClick={() => handleOpenImagesModal(pedido)}
+                                className="w-10 h-10 rounded-lg overflow-hidden border border-slate-700 bg-slate-950 relative flex items-center justify-center group shadow cursor-pointer hover:border-amber-500/80 transition duration-150"
+                                title="Ver o editar imágenes de portada del pedido"
+                              >
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img
+                                  src={coverUrl}
+                                  alt={`Portada ${pedido.codigo}`}
+                                  className="w-full h-full object-cover group-hover:scale-110 transition duration-200"
+                                />
+                              </div>
+                            ) : (
+                              <div
+                                onClick={() => handleOpenImagesModal(pedido)}
+                                className="w-10 h-10 rounded-lg border border-slate-800/80 bg-slate-950/50 flex items-center justify-center text-slate-600 text-xs cursor-pointer hover:border-slate-700 hover:text-slate-400 transition"
+                                title="Sin imagen - Hacer clic para agregar"
+                              >
+                                📷
+                              </div>
+                            )}
+                          </td>
+                          <td className="px-6 py-4">
+                            <span className="font-semibold text-white">
+                              {pedido.cliente?.nombre_empresa || pedido.cliente?.nombre_cliente || 'Sin empresa'}
+                            </span>
+                          </td>
                         <td className="px-6 py-4 max-w-xs">
                           {pedido.productos && pedido.productos.length > 0 ? (
                             <div className="flex flex-col gap-1.5 items-stretch justify-center">
@@ -1347,8 +1415,9 @@ export default function PedidosPage() {
                           </div>
                         </td>
                       </tr>
-                    ))}
-                  </tbody>
+                    )
+                  })}
+                </tbody>
                 </table>
               </div>
 
@@ -3099,7 +3168,7 @@ export default function PedidosPage() {
                     <div className="bg-amber-500/10 border border-amber-500/30 text-amber-300 px-4 py-3 rounded-xl mb-4 flex items-center justify-between gap-3">
                       <div className="text-xs">
                         <span className="font-bold block text-sm mb-0.5">⚠️ Pedido en Pendiente</span>
-                        Este pedido no es visible para encargados ni operarios hasta que lo pases a <strong>&quot;Listo para producción&quot;</strong>.
+                        Este pedido no es visible para los operarios hasta que lo pases a <strong>&quot;Listo para producción&quot;</strong>.
                       </div>
                       <button
                         onClick={async () => {

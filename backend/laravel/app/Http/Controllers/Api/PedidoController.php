@@ -80,13 +80,14 @@ class PedidoController extends Controller
 
         // Restricción por rol:
         // - Si el usuario autenticado es Vendedor o Diseñador, solo ve sus pedidos.
-        // - Si el usuario pertenece a la parte operativa (Operario, Encargado, Supervisor), NO ve los pedidos en estado 'pendiente'.
+        // - Si el usuario pertenece a la parte de taller (Operario), NO ve los pedidos en estado 'pendiente'.
+        // - Encargados, Supervisores y Administradores ven todos los pedidos (incluyendo los pendientes de todos los vendedores).
         $currentUser = auth()->user();
         if ($currentUser) {
             $userRole = $currentUser->role?->slug;
             if ($userRole === 'vendedor' || $userRole === 'disenador') {
                 $query->where('user_id', $currentUser->id);
-            } elseif (in_array($userRole, ['operario', 'operator', 'encargado', 'supervisor'])) {
+            } elseif (in_array($userRole, ['operario', 'operator'])) {
                 $query->whereHas('ultimoEstado', function ($q) {
                     $q->where('estado', '!=', 'pendiente');
                 });

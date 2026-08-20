@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useRef } from 'react'
 import RoleGuard from '@/components/RoleGuard'
+import Modal from '@/components/Modal'
 import { fetchUsers, getStoredUser, type User } from '@/lib/auth'
 import { fetchPedidos, updatePedido, createPedidoComentario, type Pedido, type PedidoFilters } from '@/lib/pedidos'
 
@@ -137,10 +138,11 @@ export default function DashboardPage() {
 
   // Restricciones por rol:
   // - Vendedor / Diseñador: solo ven sus pedidos.
-  // - Parte operativa (Encargado, Supervisor, Operario): ven únicamente los pedidos fuera del estado 'pendiente'.
+  // - Operarios: ven únicamente los pedidos fuera del estado 'pendiente'.
+  // - Encargado / Supervisor / Admin: ven todos los pedidos (incluyendo los pendientes de todos los vendedores).
   const isVendedor = currentUser?.role === 'vendedor' || currentUser?.role === 'disenador'
   const isEncargado = currentUser?.role === 'encargado'
-  const isOperativo = ['encargado', 'supervisor', 'operario', 'operator'].includes(currentUser?.role || '')
+  const isOperativo = ['operario', 'operator'].includes(currentUser?.role || '')
 
   const scopedPedidos = isVendedor && currentUser
     ? pedidos.filter(p => p.user_id === currentUser.id)
@@ -508,93 +510,120 @@ export default function DashboardPage() {
                     <div className="max-h-[420px] overflow-y-auto space-y-3 pr-1">
                       {sortedPedidos
                         .slice((mobilePedidosPage - 1) * 5, mobilePedidosPage * 5)
-                        .map((pedido) => (
-                          <div key={pedido.id} className="bg-slate-950/60 border border-slate-800/90 rounded-xl p-3.5 space-y-2.5 shadow-md text-left">
-                            {/* Header */}
-                            <div className="flex items-start justify-between gap-2 border-b border-slate-800/80 pb-2">
-                              <div>
-                                <span className="text-[11px] font-mono font-bold text-white bg-slate-900 border border-slate-800 px-2 py-0.5 rounded inline-block mb-1">
-                                  {pedido.codigo}
-                                </span>
-                                <h3 className="font-bold text-white text-sm block leading-tight">
-                                  {pedido.cliente?.nombre_empresa || pedido.cliente?.nombre_cliente || 'Sin empresa'}
-                                </h3>
-                              </div>
-                              <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wide shrink-0 ${getStatusBadgeClass(pedido.estado)}`}>
-                                {getStatusLabel(pedido.estado)}
-                              </span>
-                            </div>
+                        .map((pedido) => {
+                          const coverUrl =
+                            pedido.imagen_principal?.url ||
+                            pedido.imagenes?.find((img) => img.es_principal)?.url ||
+                            pedido.imagenes?.[0]?.url ||
+                            pedido.productos?.find((prod) => prod.imagen_principal?.url)?.imagen_principal?.url ||
+                            pedido.productos?.[0]?.imagen_principal?.url ||
+                            pedido.productos?.[0]?.imagenes?.[0]?.url
 
-                            {/* Detalles: Fecha y Cobro */}
-                            <div className="grid grid-cols-2 gap-2 text-xs">
-                              <div>
-                                <span className="text-slate-500 text-[10px] block mb-0.5">Fecha Creación</span>
-                                <span className="text-slate-300 font-mono text-xs">
-                                  {pedido.created_at ? new Date(pedido.created_at).toLocaleDateString('es-AR') : 'N/A'}
-                                </span>
-                              </div>
-
-                              {!isEncargado && (
-                                <div>
-                                  <span className="text-slate-500 text-[10px] block mb-0.5">Cobro</span>
-                                  {(() => {
-                                    const precio = Number(pedido.precio) || 0
-                                    const paidAmount = pedido.pagos
-                                      ? pedido.pagos.filter((p: any) => p.estado === 'pagado').reduce((sum: number, p: any) => sum + Number(p.monto), 0)
-                                      : (pedido.pago && pedido.pago.estado === 'pagado' ? Number(pedido.pago.monto) : 0)
-                                    const pct = precio > 0 ? Math.round((paidAmount / precio) * 100) : 0
-                                    const isFullyPaid = paidAmount >= precio
-
-                                    if (paidAmount <= 0) {
-                                      return <span className="text-slate-500 italic text-xs">Sin Pago</span>
-                                    }
-                                    return (
-                                      <div className="flex items-center gap-1.5 mt-0.5">
-                                        <span className="font-bold text-white font-mono text-xs">{formatCurrency(paidAmount)}</span>
-                                        <span className={`px-1.5 py-0.2 text-[9px] font-extrabold rounded ${isFullyPaid ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'}`}>
-                                          {isFullyPaid ? 'Cobrado' : `${pct}%`}
-                                        </span>
-                                      </div>
-                                    )
-                                  })()}
+                          return (
+                            <div key={pedido.id} className="bg-slate-950/60 border border-slate-800/90 rounded-xl p-3.5 space-y-2.5 shadow-md text-left">
+                              {/* Header */}
+                              <div className="flex items-start justify-between gap-2 border-b border-slate-800/80 pb-2">
+                                <div className="flex items-center gap-2.5">
+                                  {coverUrl ? (
+                                    <div
+                                      className="w-10 h-10 rounded-lg overflow-hidden border border-slate-700 bg-slate-950 flex-shrink-0 relative shadow"
+                                      title="Portada del pedido"
+                                    >
+                                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                                      <img
+                                        src={coverUrl}
+                                        alt={`Portada ${pedido.codigo}`}
+                                        className="w-full h-full object-cover"
+                                      />
+                                    </div>
+                                  ) : (
+                                    <div
+                                      className="w-10 h-10 rounded-lg border border-slate-800/80 bg-slate-950/50 flex-shrink-0 flex items-center justify-center text-slate-600 text-xs"
+                                      title="Sin imagen"
+                                    >
+                                      📷
+                                    </div>
+                                  )}
+                                  <div>
+                                    <span className="text-[11px] font-mono font-bold text-white bg-slate-900 border border-slate-800 px-2 py-0.5 rounded inline-block mb-1">
+                                      {pedido.codigo}
+                                    </span>
+                                    <h3 className="font-bold text-white text-sm block leading-tight">
+                                      {pedido.cliente?.nombre_empresa || pedido.cliente?.nombre_cliente || 'Sin empresa'}
+                                    </h3>
+                                  </div>
                                 </div>
-                              )}
-                            </div>
+                                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wide shrink-0 ${getStatusBadgeClass(pedido.estado)}`}>
+                                  {getStatusLabel(pedido.estado)}
+                                </span>
+                              </div>
 
-                            {/* Acciones */}
-                            <div className="pt-2 border-t border-slate-800/80 flex justify-end">
-                              <button
-                                onClick={() => setSelectedPedidoForCommentModal(pedido)}
-                                className="inline-flex items-center gap-1 bg-blue-600/20 hover:bg-blue-600/40 text-blue-300 border border-blue-500/30 px-3 py-1.5 rounded-lg text-xs font-bold transition shadow-sm w-full justify-center"
-                              >
-                                👁️ Ver Pedido
-                              </button>
+                              {/* Detalles: Fecha y Cobro */}
+                              <div className="grid grid-cols-2 gap-2 text-xs">
+                                <div>
+                                  <span className="text-slate-500 text-[10px] block mb-0.5">Fecha Creación</span>
+                                  <span className="text-slate-300 font-mono text-xs">
+                                    {pedido.created_at ? new Date(pedido.created_at).toLocaleDateString('es-AR') : 'N/A'}
+                                  </span>
+                                </div>
+
+                                {!isEncargado && (
+                                  <div>
+                                    <span className="text-slate-500 text-[10px] block mb-0.5">Cobro</span>
+                                    {(() => {
+                                      const precio = Number(pedido.precio) || 0
+                                      const paidAmount = pedido.pagos
+                                        ? pedido.pagos.filter((p: any) => p.estado === 'pagado').reduce((sum: number, p: any) => sum + Number(p.monto), 0)
+                                        : (pedido.pago && pedido.pago.estado === 'pagado' ? Number(pedido.pago.monto) : 0)
+                                      const pct = precio > 0 ? Math.round((paidAmount / precio) * 100) : 0
+                                      const isFullyPaid = paidAmount >= precio
+
+                                      if (paidAmount <= 0) {
+                                        return <span className="text-slate-500 italic text-xs">Sin Pago</span>
+                                      }
+                                      return (
+                                        <div className="flex items-center gap-1.5 mt-0.5">
+                                          <span className="font-bold text-white font-mono text-xs">{formatCurrency(paidAmount)}</span>
+                                          <span className={`px-1.5 py-0.2 text-[9px] font-extrabold rounded ${isFullyPaid ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'}`}>
+                                            {isFullyPaid ? 'Cobrado' : `${pct}%`}
+                                          </span>
+                                        </div>
+                                      )
+                                    })()}
+                                  </div>
+                                )}
+                              </div>
+
+                              {/* Footer: Acciones */}
+                              <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-800/80">
+                                <button
+                                  onClick={() => setSelectedPedidoForCommentModal(pedido)}
+                                  className="text-xs bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-300 px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition font-medium"
+                                >
+                                  💬 Comentarios ({pedido.comentarios?.length || 0})
+                                </button>
+                              </div>
                             </div>
-                          </div>
-                        ))}
+                          )
+                        })}
                     </div>
 
-                    {/* Controles de Paginación Mobile */}
-                    {sortedPedidos.length > 5 && (
-                      <div className="flex items-center justify-between border-t border-slate-800/80 pt-3 text-xs">
-                        <span className="text-slate-400 font-medium text-[11px]">
-                          {((mobilePedidosPage - 1) * 5) + 1} - {Math.min(mobilePedidosPage * 5, sortedPedidos.length)} de {sortedPedidos.length}
-                        </span>
-                        <div className="flex items-center gap-1.5">
+                    {/* Paginación Mobile */}
+                    {Math.ceil(sortedPedidos.length / 5) > 1 && (
+                      <div className="flex items-center justify-between px-4 py-2 border-t border-slate-800 text-xs text-slate-400">
+                        <span>Página {mobilePedidosPage} de {Math.ceil(sortedPedidos.length / 5)}</span>
+                        <div className="flex gap-2">
                           <button
+                            onClick={() => setMobilePedidosPage(prev => Math.max(prev - 1, 1))}
                             disabled={mobilePedidosPage === 1}
-                            onClick={() => setMobilePedidosPage(prev => Math.max(1, prev - 1))}
-                            className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 disabled:opacity-30 rounded text-slate-200 font-bold transition"
+                            className="px-2.5 py-1 bg-slate-800 rounded disabled:opacity-40"
                           >
                             Anterior
                           </button>
-                          <span className="text-slate-300 font-bold font-mono text-[11px] px-1">
-                            {mobilePedidosPage} / {Math.ceil(sortedPedidos.length / 5)}
-                          </span>
                           <button
+                            onClick={() => setMobilePedidosPage(prev => Math.min(prev + 1, Math.ceil(sortedPedidos.length / 5)))}
                             disabled={mobilePedidosPage >= Math.ceil(sortedPedidos.length / 5)}
-                            onClick={() => setMobilePedidosPage(prev => Math.min(Math.ceil(sortedPedidos.length / 5), prev + 1))}
-                            className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 disabled:opacity-30 rounded text-slate-200 font-bold transition"
+                            className="px-2.5 py-1 bg-slate-800 rounded disabled:opacity-40"
                           >
                             Siguiente
                           </button>
@@ -608,6 +637,7 @@ export default function DashboardPage() {
                     <table className="w-full text-left border-collapse">
                       <thead>
                         <tr className="border-b border-slate-800 bg-slate-950/40 text-slate-400 font-semibold text-xs uppercase tracking-wider">
+                          <th className="px-4 py-3 text-center">Portada</th>
                           <th
                             onClick={() => {
                               if (sortField === 'codigo') setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc')
@@ -649,62 +679,94 @@ export default function DashboardPage() {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-800 text-sm">
-                        {sortedPedidos.map((pedido) => (
-                          <tr key={pedido.id} className="hover:bg-slate-800/40 text-slate-300 transition duration-150">
-                            <td className="px-4 py-3 font-mono font-bold text-white text-xs">{pedido.codigo}</td>
-                            <td className="px-4 py-3">
-                              <span className="font-semibold text-white text-xs">
-                                {pedido.cliente?.nombre_empresa || pedido.cliente?.nombre_cliente || 'Sin empresa'}
-                              </span>
-                            </td>
-                            <td className="px-4 py-3 text-xs text-slate-300 font-mono">
-                              {pedido.created_at ? new Date(pedido.created_at).toLocaleDateString('es-AR') : 'N/A'}
-                            </td>
-                            <td className="px-4 py-3">
-                              <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wide ${getStatusBadgeClass(pedido.estado)}`}>
-                                {getStatusLabel(pedido.estado)}
-                              </span>
-                            </td>
-                            {!isEncargado && (
+                        {sortedPedidos.map((pedido) => {
+                          const coverUrl =
+                            pedido.imagen_principal?.url ||
+                            pedido.imagenes?.find((img) => img.es_principal)?.url ||
+                            pedido.imagenes?.[0]?.url ||
+                            pedido.productos?.find((prod) => prod.imagen_principal?.url)?.imagen_principal?.url ||
+                            pedido.productos?.[0]?.imagen_principal?.url ||
+                            pedido.productos?.[0]?.imagenes?.[0]?.url
+
+                          return (
+                            <tr key={pedido.id} className="hover:bg-slate-800/40 text-slate-300 transition duration-150">
                               <td className="px-4 py-3">
-                                {(() => {
-                                  const precio = Number(pedido.precio) || 0
-                                  const paidAmount = pedido.pagos
-                                    ? pedido.pagos.filter((p: any) => p.estado === 'pagado').reduce((sum: number, p: any) => sum + Number(p.monto), 0)
-                                    : (pedido.pago && pedido.pago.estado === 'pagado' ? Number(pedido.pago.monto) : 0)
-
-                                  const pct = precio > 0 ? Math.round((paidAmount / precio) * 100) : 0
-
-                                  if (paidAmount <= 0) {
-                                    return <span className="text-slate-600 italic text-xs">Sin Pago</span>
-                                  }
-
-                                  const isFullyPaid = paidAmount >= precio
-                                  return (
-                                    <div className="flex flex-col">
-                                      <span className="font-semibold text-white font-mono text-xs">{formatCurrency(paidAmount)}</span>
-                                      <span className={`inline-flex items-center self-start px-1.5 py-0.5 rounded text-[9px] font-bold uppercase mt-0.5 ${isFullyPaid
-                                        ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-                                        : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
-                                        }`}>
-                                        {isFullyPaid ? 'Cobrado' : `Parcial (${pct}%)`}
-                                      </span>
-                                    </div>
-                                  )
-                                })()}
+                                {coverUrl ? (
+                                  <div
+                                    className="w-9 h-9 rounded-lg overflow-hidden border border-slate-700 bg-slate-950 relative flex items-center justify-center shadow"
+                                    title="Portada del pedido"
+                                  >
+                                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                                    <img
+                                      src={coverUrl}
+                                      alt={`Portada ${pedido.codigo}`}
+                                      className="w-full h-full object-cover"
+                                    />
+                                  </div>
+                                ) : (
+                                  <div
+                                    className="w-9 h-9 rounded-lg border border-slate-800/80 bg-slate-950/50 flex items-center justify-center text-slate-600 text-xs"
+                                    title="Sin imagen"
+                                  >
+                                    📷
+                                  </div>
+                                )}
                               </td>
-                            )}
-                            <td className="px-4 py-3 text-center">
-                              <button
-                                onClick={() => setSelectedPedidoForCommentModal(pedido)}
-                                className="inline-flex items-center gap-1 bg-blue-600/20 hover:bg-blue-600/40 text-blue-300 border border-blue-500/30 px-2.5 py-1 rounded text-xs font-bold transition shadow-sm"
-                                title="Ver detalle del pedido"
-                              >
-                                👁️ Ver Pedido
-                              </button>
-                            </td>
-                          </tr>
-                        ))}
+                              <td className="px-4 py-3 font-mono font-bold text-white text-xs">{pedido.codigo}</td>
+                              <td className="px-4 py-3">
+                                <span className="font-semibold text-white text-xs">
+                                  {pedido.cliente?.nombre_empresa || pedido.cliente?.nombre_cliente || 'Sin empresa'}
+                                </span>
+                              </td>
+                              <td className="px-4 py-3 text-xs text-slate-300 font-mono">
+                                {pedido.created_at ? new Date(pedido.created_at).toLocaleDateString('es-AR') : 'N/A'}
+                              </td>
+                              <td className="px-4 py-3">
+                                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wide ${getStatusBadgeClass(pedido.estado)}`}>
+                                  {getStatusLabel(pedido.estado)}
+                                </span>
+                              </td>
+                              {!isEncargado && (
+                                <td className="px-4 py-3">
+                                  {(() => {
+                                    const precio = Number(pedido.precio) || 0
+                                    const paidAmount = pedido.pagos
+                                      ? pedido.pagos.filter((p: any) => p.estado === 'pagado').reduce((sum: number, p: any) => sum + Number(p.monto), 0)
+                                      : (pedido.pago && pedido.pago.estado === 'pagado' ? Number(pedido.pago.monto) : 0)
+
+                                    const pct = precio > 0 ? Math.round((paidAmount / precio) * 100) : 0
+
+                                    if (paidAmount <= 0) {
+                                      return <span className="text-slate-600 italic text-xs">Sin Pago</span>
+                                    }
+
+                                    const isFullyPaid = paidAmount >= precio
+                                    return (
+                                      <div className="flex flex-col">
+                                        <span className="font-semibold text-white font-mono text-xs">{formatCurrency(paidAmount)}</span>
+                                        <span className={`inline-flex items-center self-start px-1.5 py-0.5 rounded text-[9px] font-bold uppercase mt-0.5 ${isFullyPaid
+                                          ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                                          : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
+                                          }`}>
+                                          {isFullyPaid ? 'Cobrado' : `Parcial (${pct}%)`}
+                                        </span>
+                                      </div>
+                                    )
+                                  })()}
+                                </td>
+                              )}
+                              <td className="px-4 py-3 text-center">
+                                <button
+                                  onClick={() => setSelectedPedidoForCommentModal(pedido)}
+                                  className="inline-flex items-center gap-1 bg-blue-600/20 hover:bg-blue-600/40 text-blue-300 border border-blue-500/30 px-2.5 py-1 rounded text-xs font-bold transition shadow-sm"
+                                  title="Ver detalle del pedido"
+                                >
+                                  👁️ Ver Pedido
+                                </button>
+                              </td>
+                            </tr>
+                          )
+                        })}
                       </tbody>
                     </table>
                   </div>
@@ -881,24 +943,31 @@ export default function DashboardPage() {
         </div>
 
         {/* Modal de Detalle y Comentarios del Pedido */}
-        {selectedPedidoForCommentModal && (() => {
-          const p = selectedPedidoForCommentModal
-          const precio = Number(p.precio) || 0
-          const paidAmount = p.pagos
-            ? p.pagos.filter((pay) => pay.estado === 'pagado').reduce((s, pay) => s + Number(pay.monto), 0)
-            : (p.pago && p.pago.estado === 'pagado' ? Number(p.pago.monto) : 0)
-          const pending = Math.max(0, precio - paidAmount)
+        <Modal
+          isOpen={!!selectedPedidoForCommentModal}
+          onClose={() => {
+            setSelectedPedidoForCommentModal(null)
+            setNuevoComentario('')
+          }}
+          className="max-w-2xl p-6"
+        >
+          {selectedPedidoForCommentModal && (() => {
+            const p = selectedPedidoForCommentModal
+            const precio = Number(p.precio) || 0
+            const paidAmount = p.pagos
+              ? p.pagos.filter((pay) => pay.estado === 'pagado').reduce((s, pay) => s + Number(pay.monto), 0)
+              : (p.pago && p.pago.estado === 'pagado' ? Number(p.pago.monto) : 0)
+            const pending = Math.max(0, precio - paidAmount)
 
-          return (
-            <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
-              <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 max-w-2xl w-full shadow-2xl space-y-5 text-left relative animate-in fade-in zoom-in-95 duration-200">
+            return (
+              <div className="space-y-5 text-left relative">
                 {/* Botón cerrar */}
                 <button
                   onClick={() => {
                     setSelectedPedidoForCommentModal(null)
                     setNuevoComentario('')
                   }}
-                  className="absolute top-4 right-4 text-slate-400 hover:text-white text-lg font-bold p-1 rounded-lg hover:bg-slate-800 transition"
+                  className="absolute top-0 right-0 text-slate-400 hover:text-white text-lg font-bold p-1 rounded-lg hover:bg-slate-800 transition"
                 >
                   ✕
                 </button>
@@ -1013,9 +1082,9 @@ export default function DashboardPage() {
                   </div>
                 </div>
               </div>
-            </div>
-          )
-        })()}
+            )
+          })()}
+        </Modal>
       </main>
     </RoleGuard>
   )

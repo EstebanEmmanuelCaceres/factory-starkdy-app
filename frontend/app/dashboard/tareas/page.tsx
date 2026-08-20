@@ -110,18 +110,18 @@ export default function TareasPage() {
   }
 
   const handleReassignUser = async (task: ResponsableEtapa, newUserIdStr: string) => {
-    const newUserId = parseInt(newUserIdStr)
-    if (!newUserId || isNaN(newUserId)) return
+    const newUserId = newUserIdStr ? parseInt(newUserIdStr) : null
+    if (newUserIdStr && isNaN(newUserId!)) return
     setActionLoading(task.id)
     setError('')
     try {
-      const etapaId = task.etapa_id || (task.etapa as any)?.id
+      const etapaId = task.etapa_id || (task.etapa as any)?.id || (task as any).etapa_producto_id
       await assignTask({
         pedido_id: task.pedido_id,
         etapa_id: etapaId,
         user_id: newUserId
       })
-      showNotification('Operario reasignado correctamente a la etapa.')
+      showNotification(newUserId ? 'Operario reasignado correctamente a la etapa.' : 'Tarea desasignada correctamente.')
       await loadData()
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Error al reasignar el operario')
@@ -218,12 +218,12 @@ export default function TareasPage() {
 
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4">
             {/* Desplegable que contiene SOLAMENTE usuarios con rol de operario */}
-            <div className="flex items-center gap-2 bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 shadow-inner">
-              <span className="text-sm font-bold text-slate-400 uppercase tracking-wider whitespace-nowrap">👤 Operario:</span>
+            <div className="flex items-center gap-2 bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 shadow-inner min-w-0 w-full sm:w-auto">
+              <span className="text-xs sm:text-sm font-bold text-slate-400 uppercase tracking-wider whitespace-nowrap shrink-0">👤 Operario:</span>
               <select
                 value={selectedUserId || ''}
                 onChange={(e) => handleUserSelectChange(e.target.value)}
-                className="bg-transparent text-base font-bold text-blue-400 focus:outline-none cursor-pointer"
+                className="bg-transparent text-sm sm:text-base font-bold text-blue-400 focus:outline-none cursor-pointer min-w-0 w-full truncate pr-1"
               >
                 <option value="" className="bg-slate-900 text-white">
                   {currentUser && (currentUser.role === 'operario' || currentUser.role === 'operator')
@@ -310,6 +310,7 @@ export default function TareasPage() {
                                 disabled={actionLoading === task.id}
                                 className="bg-slate-950 border border-slate-800 text-xs font-bold text-blue-400 rounded-lg px-2.5 py-1.5 focus:outline-none cursor-pointer"
                               >
+                                <option value="" className="bg-slate-900 text-slate-400">Sin Asignar</option>
                                 {operarios.map((op) => (
                                   <option key={op.id} value={op.id} className="bg-slate-900 text-white">
                                     {op.name}
@@ -317,7 +318,7 @@ export default function TareasPage() {
                                 ))}
                               </select>
                             ) : (
-                              <span className="text-xs text-slate-300 font-semibold">{task.user?.name || 'Operario'}</span>
+                              <span className="text-xs text-slate-300 font-semibold">{task.user?.name || 'Sin Asignar'}</span>
                             )}
                           </div>
 
@@ -385,6 +386,7 @@ export default function TareasPage() {
                                       disabled={actionLoading === task.id}
                                       className="bg-slate-950 border border-slate-800 text-xs font-bold text-blue-400 rounded-lg px-2.5 py-1.5 focus:outline-none cursor-pointer"
                                     >
+                                      <option value="" className="bg-slate-900 text-slate-400">Sin Asignar</option>
                                       {operarios.map((op) => (
                                         <option key={op.id} value={op.id} className="bg-slate-900 text-white">
                                           {op.name}
@@ -392,7 +394,7 @@ export default function TareasPage() {
                                       ))}
                                     </select>
                                   ) : (
-                                    <span className="text-sm text-slate-300 font-semibold">{task.user?.name || 'Operario'}</span>
+                                    <span className="text-sm text-slate-300 font-semibold">{task.user?.name || 'Sin Asignar'}</span>
                                   )}
                                 </td>
                                 <td className="px-6 py-4">
@@ -481,6 +483,7 @@ export default function TareasPage() {
                                 disabled={actionLoading === task.id}
                                 className="bg-slate-950 border border-slate-800 text-xs font-bold text-blue-400 rounded-lg px-2.5 py-1.5 focus:outline-none cursor-pointer"
                               >
+                                <option value="" className="bg-slate-900 text-slate-400">Sin Asignar</option>
                                 {operarios.map((op) => (
                                   <option key={op.id} value={op.id} className="bg-slate-900 text-white">
                                     {op.name}
@@ -488,7 +491,7 @@ export default function TareasPage() {
                                 ))}
                               </select>
                             ) : (
-                              <span className="text-xs text-slate-300 font-semibold">{task.user?.name || 'Operario'}</span>
+                              <span className="text-xs text-slate-300 font-semibold">{task.user?.name || 'Sin Asignar'}</span>
                             )}
                           </div>
 
@@ -548,6 +551,7 @@ export default function TareasPage() {
                                       disabled={actionLoading === task.id}
                                       className="bg-slate-950 border border-slate-800 text-xs font-bold text-blue-400 rounded-lg px-2.5 py-1.5 focus:outline-none cursor-pointer"
                                     >
+                                      <option value="" className="bg-slate-900 text-slate-400">Sin Asignar</option>
                                       {operarios.map((op) => (
                                         <option key={op.id} value={op.id} className="bg-slate-900 text-white">
                                           {op.name}
@@ -555,7 +559,7 @@ export default function TareasPage() {
                                       ))}
                                     </select>
                                   ) : (
-                                    <span className="text-sm text-slate-300 font-semibold">{task.user?.name || 'Operario'}</span>
+                                    <span className="text-sm text-slate-300 font-semibold">{task.user?.name || 'Sin Asignar'}</span>
                                   )}
                                 </td>
                                 <td className="px-6 py-4">
@@ -636,6 +640,7 @@ export default function TareasPage() {
                                 disabled={actionLoading === task.id}
                                 className="bg-slate-950 border border-slate-800 text-xs font-bold text-blue-400 rounded-lg px-2.5 py-1.5 focus:outline-none cursor-pointer"
                               >
+                                <option value="" className="bg-slate-900 text-slate-400">Sin Asignar</option>
                                 {operarios.map((op) => (
                                   <option key={op.id} value={op.id} className="bg-slate-900 text-white">
                                     {op.name}
@@ -643,7 +648,7 @@ export default function TareasPage() {
                                 ))}
                               </select>
                             ) : (
-                              <span className="text-xs text-slate-300 font-semibold">{task.user?.name || 'Operario'}</span>
+                              <span className="text-xs text-slate-300 font-semibold">{task.user?.name || 'Sin Asignar'}</span>
                             )}
                           </div>
 
@@ -703,6 +708,7 @@ export default function TareasPage() {
                                       disabled={actionLoading === task.id}
                                       className="bg-slate-950 border border-slate-800 text-xs font-bold text-blue-400 rounded-lg px-2.5 py-1.5 focus:outline-none cursor-pointer"
                                     >
+                                      <option value="" className="bg-slate-900 text-slate-400">Sin Asignar</option>
                                       {operarios.map((op) => (
                                         <option key={op.id} value={op.id} className="bg-slate-900 text-white">
                                           {op.name}
@@ -710,7 +716,7 @@ export default function TareasPage() {
                                       ))}
                                     </select>
                                   ) : (
-                                    <span className="text-sm text-slate-300 font-semibold">{task.user?.name || 'Operario'}</span>
+                                    <span className="text-sm text-slate-300 font-semibold">{task.user?.name || 'Sin Asignar'}</span>
                                   )}
                                 </td>
                                 <td className="px-6 py-4">
