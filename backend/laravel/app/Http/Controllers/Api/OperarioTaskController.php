@@ -96,10 +96,14 @@ class OperarioTaskController extends Controller
      */
     public function start($id): JsonResponse
     {
-        $userId = Auth::id();
-        $task = ResponsableEtapa::where('id', $id)
-            ->where('user_id', $userId)
-            ->first();
+        $user = Auth::user();
+        if ($user && ($user->isAdmin() || $user->isEncargado() || $user->isSupervisor())) {
+            $task = ResponsableEtapa::find($id);
+        } else {
+            $task = ResponsableEtapa::where('id', $id)
+                ->where('user_id', $user?->id)
+                ->first();
+        }
 
         if (!$task) {
             return response()->json([
@@ -122,10 +126,16 @@ class OperarioTaskController extends Controller
             ], 422);
         }
 
-        $task->update([
+        $updateData = [
             'estado' => 'en_progreso',
             'fecha_inicio' => now(),
-        ]);
+        ];
+
+        if (empty($task->user_id) && $user) {
+            $updateData['user_id'] = $user->id;
+        }
+
+        $task->update($updateData);
 
         return response()->json([
             'status' => 'success',
@@ -139,10 +149,14 @@ class OperarioTaskController extends Controller
      */
     public function complete(Request $request, $id): JsonResponse
     {
-        $userId = Auth::id();
-        $task = ResponsableEtapa::where('id', $id)
-            ->where('user_id', $userId)
-            ->first();
+        $user = Auth::user();
+        if ($user && ($user->isAdmin() || $user->isEncargado() || $user->isSupervisor())) {
+            $task = ResponsableEtapa::find($id);
+        } else {
+            $task = ResponsableEtapa::where('id', $id)
+                ->where('user_id', $user?->id)
+                ->first();
+        }
 
         if (!$task) {
             return response()->json([
@@ -160,11 +174,17 @@ class OperarioTaskController extends Controller
 
         $fechaInicio = $task->fecha_inicio ?? now();
 
-        $task->update([
+        $updateData = [
             'estado' => 'completado',
             'fecha_inicio' => $fechaInicio,
             'fecha_fin' => now(),
-        ]);
+        ];
+
+        if (empty($task->user_id) && $user) {
+            $updateData['user_id'] = $user->id;
+        }
+
+        $task->update($updateData);
 
         return response()->json([
             'status' => 'success',

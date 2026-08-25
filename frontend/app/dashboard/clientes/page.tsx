@@ -485,7 +485,7 @@ export default function ClientesPage() {
                       {clientPedidos.slice(0, 5).map((p) => (
                         <div key={p.id} className="bg-slate-950 border border-slate-800 rounded-lg p-2.5 flex items-center justify-between text-xs hover:border-slate-700 transition">
                           <div>
-                            <span className="font-mono font-bold text-white block">{p.codigo}</span>
+                            <span className="font-mono font-bold text-white block">Pedido #{p.id}</span>
                             <span className="text-[10px] text-slate-500">
                               {p.fecha_entrega ? `Entrega: ${p.fecha_entrega}` : 'Sin fecha programada'}
                             </span>

@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import RoleGuard from '@/components/RoleGuard'
 import OrderImageGallery from '@/components/OrderImageGallery'
 import Modal from '@/components/Modal'
+import PedidoDetailModal from '@/components/PedidoDetailModal'
 import { fetchOrderImages } from '@/lib/entities/orderImages'
 import {
   fetchPedidos,
@@ -180,7 +181,7 @@ export default function PedidosPage() {
       setPedidos(pedidosData)
       setClientes(clientesData)
       setProductos(productosData)
-      setOperarios(usersData.filter(u => u.role === 'operario' || u.role === 'operator'))
+      setOperarios(usersData)
       setAllStages(stagesData)
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Error al cargar los datos')
@@ -503,7 +504,17 @@ export default function PedidosPage() {
     setError('')
 
     if (!formData.cliente_id) {
-      setError('Por favor, selecciona un cliente')
+      setError('Falta seleccionar el cliente')
+      return
+    }
+
+    if (!formData.fecha_entrega) {
+      setError('Falta seleccionar la fecha estimada de entrega')
+      return
+    }
+
+    if (!formData.precio || isNaN(parseFloat(formData.precio))) {
+      setError('Falta ingresar el precio del pedido')
       return
     }
 
@@ -512,10 +523,10 @@ export default function PedidosPage() {
       const payload: CreatePedidoInput = {
         cliente_id: isNewClient ? null : parseInt(formData.cliente_id),
         cliente: isNewClient ? wizardNewClient : null,
-        codigo: formData.codigo.trim(),
+        codigo: formData.codigo.trim() || `PD-${Date.now().toString().slice(-6)}`,
         prioridad: formData.prioridad,
-        fecha_entrega: formData.fecha_entrega || null,
-        precio: formData.precio ? parseFloat(formData.precio) : null,
+        fecha_entrega: formData.fecha_entrega,
+        precio: parseFloat(formData.precio),
         comentario: formData.comentario || null,
         tipo_pago: formData.tipo_pago,
         productos: formData.selectedProductIds.map((id) => ({
@@ -557,14 +568,19 @@ export default function PedidosPage() {
     setError('')
 
     if (!formData.cliente_id) {
-      setError('Por favor, selecciona un cliente')
+      setError('Falta seleccionar el cliente')
+      return
+    }
+
+    if (formData.precio && isNaN(parseFloat(formData.precio))) {
+      setError('El precio ingresado debe ser un número válido')
       return
     }
 
     try {
       const payload: UpdatePedidoInput = {
         cliente_id: parseInt(formData.cliente_id),
-        codigo: formData.codigo.trim(),
+        codigo: formData.codigo.trim() || selectedPedido.codigo || `PD-${Date.now().toString().slice(-6)}`,
         prioridad: formData.prioridad,
         fecha_entrega: formData.fecha_entrega || null,
         estado: formData.estado,
@@ -1099,11 +1115,6 @@ export default function PedidosPage() {
                             </div>
                           )}
                           <div>
-                            <div className="flex items-center gap-2 mb-1">
-                              <span className="text-xs font-mono font-bold text-white bg-slate-950 border border-slate-800 px-2 py-0.5 rounded">
-                                {pedido.codigo}
-                              </span>
-                            </div>
                             <span className="font-bold text-white text-base block">
                               {pedido.cliente?.nombre_empresa || pedido.cliente?.nombre_cliente || 'Sin empresa'}
                             </span>
@@ -1989,30 +2000,16 @@ export default function PedidosPage() {
                     </div>
                   )}
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
-                        Código Único *
-                      </label>
-                      <input
-                        type="text"
-                        required
-                        value={formData.codigo}
-                        onChange={(e) => setFormData({ ...formData, codigo: e.target.value })}
-                        className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
-                        Fecha Estimada de Entrega
-                      </label>
-                      <input
-                        type="date"
-                        value={formData.fecha_entrega}
-                        onChange={(e) => setFormData({ ...formData, fecha_entrega: e.target.value })}
-                        className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition"
-                      />
-                    </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
+                      Fecha Estimada de Entrega
+                    </label>
+                    <input
+                      type="date"
+                      value={formData.fecha_entrega}
+                      onChange={(e) => setFormData({ ...formData, fecha_entrega: e.target.value })}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition"
+                    />
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -2235,7 +2232,7 @@ export default function PedidosPage() {
                   <div className="bg-slate-950/60 border border-slate-800 rounded-xl p-5 text-left max-w-md mx-auto space-y-3">
                     <div className="border-b border-slate-850 pb-2 flex justify-between items-center">
                       <span className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">Ficha de Pedido</span>
-                      <span className="text-xs font-mono font-bold text-white bg-slate-900 border border-slate-800 px-2 py-0.5 rounded-lg">{createdPedidoResult.codigo}</span>
+                      <span className="text-xs font-mono font-bold text-white bg-slate-900 border border-slate-800 px-2 py-0.5 rounded-lg">#{createdPedidoResult.id}</span>
                     </div>
 
                     <div className="space-y-1">
@@ -2314,20 +2311,7 @@ export default function PedidosPage() {
           >
               <h2 className="text-xl font-bold text-white mb-4">Editar Pedido</h2>
               <form onSubmit={handleEditSubmit} className="space-y-4 text-slate-300">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
-                      Código Único *
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      value={formData.codigo}
-                      onChange={(e) => setFormData({ ...formData, codigo: e.target.value })}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition"
-                    />
-                  </div>
-                  <div className="relative">
+                <div className="relative">
                     <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5 flex items-center justify-between">
                       <span>Cliente *</span>
                       <button
@@ -2402,7 +2386,6 @@ export default function PedidosPage() {
                       </>
                     )}
                   </div>
-                </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
                   <div>
@@ -2842,7 +2825,7 @@ export default function PedidosPage() {
               </button>
 
               <h2 className="text-xl font-bold text-white mb-1">
-                Gestión de Pagos: {selectedPedidoForPayments.codigo}
+                Gestión de Pagos: Pedido #{selectedPedidoForPayments.id}
               </h2>
               <p className="text-xs text-slate-400 mb-5">
                 Cliente: <span className="font-semibold text-slate-200">{selectedPedidoForPayments.cliente?.nombre_cliente} ({selectedPedidoForPayments.cliente?.nombre_empresa})</span>
@@ -3075,394 +3058,21 @@ export default function PedidosPage() {
           </Modal>
         )}
 
-        {isViewModalOpen && selectedPedidoForView && (() => {
-          const pds = selectedPedidoForView.productos || []
-          const displayedProducts = verTodosProductos ? pds : pds.slice(0, 2)
-          const coverUrl = selectedPedidoForView.imagen_principal?.url || selectedPedidoForView.imagenes?.[0]?.url
-
-          return (
-            <Modal
-              isOpen={isViewModalOpen}
-              onClose={() => { setIsViewModalOpen(false); setSelectedPedidoForView(null); }}
-              className="max-w-4xl p-6 flex flex-col"
-            >
-                {/* Header de Imagen / Portada estilo Trello */}
-                {coverUrl && (
-                  <div className="-mx-6 -mt-6 mb-5 relative h-48 sm:h-56 md:h-64 bg-slate-950/90 border-b border-slate-800/80 flex items-center justify-center overflow-hidden rounded-t-2xl group">
-                    {/* Fondo desenfocado ambiental */}
-                    <div
-                      className="absolute inset-0 bg-cover bg-center opacity-20 blur-2xl scale-110 pointer-events-none"
-                      style={{ backgroundImage: `url(${coverUrl})` }}
-                    />
-                    
-                    {/* Imagen principal con object-contain: si es chica se centra con márgenes; si es grande se achica proporcionalmente */}
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={coverUrl}
-                      alt={`Portada ${selectedPedidoForView.codigo}`}
-                      className="relative z-10 max-h-full max-w-full object-contain p-3 transition duration-200"
-                      onError={(e) => {
-                        (e.target as HTMLImageElement).src = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200' viewBox='0 0 200 200'><rect width='200' height='200' fill='%230f172a'/><text x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' fill='%2364748b' font-family='sans-serif' font-size='13'>Imagen no disponible</text></svg>"
-                      }}
-                    />
-
-                    {/* Badge y Botón de Acción flotante */}
-                    <div className="absolute top-3 left-3 z-20">
-                      <span className="bg-amber-500 text-slate-950 font-extrabold text-[10px] uppercase px-2.5 py-1 rounded-full shadow-lg border border-amber-300 flex items-center gap-1">
-                        ⭐ Portada del Pedido
-                      </span>
-                    </div>
-
-                    <div className="absolute bottom-3 right-3 z-20">
-                      <button
-                        type="button"
-                        onClick={() => handleOpenImagesModal(selectedPedidoForView)}
-                        className="bg-slate-900/90 hover:bg-slate-950 text-white text-xs font-bold px-3 py-1.5 rounded-lg border border-slate-700 backdrop-blur-md flex items-center gap-1.5 shadow-xl transition"
-                      >
-                        🖼️ Cambiar Portada / Ver Galería ({selectedPedidoForView.imagenes?.length || 1})
-                      </button>
-                    </div>
-                  </div>
-                )}
-
-                {/* Header de la Tarjeta Trello */}
-                <div className="flex items-start justify-between border-b border-slate-800 pb-4 mb-4">
-                  <div className="text-left">
-                    {/* Estado del Pedido como Dropdown */}
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Estado:</span>
-                      <select
-                        value={selectedPedidoForView.estado}
-                        onChange={async (e) => {
-                          try {
-                            const newEstado = e.target.value
-                            const updated = await updatePedido(selectedPedidoForView.id, { estado: newEstado })
-                            setSelectedPedidoForView(prev => prev ? { ...prev, estado: updated.estado } : null)
-                            setPedidos(prev => prev.map(p => p.id === updated.id ? { ...p, estado: updated.estado } : p))
-                            showNotification('Estado del pedido actualizado correctamente')
-                          } catch (err: unknown) {
-                            setError(err instanceof Error ? err.message : 'Error al actualizar el estado')
-                          }
-                        }}
-                        className="bg-slate-950 border border-slate-800 text-xs font-bold text-blue-400 focus:outline-none focus:border-blue-500 rounded-lg px-3 py-1 cursor-pointer transition hover:border-slate-700"
-                      >
-                        <option value="pendiente">Pendiente</option>
-                        <option value="listo_para_produccion">Listo para producción</option>
-                        <option value="en_progreso">En Progreso</option>
-                        <option value="completado">Completado</option>
-                        <option value="completado_pd">Completado - pendiente de pago (PD)</option>
-                        <option value="enviado_faltante">Enviado con faltante</option>
-                        <option value="cancelado">Cancelado</option>
-                      </select>
-                    </div>
-
-                    <h2 className="text-2xl font-bold text-white flex items-center gap-2">
-                      📋 {selectedPedidoForView.codigo}
-                    </h2>
-                    <p className="text-xs text-slate-400 mt-1">
-                      Cliente: <span className="text-slate-200 font-bold">{selectedPedidoForView.cliente?.nombre_cliente}</span> ({selectedPedidoForView.cliente?.nombre_empresa})
-                    </p>
-                  </div>
-
-                  {selectedPedidoForView.estado === 'pendiente' && (
-                    <div className="bg-amber-500/10 border border-amber-500/30 text-amber-300 px-4 py-3 rounded-xl mb-4 flex items-center justify-between gap-3">
-                      <div className="text-xs">
-                        <span className="font-bold block text-sm mb-0.5">⚠️ Pedido en Pendiente</span>
-                        Este pedido no es visible para los operarios hasta que lo pases a <strong>&quot;Listo para producción&quot;</strong>.
-                      </div>
-                      <button
-                        onClick={async () => {
-                          try {
-                            const updated = await updatePedido(selectedPedidoForView.id, { estado: 'listo_para_produccion' })
-                            setSelectedPedidoForView(updated)
-                            setPedidos(prev => prev.map(p => p.id === updated.id ? { ...p, estado: updated.estado } : p))
-                            showNotification('Pedido actualizado a "Listo para producción"')
-                          } catch (err: unknown) {
-                            setError(err instanceof Error ? err.message : 'Error al actualizar el estado')
-                          }
-                        }}
-                        className="bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs px-3.5 py-2 rounded-lg transition shadow-md whitespace-nowrap"
-                      >
-                        🚀 Pasar a Listo para Producción
-                      </button>
-                    </div>
-                  )}
-
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (selectedPedidoForView) {
-                          handleOpenImagesModal(selectedPedidoForView)
-                        }
-                      }}
-                      className="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-amber-300 text-xs font-semibold px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition"
-                      title="Gestionar Galería de Imágenes / Planos"
-                    >
-                      🖼️ Galería / Planos
-                    </button>
-                    <button
-                      onClick={() => {
-                        setIsViewModalOpen(false)
-                        setSelectedPedidoForView(null)
-                      }}
-                      className="text-slate-400 hover:text-white transition text-lg p-1 hover:bg-slate-800 rounded-lg"
-                      title="Cerrar"
-                    >
-                      ✕
-                    </button>
-                  </div>
-                </div>
-
-                {/* Cuerpo Principal: Dos Columnas */}
-                <div className="grid grid-cols-1 md:grid-cols-12 gap-6 flex-grow overflow-y-auto">
-                  {/* Columna Izquierda (8 cols) */}
-                  <div className="md:col-span-8 space-y-6 text-left">
-                    {/* Sección: Descripción */}
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                          <span>📝</span> Descripción
-                        </h3>
-                        <button
-                          type="button"
-                          onClick={() => setIsEditCommentActive(!isEditCommentActive)}
-                          className="text-xs bg-slate-800 hover:bg-slate-700 hover:text-white text-slate-300 px-2 py-1 rounded transition font-semibold"
-                        >
-                          {isEditCommentActive ? 'Cancelar' : 'Editar'}
-                        </button>
-                      </div>
-
-                      {isEditCommentActive ? (
-                        <div className="space-y-2">
-                          <textarea
-                            value={tempComentario || ''}
-                            onChange={(e) => setTempComentario(e.target.value)}
-                            className="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-sm text-white focus:outline-none focus:border-blue-500 transition h-24"
-                            placeholder="Agregar una descripción más detallada..."
-                          />
-                          <div className="flex gap-2">
-                            <button
-                              type="button"
-                              onClick={async () => {
-                                try {
-                                  const updated = await updatePedido(selectedPedidoForView.id, { comentario: tempComentario })
-                                  setSelectedPedidoForView(updated)
-                                  setPedidos(prev => prev.map(p => p.id === updated.id ? updated : p))
-                                  setIsEditCommentActive(false)
-                                } catch (err: any) {
-                                  console.error("Error al actualizar comentario/descripción:", err)
-                                }
-                              }}
-                              className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded text-xs font-semibold"
-                            >
-                              Guardar
-                            </button>
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="bg-slate-950/40 border border-slate-855 p-4 rounded-xl">
-                          {selectedPedidoForView.comentario ? (
-                            <p className="text-sm text-slate-300 whitespace-pre-wrap">{selectedPedidoForView.comentario}</p>
-                          ) : (
-                            <p className="text-sm text-slate-500 italic">No hay descripción añadida. Haz clic en Editar para agregar una.</p>
-                          )}
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Sección: Productos y sus Etapas */}
-                    <div className="space-y-3">
-                      <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                        <span>📦</span> Productos y Etapas de Fabricación
-                      </h3>
-
-                      {pds.length === 0 ? (
-                        <p className="text-xs text-slate-500 italic">No hay productos asociados a este pedido.</p>
-                      ) : (
-                        <div className="space-y-3">
-                          {displayedProducts.map((prod) => {
-                            const prodStages = allStages.filter(s => s.producto_id === prod.id).sort((a, b) => a.orden - b.orden)
-                            const qty = prod.pivot?.cantidad || 1
-                            const currentInfo = getProductCurrentStage(selectedPedidoForView.id, prodStages, taskAssignments)
-                            const isAccordionOpen = openAccordions[prod.id] || false
-
-                            return (
-                              <div key={prod.id} className="bg-slate-950/40 border border-slate-800 rounded-xl p-4 space-y-3 transition hover:border-slate-750">
-                                {/* Cabecera del producto */}
-                                <div className="flex items-center justify-between">
-                                  <div className="text-left">
-                                    <span className="text-sm font-bold text-white block">{prod.nombre}</span>
-                                    <span className="text-[10px] text-slate-500 font-bold uppercase">Cantidad: {qty}</span>
-                                  </div>
-
-                                  {/* Etapa actual a la vista */}
-                                  {currentInfo ? (
-                                    <div className="text-right">
-                                      <span className="text-[10px] text-slate-500 uppercase block font-semibold leading-none mb-1">Etapa Actual</span>
-                                      <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-blue-500/10 text-blue-400 border border-blue-500/20 capitalize">
-                                        {currentInfo.stage.nombre} ({currentInfo.task?.estado || 'pendiente'})
-                                      </span>
-                                    </div>
-                                  ) : (
-                                    <span className="text-xs text-slate-500 italic">Sin etapas</span>
-                                  )}
-                                </div>
-
-                                {/* Botón del acordeón */}
-                                {prodStages.length > 0 && (
-                                  <div className="border-t border-slate-850 pt-2.5">
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        setOpenAccordions(prev => ({
-                                          ...prev,
-                                          [prod.id]: !isAccordionOpen
-                                        }))
-                                      }}
-                                      className="w-full flex items-center justify-between text-xs text-blue-400 hover:text-blue-300 font-semibold"
-                                    >
-                                      <span>{isAccordionOpen ? '🔼 Ocultar flujo de etapas' : '🔽 Ver flujo de etapas completo (Grafo)'}</span>
-                                      <span className="text-[10px] bg-slate-800 text-slate-350 px-2 py-0.5 rounded-full">{prodStages.length} etapas</span>
-                                    </button>
-
-                                    {/* Contenedor del Grafo dentro del Acordeón */}
-                                    {isAccordionOpen && (
-                                      <div className="mt-3 p-4 bg-slate-950/80 rounded-xl border border-slate-850 space-y-4 animate-in fade-in slide-in-from-top-1 duration-200">
-                                        <span className="text-[10px] uppercase font-bold text-slate-500 tracking-wider block">Grafo de Progreso de Fabricación</span>
-
-                                        <div className="flex flex-col md:flex-row md:items-center gap-4 md:gap-2 overflow-x-auto py-2">
-                                          {prodStages.map((stage, idx) => {
-                                            const task = taskAssignments.find(t => t.pedido_id === selectedPedidoForView.id && ((t as any).etapa_producto_id === stage.id || t.etapa_id === stage.id || t.etapa?.id === stage.id))
-                                            const state = task?.estado || 'pendiente'
-
-                                            let nodeBg = 'bg-slate-900 border-slate-800 text-slate-400'
-                                            let stateLabel = 'Pendiente'
-                                            if (state === 'completado') {
-                                              nodeBg = 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
-                                              stateLabel = 'Completado'
-                                            } else if (state === 'en_progreso') {
-                                              nodeBg = 'bg-blue-500/10 border-blue-500/30 text-blue-400 shadow-[0_0_8px_rgba(59,130,246,0.15)] animate-pulse'
-                                              stateLabel = 'En Progreso'
-                                            } else if (state === 'bloqueada') {
-                                              nodeBg = 'bg-rose-500/10 border-rose-500/30 text-rose-400'
-                                              stateLabel = 'Bloqueada'
-                                            }
-
-                                            const completionDate = (state === 'completado' && (task?.fecha_fin || task?.updated_at))
-                                              ? new Date(task.fecha_fin || task.updated_at).toLocaleDateString('es-ES', {
-                                                day: 'numeric',
-                                                month: 'short',
-                                                year: 'numeric'
-                                              })
-                                              : null
-
-                                            return (
-                                              <div key={stage.id} className="flex flex-col md:flex-row md:items-center flex-shrink-0">
-                                                <div className={`border p-2.5 rounded-xl text-center min-w-[130px] ${nodeBg}`}>
-                                                  <span className="text-[9px] font-bold uppercase tracking-wider text-slate-500 block mb-0.5">Etapa {stage.orden}</span>
-                                                  <span className="text-xs font-bold block truncate max-w-[120px]" title={stage.nombre}>{stage.nombre}</span>
-                                                  <span className="text-[9px] font-medium block mt-1 uppercase">{stateLabel}</span>
-                                                  {completionDate && (
-                                                    <span className="text-[9px] font-medium block mt-1 text-emerald-300/90 font-mono" title={`Fecha de terminación: ${completionDate}`}>
-                                                      {completionDate}
-                                                    </span>
-                                                  )}
-                                                </div>
-
-                                                {idx < prodStages.length - 1 && (
-                                                  <div className="flex items-center justify-center py-1 md:py-0 md:px-2">
-                                                    <span className="text-slate-600 font-bold hidden md:inline">➔</span>
-                                                    <span className="text-slate-600 font-bold md:hidden">↓</span>
-                                                  </div>
-                                                )}
-                                              </div>
-                                            )
-                                          })}
-                                        </div>
-                                      </div>
-                                    )}
-                                  </div>
-                                )}
-                              </div>
-                            )
-                          })}
-
-                          {pds.length > 2 && (
-                            <div className="flex justify-center pt-2">
-                              <button
-                                type="button"
-                                onClick={() => setVerTodosProductos(!verTodosProductos)}
-                                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-blue-400 hover:text-blue-300 text-xs font-bold rounded-lg transition"
-                              >
-                                {verTodosProductos ? 'Mostrar menos 🔼' : 'Ver todos los productos 🔽'}
-                              </button>
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Columna Derecha - Comentarios y Actividad */}
-                  <div className="md:col-span-4 border-t md:border-t-0 md:border-l border-slate-800 pt-6 md:pt-0 md:pl-6 flex flex-col max-h-[60vh] md:max-h-full">
-                    <h3 className="text-sm font-bold text-white flex items-center gap-2 mb-3 text-left">
-                      <span>💬</span> Comentarios y Actividad
-                    </h3>
-
-                    <div className="space-y-2 mb-4 text-left">
-                      <textarea
-                        value={nuevoComentario}
-                        onChange={(e) => setNuevoComentario(e.target.value)}
-                        placeholder="Escribe un comentario..."
-                        className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-xs text-white placeholder-slate-550 focus:outline-none focus:border-blue-500 transition resize-none h-16"
-                      />
-                      <button
-                        type="button"
-                        disabled={!nuevoComentario.trim() || isSubmittingComment}
-                        onClick={async () => {
-                          try {
-                            setIsSubmittingComment(true)
-                            const comment = await createPedidoComentario(selectedPedidoForView.id, nuevoComentario)
-                            const updatedComments = [comment, ...(selectedPedidoForView.comentarios || [])]
-                            const updatedPedido = { ...selectedPedidoForView, comentarios: updatedComments }
-                            setSelectedPedidoForView(updatedPedido)
-                            setPedidos(prev => prev.map(p => p.id === updatedPedido.id ? updatedPedido : p))
-                            setNuevoComentario('')
-                          } catch (err: any) {
-                            console.error("Error al publicar comentario:", err)
-                          } finally {
-                            setIsSubmittingComment(false)
-                          }
-                        }}
-                        className="px-3 py-1 bg-blue-600 hover:bg-blue-500 disabled:bg-slate-850 disabled:text-slate-650 text-white rounded text-xs font-semibold transition"
-                      >
-                        {isSubmittingComment ? 'Publicando...' : 'Comentar'}
-                      </button>
-                    </div>
-
-                    <div className="space-y-3 overflow-y-auto flex-grow pr-1 max-h-[30vh] md:max-h-[45vh]">
-                      {(!selectedPedidoForView.comentarios || selectedPedidoForView.comentarios.length === 0) ? (
-                        <p className="text-xs text-slate-500 italic text-center py-4">No hay comentarios en este pedido todavía.</p>
-                      ) : (
-                        selectedPedidoForView.comentarios.map((c) => (
-                          <div key={c.id} className="bg-slate-950/30 border border-slate-850/50 p-2.5 rounded-lg text-left space-y-1.5">
-                            <div className="flex items-center justify-between text-[10px]">
-                              <span className="font-bold text-slate-350">{c.user?.name || 'Usuario'}</span>
-                              <span className="text-slate-500 font-mono">
-                                {new Date(c.created_at).toLocaleDateString('es-AR')} {new Date(c.created_at).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}
-                              </span>
-                            </div>
-                            <p className="text-xs text-slate-200 leading-relaxed break-words">{c.cuerpo}</p>
-                          </div>
-                        ))
-                      )}
-                    </div>
-                  </div>
-                </div>
-            </Modal>
-          )
-        })()}
+        <PedidoDetailModal
+          pedido={selectedPedidoForView}
+          isOpen={isViewModalOpen}
+          onClose={() => {
+            setIsViewModalOpen(false)
+            setSelectedPedidoForView(null)
+          }}
+          onUpdatePedido={(updated) => {
+            setSelectedPedidoForView(updated)
+            setPedidos((prev) => prev.map((p) => (p.id === updated.id ? updated : p)))
+          }}
+          allStages={allStages}
+          taskAssignments={taskAssignments}
+          onOpenGallery={(pedidoToGallery) => handleOpenImagesModal(pedidoToGallery)}
+        />
 
         {/* Modal de Gestión de Imágenes del Pedido */}
         {isImagesModalOpen && selectedPedidoForImages && (
@@ -3480,7 +3090,7 @@ export default function PedidosPage() {
                     <span>🖼️</span> Galería de Imágenes y Planos del Pedido
                   </h2>
                   <p className="text-xs text-slate-400">
-                    Administra la portada e imágenes secundarias de: <span className="text-blue-400 font-semibold">{selectedPedidoForImages.codigo}</span>
+                    Administra la portada e imágenes secundarias del pedido: <span className="text-blue-400 font-semibold">{selectedPedidoForImages.cliente?.nombre_empresa || selectedPedidoForImages.cliente?.nombre_cliente || `#${selectedPedidoForImages.id}`}</span>
                   </p>
                 </div>
                 <button

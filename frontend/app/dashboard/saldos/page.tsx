@@ -70,7 +70,7 @@ function SaldosContent() {
             key: `pago-${pay.id}`,
             date: rawDate || new Date().toISOString(),
             type: 'pago',
-            refCode: p.codigo,
+            refCode: `Pedido #${p.id}`,
             description: `Cobro Registrado (${pay.tipo_cobro})`,
             amount: -Number(pay.monto),
             paymentMethod: pay.medio_pago || pay.medio,

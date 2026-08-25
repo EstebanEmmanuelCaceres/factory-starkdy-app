@@ -117,14 +117,6 @@ class ResponsableEtapaController extends Controller
         $etapaProducto = EtapaProducto::find($etapaProductoId);
         $user = $request->filled('user_id') ? User::find($request->input('user_id')) : null;
 
-        // 1. Verificar si el usuario es un operario (si fue especificado)
-        if ($user && !$user->isOperator()) {
-            return response()->json([
-                'status' => 'error',
-                'message' => 'El usuario asignado debe tener el rol de operario'
-            ], 422);
-        }
-
         // 2. Verificar que la etapa pertenece a un producto asociado al pedido
         $pedidoProductIds = $pedido->productos()->pluck('productos.id')->toArray();
         if (!in_array($etapaProducto->producto_id, $pedidoProductIds)) {
@@ -150,7 +142,7 @@ class ResponsableEtapaController extends Controller
 
         return response()->json([
             'status' => 'success',
-            'message' => $user ? 'Tarea asignada correctamente al operario' : 'Tarea desasignada correctamente',
+            'message' => $user ? 'Tarea asignada correctamente al usuario' : 'Tarea desasignada correctamente',
             'data' => $asignacion
         ], 200);
     }

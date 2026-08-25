@@ -209,6 +209,11 @@ class Pedido extends Model
             ->whereNotIn('etapa_producto_id', $etapaProductoIds)
             ->delete();
 
+        $adminUser = User::whereHas('role', function ($q) {
+            $q->where('slug', 'admin');
+        })->first() ?? User::first();
+        $adminUserId = $adminUser?->id;
+
         foreach ($etapasProductos as $etapaProducto) {
             // Verificar si ya existe la tarea
             $tarea = ResponsableEtapa::where('pedido_id', $this->id)
@@ -222,7 +227,7 @@ class Pedido extends Model
                 ResponsableEtapa::create([
                     'pedido_id' => $this->id,
                     'etapa_producto_id' => $etapaProducto->id,
-                    'user_id' => null,
+                    'user_id' => $adminUserId,
                     'estado' => $estadoInicial
                 ]);
             } else {

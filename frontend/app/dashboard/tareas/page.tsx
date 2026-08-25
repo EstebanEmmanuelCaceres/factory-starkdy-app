@@ -34,10 +34,9 @@ export default function TareasPage() {
       const user = getStoredUser()
       setCurrentUser(user)
 
-      // Cargar ÚNICAMENTE usuarios con rol de operario
+      // Cargar todos los usuarios disponibles para la asignación
       const usersData = await fetchUsers()
-      const operariosOnly = usersData.filter(u => u.role === 'operario' || u.role === 'operator')
-      setOperarios(operariosOnly)
+      setOperarios(usersData)
 
       const targetUserId = overrideUserId !== undefined ? overrideUserId : selectedUserId
 
@@ -217,9 +216,9 @@ export default function TareasPage() {
           </div>
 
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4">
-            {/* Desplegable que contiene SOLAMENTE usuarios con rol de operario */}
+            {/* Desplegable para filtrar por usuario */}
             <div className="flex items-center gap-2 bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 shadow-inner min-w-0 w-full sm:w-auto">
-              <span className="text-xs sm:text-sm font-bold text-slate-400 uppercase tracking-wider whitespace-nowrap shrink-0">👤 Operario:</span>
+              <span className="text-xs sm:text-sm font-bold text-slate-400 uppercase tracking-wider whitespace-nowrap shrink-0">👤 Usuario:</span>
               <select
                 value={selectedUserId || ''}
                 onChange={(e) => handleUserSelectChange(e.target.value)}
@@ -228,7 +227,7 @@ export default function TareasPage() {
                 <option value="" className="bg-slate-900 text-white">
                   {currentUser && (currentUser.role === 'operario' || currentUser.role === 'operator')
                     ? `${currentUser.name} (Mi Perfil)`
-                    : 'Todos los Operarios'}
+                    : 'Todos los Usuarios'}
                 </option>
                 {operarios
                   .filter(op => op.id !== currentUser?.id)
@@ -297,7 +296,7 @@ export default function TareasPage() {
                           <div className="space-y-0.5">
                             <span className="font-bold text-white text-base block">{task.etapa?.nombre}</span>
                             <span className="text-xs text-slate-400 font-normal block">
-                              {task.pedido?.codigo ? `${task.pedido.codigo} • ` : ''}{task.etapa?.producto?.nombre || 'Producto'}
+                              {task.etapa?.producto?.nombre || 'Producto'}
                             </span>
                           </div>
 
@@ -375,7 +374,7 @@ export default function TareasPage() {
                                 <td className="px-6 py-4">
                                   <span className="font-bold text-white text-base block">{task.etapa?.nombre}</span>
                                   <span className="text-sm text-slate-400 font-normal">
-                                    {task.pedido?.codigo ? `${task.pedido.codigo} • ` : ''}{task.etapa?.producto?.nombre || 'Producto'}
+                                    {task.etapa?.producto?.nombre || 'Producto'}
                                   </span>
                                 </td>
                                 <td className="px-6 py-4">
@@ -470,7 +469,7 @@ export default function TareasPage() {
                           <div className="space-y-0.5">
                             <span className="font-bold text-white text-base block">{task.etapa?.nombre}</span>
                             <span className="text-xs text-slate-400 font-normal block">
-                              {task.pedido?.codigo ? `${task.pedido.codigo} • ` : ''}{task.etapa?.producto?.nombre || 'Producto'}
+                              {task.etapa?.producto?.nombre || 'Producto'}
                             </span>
                           </div>
 
@@ -540,7 +539,7 @@ export default function TareasPage() {
                                 <td className="px-6 py-4">
                                   <span className="font-bold text-white text-base block">{task.etapa?.nombre}</span>
                                   <span className="text-sm text-slate-400 font-normal">
-                                    {task.pedido?.codigo ? `${task.pedido.codigo} • ` : ''}{task.etapa?.producto?.nombre || 'Producto'}
+                                    {task.etapa?.producto?.nombre || 'Producto'}
                                   </span>
                                 </td>
                                 <td className="px-6 py-4">
@@ -627,7 +626,7 @@ export default function TareasPage() {
                           <div className="space-y-0.5">
                             <span className="font-bold text-white text-base block">{task.etapa?.nombre}</span>
                             <span className="text-xs text-slate-400 font-normal block">
-                              {task.pedido?.codigo ? `${task.pedido.codigo} • ` : ''}{task.etapa?.producto?.nombre || 'Producto'}
+                              {task.etapa?.producto?.nombre || 'Producto'}
                             </span>
                           </div>
 
@@ -697,7 +696,7 @@ export default function TareasPage() {
                                 <td className="px-6 py-4">
                                   <span className="font-bold text-white text-base block">{task.etapa?.nombre}</span>
                                   <span className="text-sm text-slate-400 font-normal">
-                                    {task.pedido?.codigo ? `${task.pedido.codigo} • ` : ''}{task.etapa?.producto?.nombre || 'Producto'}
+                                    {task.etapa?.producto?.nombre || 'Producto'}
                                   </span>
                                 </td>
                                 <td className="px-6 py-4">
@@ -764,7 +763,7 @@ export default function TareasPage() {
               <div className="flex items-center justify-between border-b border-slate-800 pb-4 mb-4">
                 <div className="flex items-center gap-3">
                   <span className="text-sm font-mono font-extrabold text-white bg-slate-800 px-3 py-1 rounded-lg border border-slate-700">
-                    {viewingTask.pedido?.codigo || 'PED-????'}
+                    Pedido #{viewingTask.pedido?.id}
                   </span>
                   <span
                     className={`text-xs font-extrabold uppercase tracking-wider px-3 py-1 rounded-full ${getStatusBadgeClass(viewingTask.estado)}`}
@@ -823,17 +822,30 @@ export default function TareasPage() {
                     🔒 Tarea Bloqueada
                   </button>
                 ) : viewingTask.estado === 'pendiente' ? (
-                  <button
-                    onClick={async () => {
-                      const taskId = viewingTask.id
-                      setViewingTask(null)
-                      await handleStartTask(taskId)
-                    }}
-                    disabled={actionLoading !== null}
-                    className="bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white text-sm font-extrabold px-5 py-2.5 rounded-xl transition hover:scale-[1.02] active:scale-[0.98]"
-                  >
-                    {actionLoading === viewingTask.id ? 'Iniciando...' : '🚀 Iniciar Tarea'}
-                  </button>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={async () => {
+                        const taskId = viewingTask.id
+                        setViewingTask(null)
+                        await handleStartTask(taskId)
+                      }}
+                      disabled={actionLoading !== null}
+                      className="bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white text-sm font-extrabold px-5 py-2.5 rounded-xl transition hover:scale-[1.02] active:scale-[0.98]"
+                    >
+                      {actionLoading === viewingTask.id ? 'Iniciando...' : '🚀 Iniciar Tarea'}
+                    </button>
+                    <button
+                      onClick={() => {
+                        const t = viewingTask
+                        setViewingTask(null)
+                        handleOpenCompleteModal(t)
+                      }}
+                      disabled={actionLoading !== null}
+                      className="bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-slate-950 text-sm font-extrabold px-5 py-2.5 rounded-xl shadow-lg shadow-amber-500/20 transition hover:scale-[1.02] active:scale-[0.98]"
+                    >
+                      {actionLoading === viewingTask.id ? 'Cargando...' : '✅ Completar Tarea'}
+                    </button>
+                  </div>
                 ) : (
                   <div className="flex gap-2">
                     <button
@@ -870,7 +882,7 @@ export default function TareasPage() {
           <Modal isOpen={!!completingTask} onClose={() => setCompletingTask(null)} className="max-w-md p-6 text-left">
             <h2 className="text-xl font-bold text-white mb-2">Completar Tarea</h2>
             <p className="text-sm text-slate-300 mb-6">
-              Estás a punto de completar la etapa <span className="text-white font-bold">{completingTask.etapa?.nombre}</span> para el pedido <span className="text-white font-bold">{completingTask.pedido?.codigo}</span>. ¿Deseas confirmar la finalización?
+              Estás a punto de completar la etapa <span className="text-white font-bold">{completingTask.etapa?.nombre}</span> para el pedido <span className="text-white font-bold">{completingTask.pedido?.cliente?.nombre_empresa || completingTask.pedido?.cliente?.nombre_cliente || `#${completingTask.pedido?.id}`}</span>. ¿Deseas confirmar la finalización?
             </p>
             <form onSubmit={handleCompleteSubmit}>
               <div className="flex items-center justify-end gap-3">

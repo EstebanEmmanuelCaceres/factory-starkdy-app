@@ -114,6 +114,24 @@ class PedidoController extends Controller
      */
     public function store(Request $request): JsonResponse
     {
+        $messages = [
+            'cliente_id.required_without' => 'Falta seleccionar el cliente.',
+            'cliente_id.exists' => 'El cliente seleccionado no existe en el sistema.',
+            'cliente.nombre_cliente.required_with' => 'Falta el nombre del cliente.',
+            'cliente.nombre_empresa.required_with' => 'Falta la empresa del cliente.',
+            'precio.required' => 'Falta ingresar el precio del pedido.',
+            'precio.numeric' => 'El precio del pedido debe ser un número válido.',
+            'precio.min' => 'El precio del pedido no puede ser negativo.',
+            'fecha_entrega.required' => 'Falta seleccionar la fecha estimada de entrega.',
+            'fecha_entrega.date' => 'La fecha estimada de entrega debe ser una fecha válida.',
+            'prioridad.required' => 'Falta seleccionar la prioridad del pedido.',
+            'prioridad.in' => 'La prioridad seleccionada no es válida.',
+            'codigo.required' => 'Falta el código del pedido.',
+            'codigo.unique' => 'El código del pedido ya existe.',
+            'productos.*.id.exists' => 'Uno de los productos seleccionados no existe.',
+            'productos.*.cantidad.min' => 'La cantidad de cada producto debe ser al menos 1.',
+        ];
+
         $validator = Validator::make($request->all(), [
             'cliente_id' => 'required_without:cliente|nullable|exists:clientes,id',
             'cliente' => 'nullable|array',
@@ -132,8 +150,8 @@ class PedidoController extends Controller
             'cliente.observaciones' => 'nullable|string',
             'codigo' => 'required|string|max:255|unique:pedidos,codigo',
             'prioridad' => 'required|string|in:baja,normal,alta,critica',
-            'fecha_entrega' => 'nullable|date',
-            'precio' => 'nullable|numeric|min:0',
+            'fecha_entrega' => 'required|date',
+            'precio' => 'required|numeric|min:0',
             'comentario' => 'nullable|string',
             'tipo_pago' => 'nullable|string|in:unico,parcial',
             'productos' => 'nullable|array',
@@ -149,12 +167,12 @@ class PedidoController extends Controller
             'asignaciones.*.etapa_id' => 'nullable|integer',
             'asignaciones.*.etapa_temp_id' => 'nullable|string',
             'asignaciones.*.user_id' => 'nullable|integer|exists:users,id',
-        ]);
+        ], $messages);
 
         if ($validator->fails()) {
             return response()->json([
                 'status' => 'error',
-                'message' => 'Error de validación',
+                'message' => implode('. ', $validator->errors()->all()),
                 'errors' => $validator->errors()
             ], 422);
         }
@@ -294,6 +312,15 @@ class PedidoController extends Controller
             ], 404);
         }
 
+        $messages = [
+            'cliente_id.exists' => 'El cliente seleccionado no existe en el sistema.',
+            'precio.numeric' => 'El precio del pedido debe ser un número válido.',
+            'precio.min' => 'El precio del pedido no puede ser negativo.',
+            'fecha_entrega.date' => 'La fecha estimada de entrega debe ser una fecha válida.',
+            'prioridad.in' => 'La prioridad seleccionada no es válida.',
+            'codigo.unique' => 'El código del pedido ya existe.',
+        ];
+
         $validator = Validator::make($request->all(), [
             'cliente_id' => 'sometimes|required|exists:clientes,id',
             'codigo' => 'sometimes|required|string|max:255|unique:pedidos,codigo,' . $pedido->id,
@@ -316,12 +343,12 @@ class PedidoController extends Controller
             'asignaciones.*.etapa_id' => 'nullable|integer',
             'asignaciones.*.etapa_temp_id' => 'nullable|string',
             'asignaciones.*.user_id' => 'nullable|integer|exists:users,id',
-        ]);
+        ], $messages);
 
         if ($validator->fails()) {
             return response()->json([
                 'status' => 'error',
-                'message' => 'Error de validación',
+                'message' => implode('. ', $validator->errors()->all()),
                 'errors' => $validator->errors()
             ], 422);
         }
@@ -476,7 +503,7 @@ class PedidoController extends Controller
                             ->where('etapa_producto_id', $etapaProductoId)
                             ->first();
 
-                        if ($task) {
+                        if ($task && !empty($userId)) {
                             $task->update(['user_id' => $userId]);
                         }
                     }
