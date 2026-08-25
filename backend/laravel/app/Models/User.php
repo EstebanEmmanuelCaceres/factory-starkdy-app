@@ -69,6 +69,16 @@ class User extends Authenticatable
         return $this->role?->slug === 'supervisor';
     }
 
+    public function isEncargado(): bool
+    {
+        return in_array($this->role?->slug, ['encargado', 'supervisor']);
+    }
+
+    public function isAdminOrEncargado(): bool
+    {
+        return $this->isAdmin() || $this->isEncargado();
+    }
+
     public function isOperator(): bool
     {
         return in_array($this->role?->slug, ['operario', 'operator']);

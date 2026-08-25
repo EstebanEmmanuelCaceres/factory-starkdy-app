@@ -22,7 +22,7 @@ api.interceptors.request.use((config) => {
   return config
 })
 
-// ── Interceptor de RESPONSE: manejar errores 401 ───────────────
+// ── Interceptor de RESPONSE: manejar errores 401 y formatear validation errors ───────────────
 api.interceptors.response.use(
   (response) => response,
   (error) => {
@@ -33,12 +33,40 @@ api.interceptors.response.use(
       window.location.href = '/login'
     }
 
-    // Extraer mensaje de error legible
-    const message =
-      error.response?.data?.message ||
-      error.response?.data?.errors?.email?.[0] ||
-      error.message ||
-      'Error desconocido'
+    // Extraer mensajes de validación de Laravel o mensaje general
+    let message = ''
+
+    if (error.response?.data?.errors && typeof error.response.data.errors === 'object') {
+      const errObj = error.response.data.errors
+      const messagesList: string[] = []
+      Object.keys(errObj).forEach((key) => {
+        const val = errObj[key]
+        if (Array.isArray(val)) {
+          messagesList.push(...val)
+        } else if (typeof val === 'string') {
+          messagesList.push(val)
+        }
+      })
+      if (messagesList.length > 0) {
+        message = messagesList.join('. ')
+      }
+    }
+
+    if (!message) {
+      message =
+        error.response?.data?.message ||
+        error.message ||
+        'Error al procesar la solicitud'
+    }
+
+    // Ocultar mensajes de excepciones técnicas SQL
+    if (
+      message.includes('SQLSTATE') ||
+      message.includes('Connection:') ||
+      message.includes('not-null constraint')
+    ) {
+      message = 'Error en el servidor: Verifique que todos los datos obligatorios del pedido estén completos.'
+    }
 
     return Promise.reject(new Error(message))
   }

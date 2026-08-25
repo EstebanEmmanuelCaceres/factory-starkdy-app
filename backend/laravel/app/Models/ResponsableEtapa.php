@@ -69,6 +69,18 @@ class ResponsableEtapa extends Model
 
     protected static function booted()
     {
+        static::creating(function ($task) {
+            if (empty($task->user_id)) {
+                $adminUser = User::whereHas('role', function ($q) {
+                    $q->where('slug', 'admin');
+                })->first() ?? User::first();
+
+                if ($adminUser) {
+                    $task->user_id = $adminUser->id;
+                }
+            }
+        });
+
         static::created(function ($task) {
             self::logStateChange($task, null, $task->estado, 'Creación automática/manual de tarea');
         });

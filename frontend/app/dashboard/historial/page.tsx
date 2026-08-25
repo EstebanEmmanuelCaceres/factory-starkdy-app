@@ -24,10 +24,9 @@ export default function HistorialPage() {
       const user = getStoredUser()
       setCurrentUser(user)
 
-      // Cargar únicamente usuarios con rol de operario
+      // Cargar todos los usuarios para los filtros
       const usersData = await fetchUsers()
-      const operariosOnly = usersData.filter(u => u.role === 'operario' || u.role === 'operator')
-      setOperarios(operariosOnly)
+      setOperarios(usersData)
 
       const targetUserId = overrideUserId !== undefined ? overrideUserId : selectedUserId
       const targetDesde = overrideDesde !== undefined ? overrideDesde : fechaDesde
@@ -180,7 +179,7 @@ export default function HistorialPage() {
                 <table className="w-full text-left border-collapse">
                   <thead>
                     <tr className="border-b border-slate-800 bg-slate-950/60 text-slate-400 font-bold text-sm uppercase tracking-wider">
-                      <th className="px-6 py-4">Código Pedido</th>
+                      <th className="px-6 py-4">Pedido</th>
                       <th className="px-6 py-4">Empresa</th>
                       <th className="px-6 py-4">Etapa</th>
                       <th className="px-6 py-4">Producto</th>
@@ -191,7 +190,7 @@ export default function HistorialPage() {
                   <tbody className="divide-y divide-slate-800 text-base font-medium text-slate-200">
                     {historial.map((reg) => (
                       <tr key={reg.id} className="hover:bg-slate-800/50 transition">
-                        <td className="px-6 py-4 font-mono font-bold text-base text-blue-400">{reg.pedido?.codigo || '-'}</td>
+                        <td className="px-6 py-4 font-mono font-bold text-base text-blue-400">#{reg.pedido?.id}</td>
                         <td className="px-6 py-4 font-bold text-white text-base">
                           {reg.pedido?.cliente?.nombre_empresa || reg.pedido?.cliente?.nombre_cliente || 'N/A'}
                         </td>

@@ -3,6 +3,8 @@
 import { useEffect, useState, useRef } from 'react'
 import RoleGuard from '@/components/RoleGuard'
 import Modal from '@/components/Modal'
+import PedidoDetailModal from '@/components/PedidoDetailModal'
+import OrderImageGallery from '@/components/OrderImageGallery'
 import { fetchUsers, getStoredUser, type User } from '@/lib/auth'
 import { fetchPedidos, updatePedido, createPedidoComentario, type Pedido, type PedidoFilters } from '@/lib/pedidos'
 
@@ -15,8 +17,10 @@ export default function DashboardPage() {
   const [error, setError] = useState('')
   const [currentUser, setCurrentUser] = useState<User | null>(null)
 
-  // Modal de Detalle y Comentarios del Pedido (Tabla Adyacente)
+  // Modal de Detalle Completo del Pedido y Galería de Imágenes
   const [selectedPedidoForCommentModal, setSelectedPedidoForCommentModal] = useState<Pedido | null>(null)
+  const [isImagesModalOpen, setIsImagesModalOpen] = useState(false)
+  const [selectedPedidoForImages, setSelectedPedidoForImages] = useState<Pedido | null>(null)
   const [nuevoComentario, setNuevoComentario] = useState('')
   const [isSubmittingComment, setIsSubmittingComment] = useState(false)
 
@@ -54,7 +58,7 @@ export default function DashboardPage() {
   })
 
   // Estado para ordenamiento ASC/DESC
-  const [sortField, setSortField] = useState<'codigo' | 'created_at' | 'cliente' | 'estado'>('created_at')
+  const [sortField, setSortField] = useState<'created_at' | 'cliente' | 'estado'>('created_at')
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc')
 
   // Paginación para vista Mobile de Pedidos y Completados por Cobrar (Límite de 5 tarjetas por página)
@@ -157,9 +161,6 @@ export default function DashboardPage() {
     if (sortField === 'cliente') {
       valA = (a.cliente?.nombre_cliente || a.cliente?.nombre_empresa || '').toLowerCase()
       valB = (b.cliente?.nombre_cliente || b.cliente?.nombre_empresa || '').toLowerCase()
-    } else if (sortField === 'codigo') {
-      valA = (a.codigo || '').toLowerCase()
-      valB = (b.codigo || '').toLowerCase()
     } else if (sortField === 'created_at') {
       valA = new Date(a.created_at).getTime()
       valB = new Date(b.created_at).getTime()
@@ -545,9 +546,6 @@ export default function DashboardPage() {
                                     </div>
                                   )}
                                   <div>
-                                    <span className="text-[11px] font-mono font-bold text-white bg-slate-900 border border-slate-800 px-2 py-0.5 rounded inline-block mb-1">
-                                      {pedido.codigo}
-                                    </span>
                                     <h3 className="font-bold text-white text-sm block leading-tight">
                                       {pedido.cliente?.nombre_empresa || pedido.cliente?.nombre_cliente || 'Sin empresa'}
                                     </h3>
@@ -640,15 +638,6 @@ export default function DashboardPage() {
                           <th className="px-4 py-3 text-center">Portada</th>
                           <th
                             onClick={() => {
-                              if (sortField === 'codigo') setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc')
-                              else { setSortField('codigo'); setSortOrder('asc') }
-                            }}
-                            className="px-4 py-3 cursor-pointer hover:text-white transition"
-                          >
-                            Código {sortField === 'codigo' && (sortOrder === 'asc' ? '↑' : '↓')}
-                          </th>
-                          <th
-                            onClick={() => {
                               if (sortField === 'cliente') setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc')
                               else { setSortField('cliente'); setSortOrder('asc') }
                             }}
@@ -712,7 +701,6 @@ export default function DashboardPage() {
                                   </div>
                                 )}
                               </td>
-                              <td className="px-4 py-3 font-mono font-bold text-white text-xs">{pedido.codigo}</td>
                               <td className="px-4 py-3">
                                 <span className="font-semibold text-white text-xs">
                                   {pedido.cliente?.nombre_empresa || pedido.cliente?.nombre_cliente || 'Sin empresa'}
@@ -822,7 +810,6 @@ export default function DashboardPage() {
                               >
                                 <div className="flex items-start justify-between gap-2">
                                   <div>
-                                    <span className="text-[10px] font-mono text-slate-400 block">{pedido.codigo}</span>
                                     <h3 className="font-bold text-white text-sm leading-tight mt-0.5">
                                       {pedido.cliente?.nombre_cliente || 'Sin cliente'}
                                     </h3>
@@ -909,7 +896,6 @@ export default function DashboardPage() {
                                   <div className="flex flex-col">
                                     <span className="font-semibold text-white text-xs">{pedido.cliente?.nombre_cliente || 'Sin cliente'}</span>
                                     <span className="text-[11px] text-slate-400">{pedido.cliente?.nombre_empresa || 'Empresa'}</span>
-                                    <span className="text-[10px] text-slate-500 font-mono mt-0.5">{pedido.codigo}</span>
                                   </div>
                                 </td>
                                 <td className="px-4 py-3 text-right">
@@ -942,149 +928,59 @@ export default function DashboardPage() {
           )}
         </div>
 
-        {/* Modal de Detalle y Comentarios del Pedido */}
-        <Modal
+        {/* Modal de Detalle Completo del Pedido */}
+        <PedidoDetailModal
+          pedido={selectedPedidoForCommentModal}
           isOpen={!!selectedPedidoForCommentModal}
-          onClose={() => {
-            setSelectedPedidoForCommentModal(null)
-            setNuevoComentario('')
+          onClose={() => setSelectedPedidoForCommentModal(null)}
+          onUpdatePedido={(updated) => {
+            setSelectedPedidoForCommentModal(updated)
+            setPedidos((prev) => prev.map((item) => (item.id === updated.id ? updated : item)))
           }}
-          className="max-w-2xl p-6"
-        >
-          {selectedPedidoForCommentModal && (() => {
-            const p = selectedPedidoForCommentModal
-            const precio = Number(p.precio) || 0
-            const paidAmount = p.pagos
-              ? p.pagos.filter((pay) => pay.estado === 'pagado').reduce((s, pay) => s + Number(pay.monto), 0)
-              : (p.pago && p.pago.estado === 'pagado' ? Number(p.pago.monto) : 0)
-            const pending = Math.max(0, precio - paidAmount)
+          onOpenGallery={(p) => {
+            setSelectedPedidoForImages(p)
+            setIsImagesModalOpen(true)
+          }}
+        />
 
-            return (
-              <div className="space-y-5 text-left relative">
-                {/* Botón cerrar */}
-                <button
-                  onClick={() => {
-                    setSelectedPedidoForCommentModal(null)
-                    setNuevoComentario('')
-                  }}
-                  className="absolute top-0 right-0 text-slate-400 hover:text-white text-lg font-bold p-1 rounded-lg hover:bg-slate-800 transition"
-                >
-                  ✕
-                </button>
-
-                {/* Encabezado */}
-                <div>
-                  <div className="flex items-center gap-3">
-                    <span className="font-mono text-lg font-black text-white">{p.codigo}</span>
-                    <select
-                      value={p.estado}
-                      onChange={async (e) => {
-                        try {
-                          const newEstado = e.target.value
-                          const updated = await updatePedido(p.id, { estado: newEstado })
-                          setSelectedPedidoForCommentModal(prev => prev ? { ...prev, estado: updated.estado } : null)
-                          setPedidos(prev => prev.map(item => item.id === updated.id ? { ...item, estado: updated.estado } : item))
-                        } catch (err: unknown) {
-                          console.error('Error al cambiar estado:', err)
-                        }
-                      }}
-                      className="bg-slate-950 border border-slate-800 text-xs font-bold text-blue-400 rounded-lg px-2.5 py-1 focus:outline-none focus:border-blue-500 cursor-pointer"
-                    >
-                      <option value="pendiente">Pendiente</option>
-                      <option value="en_progreso">En Progreso</option>
-                      <option value="completado">Completado</option>
-                      <option value="completado_pd">Completado - Pendiente de pago (PD)</option>
-                      <option value="enviado_faltante">Enviado con faltante</option>
-                      <option value="cancelado">Cancelado</option>
-                    </select>
-                  </div>
-                  <p className="text-xs text-slate-400 mt-1">
-                    Cliente: <span className="text-white font-semibold">{p.cliente?.nombre_cliente} ({p.cliente?.nombre_empresa})</span>
-                    {p.cliente?.telefono && ` • Tel: ${p.cliente.telefono}`}
-                  </p>
-                </div>
-
-                {/* Resumen Financiero */}
-                <div className="grid grid-cols-3 gap-3 bg-slate-950/60 p-3 rounded-xl border border-slate-800">
-                  <div>
-                    <span className="text-[10px] text-slate-500 uppercase font-semibold block">Total Pedido</span>
-                    <span className="text-xs font-bold text-white font-mono">{formatCurrency(precio)}</span>
-                  </div>
-                  <div>
-                    <span className="text-[10px] text-slate-500 uppercase font-semibold block">Total Cobrado</span>
-                    <span className="text-xs font-bold text-emerald-400 font-mono">{formatCurrency(paidAmount)}</span>
-                  </div>
-                  <div>
-                    <span className="text-[10px] text-slate-500 uppercase font-semibold block">Saldo Pendiente</span>
-                    <span className="text-xs font-bold text-amber-400 font-mono">{formatCurrency(pending)}</span>
-                  </div>
-                </div>
-
-                {/* Sección de Comentarios */}
-                <div className="space-y-3 pt-2 border-t border-slate-800">
-                  <h3 className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-2">
-                    <span>💬</span> Comentarios del Pedido
-                  </h3>
-
-                  {/* Formulario de Nuevo Comentario */}
-                  <div className="space-y-2">
-                    <textarea
-                      value={nuevoComentario}
-                      onChange={(e) => setNuevoComentario(e.target.value)}
-                      placeholder="Escribe una nota o comentario sobre el cobro / cliente..."
-                      className="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 transition resize-none h-20"
-                    />
-                    <div className="flex justify-end">
-                      <button
-                        type="button"
-                        disabled={!nuevoComentario.trim() || isSubmittingComment}
-                        onClick={async () => {
-                          try {
-                            setIsSubmittingComment(true)
-                            const comment = await createPedidoComentario(p.id, nuevoComentario)
-                            const updatedComments = [comment, ...(p.comentarios || [])]
-                            const updatedPedido = { ...p, comentarios: updatedComments }
-                            setSelectedPedidoForCommentModal(updatedPedido)
-                            setPedidos(prev => prev.map(item => item.id === updatedPedido.id ? updatedPedido : item))
-                            setNuevoComentario('')
-                          } catch (err: any) {
-                            console.error("Error al publicar comentario:", err)
-                          } finally {
-                            setIsSubmittingComment(false)
-                          }
-                        }}
-                        className="px-4 py-1.5 bg-blue-600 hover:bg-blue-500 disabled:bg-slate-800 disabled:text-slate-600 text-white rounded-lg text-xs font-semibold transition"
-                      >
-                        {isSubmittingComment ? 'Publicando...' : '💬 Publicar Comentario'}
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Lista de Comentarios Existentes */}
-                  <div className="max-h-48 overflow-y-auto space-y-2 pr-1 pt-1">
-                    {(!p.comentarios || p.comentarios.length === 0) ? (
-                      <p className="text-xs text-slate-500 italic text-center py-4 bg-slate-950/20 rounded-lg">
-                        No hay comentarios en este pedido todavía.
-                      </p>
-                    ) : (
-                      p.comentarios.map((c) => (
-                        <div key={c.id} className="bg-slate-950/40 border border-slate-800/80 p-3 rounded-lg text-left space-y-1">
-                          <div className="flex items-center justify-between text-[10px]">
-                            <span className="font-bold text-slate-300">{c.user?.name || 'Usuario'}</span>
-                            <span className="text-slate-500 font-mono">
-                              {new Date(c.created_at).toLocaleDateString('es-AR')} {new Date(c.created_at).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}
-                            </span>
-                          </div>
-                          <p className="text-xs text-slate-200 leading-relaxed break-words">{c.cuerpo}</p>
-                        </div>
-                      ))
-                    )}
-                  </div>
-                </div>
+        {/* Modal de Gestión de Imágenes del Pedido */}
+        {isImagesModalOpen && selectedPedidoForImages && (
+          <Modal
+            isOpen={isImagesModalOpen}
+            onClose={() => {
+              setIsImagesModalOpen(false)
+              fetchPedidos().then(setPedidos).catch(console.error)
+            }}
+            className="max-w-4xl p-6 flex flex-col text-slate-300"
+          >
+            <div className="flex justify-between items-center pb-4 border-b border-slate-800 mb-4">
+              <div>
+                <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                  <span>🖼️</span> Galería de Imágenes y Planos del Pedido
+                </h2>
+                <p className="text-xs text-slate-400">
+                  Administra la portada e imágenes secundarias del pedido: <span className="text-blue-400 font-semibold">{selectedPedidoForImages.cliente?.nombre_empresa || selectedPedidoForImages.cliente?.nombre_cliente || `#${selectedPedidoForImages.id}`}</span>
+                </p>
               </div>
-            )
-          })()}
-        </Modal>
+              <button
+                onClick={() => {
+                  setIsImagesModalOpen(false)
+                  fetchPedidos().then(setPedidos).catch(console.error)
+                }}
+                className="text-slate-400 hover:text-white text-lg font-bold p-1"
+                title="Cerrar modal"
+              >
+                ✕
+              </button>
+            </div>
+
+            <OrderImageGallery
+              orderId={selectedPedidoForImages.id}
+              orderCode={selectedPedidoForImages.codigo}
+              onImagesUpdated={() => fetchPedidos().then(setPedidos).catch(console.error)}
+            />
+          </Modal>
+        )}
       </main>
     </RoleGuard>
   )
