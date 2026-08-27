@@ -12,9 +12,14 @@ abstract class TestCase extends BaseTestCase
             $this->refreshApplication();
         }
 
+        $testDb = database_path('database_test.sqlite');
+        if (!file_exists($testDb)) {
+            @touch($testDb);
+        }
+
         config([
             'database.default' => 'sqlite',
-            'database.connections.sqlite.database' => database_path('database_test.sqlite'),
+            'database.connections.sqlite.database' => $testDb,
         ]);
 
         parent::setUp();
