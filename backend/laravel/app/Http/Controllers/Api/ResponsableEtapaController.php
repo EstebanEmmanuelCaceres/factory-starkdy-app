@@ -45,9 +45,9 @@ class ResponsableEtapaController extends Controller
             $desde = $request->input('fecha_desde');
             $query->where(function ($q) use ($desde) {
                 $q->whereDate('fecha_fin', '>=', $desde)
-                  ->orWhere(function ($q2) use ($desde) {
-                      $q2->whereNull('fecha_fin')->whereDate('updated_at', '>=', $desde);
-                  });
+                    ->orWhere(function ($q2) use ($desde) {
+                        $q2->whereNull('fecha_fin')->whereDate('updated_at', '>=', $desde);
+                    });
             });
         }
 
@@ -55,9 +55,9 @@ class ResponsableEtapaController extends Controller
             $hasta = $request->input('fecha_hasta');
             $query->where(function ($q) use ($hasta) {
                 $q->whereDate('fecha_fin', '<=', $hasta)
-                  ->orWhere(function ($q2) use ($hasta) {
-                      $q2->whereNull('fecha_fin')->whereDate('updated_at', '<=', $hasta);
-                  });
+                    ->orWhere(function ($q2) use ($hasta) {
+                        $q2->whereNull('fecha_fin')->whereDate('updated_at', '<=', $hasta);
+                    });
             });
         }
 
@@ -130,6 +130,26 @@ class ResponsableEtapaController extends Controller
             ], 422);
         }
 
+        $requestedEstado = $request->input('estado');
+
+        $existingTask = ResponsableEtapa::where('pedido_id', $pedido->id)
+            ->where('etapa_producto_id', $etapaProducto->id)
+            ->first();
+
+        if ($requestedEstado === 'completado') {
+            $tempTask = $existingTask ?? new ResponsableEtapa([
+                'pedido_id' => $pedido->id,
+                'etapa_producto_id' => $etapaProducto->id,
+            ]);
+
+            if ($tempTask->isBlockedByDependencies()) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'No puedes completar esta etapa porque requiere que se completen las etapas previas'
+                ], 422);
+            }
+        }
+
         // 3. Crear o actualizar la asignación de la tarea
         $asignacion = ResponsableEtapa::updateOrCreate(
             [
@@ -138,7 +158,7 @@ class ResponsableEtapaController extends Controller
             ],
             [
                 'user_id' => $user?->id,
-                'estado' => $request->input('estado', 'pendiente'),
+                'estado' => $requestedEstado ?? ($existingTask ? $existingTask->estado : 'pendiente'),
             ]
         );
 

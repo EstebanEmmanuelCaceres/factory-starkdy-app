@@ -110,44 +110,38 @@ class ResponsableEtapa extends Model
         ]);
     }
 
-    public static function unblockDependentTasks($task)
+    public function isBlockedByDependencies(): bool
     {
-        // Obtener etapas_productos que dependen directamente de la etapa que acabamos de completar
-        $dependentEtapaProductoIds = \DB::table('etapa_producto_dependencias')
-            ->where('depende_de_etapa_producto_id', $task->etapa_producto_id)
-            ->pluck('etapa_producto_id')
+        $requiredEtapaProductoIds = \DB::table('etapa_producto_dependencias')
+            ->where('etapa_producto_id', $this->etapa_producto_id)
+            ->pluck('depende_de_etapa_producto_id')
             ->toArray();
-            
-        if (empty($dependentEtapaProductoIds)) {
-            return;
-        }
 
-        // Para cada etapa dependiente, verificar si todas sus dependencias están completadas para este pedido
-        foreach ($dependentEtapaProductoIds as $etapaProductoId) {
-            // Obtener todas las etapas previas de las que depende esta etapa
-            $requiredEtapaProductoIds = \DB::table('etapa_producto_dependencias')
-                ->where('etapa_producto_id', $etapaProductoId)
-                ->pluck('depende_de_etapa_producto_id')
-                ->toArray();
-                
-            // Contar cuántas de estas dependencias ya están en estado 'completado' para este pedido
-            $completedCount = self::where('pedido_id', $task->pedido_id)
+        if (!empty($requiredEtapaProductoIds)) {
+            $completedCount = self::where('pedido_id', $this->pedido_id)
                 ->whereIn('etapa_producto_id', $requiredEtapaProductoIds)
                 ->where('estado', 'completado')
                 ->count();
-                
-            // Si el número de dependencias completadas coincide con el total de dependencias requeridas
-            if ($completedCount === count($requiredEtapaProductoIds)) {
-                // Desbloquear la tarea
-                $dependentTask = self::where('pedido_id', $task->pedido_id)
-                    ->where('etapa_producto_id', $etapaProductoId)
-                    ->first();
-                    
-                if ($dependentTask && $dependentTask->estado === 'bloqueada') {
-                    $dependentTask->update([
-                        'estado' => 'pendiente'
-                    ]);
-                }
+
+            if ($completedCount < count($requiredEtapaProductoIds)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    public static function unblockDependentTasks($task)
+    {
+        $blockedTasks = self::where('pedido_id', $task->pedido_id)
+            ->where('estado', 'bloqueada')
+            ->get();
+
+        foreach ($blockedTasks as $bTask) {
+            if (!$bTask->isBlockedByDependencies()) {
+                $bTask->update([
+                    'estado' => 'pendiente'
+                ]);
             }
         }
     }

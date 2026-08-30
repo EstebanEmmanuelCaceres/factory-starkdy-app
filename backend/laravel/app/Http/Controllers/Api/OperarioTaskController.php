@@ -112,7 +112,10 @@ class OperarioTaskController extends Controller
             ], 404);
         }
 
-        if ($task->estado === 'bloqueada') {
+        if ($task->estado === 'bloqueada' || $task->isBlockedByDependencies()) {
+            if ($task->estado !== 'bloqueada') {
+                $task->update(['estado' => 'bloqueada']);
+            }
             return response()->json([
                 'status' => 'error',
                 'message' => 'Esta tarea se encuentra bloqueada porque requiere que se completen las etapas previas'
@@ -159,6 +162,16 @@ class OperarioTaskController extends Controller
             ], 404);
         }
 
+        if ($task->estado === 'bloqueada' || $task->isBlockedByDependencies()) {
+            if ($task->estado !== 'bloqueada') {
+                $task->update(['estado' => 'bloqueada']);
+            }
+            return response()->json([
+                'status' => 'error',
+                'message' => 'No puedes completar esta etapa porque requiere que se completen las etapas previas'
+            ], 422);
+        }
+
         if ($task->estado === 'completado') {
             return response()->json([
                 'status' => 'error',
@@ -201,10 +214,10 @@ class OperarioTaskController extends Controller
             'etapaProducto.producto',
             'etapaProducto.etapa'
         ])
-        ->where('user_id', $userId)
-        ->where('estado', 'completado')
-        ->orderBy('fecha_fin', 'desc')
-        ->get();
+            ->where('user_id', $userId)
+            ->where('estado', 'completado')
+            ->orderBy('fecha_fin', 'desc')
+            ->get();
 
         foreach ($historial as $task) {
             $ep = $task->etapaProducto;

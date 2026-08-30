@@ -268,24 +268,11 @@ export default function PedidoDetailModal({
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      className="max-w-4xl p-6 flex flex-col"
+      className="max-w-4xl !p-0 flex flex-col max-h-[90vh] overflow-hidden"
     >
-      {/* Notificación rápida */}
-      {notification && (
-        <div className="mb-4 bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 px-4 py-2 rounded-xl text-xs font-semibold text-center animate-in fade-in">
-          ✓ {notification}
-        </div>
-      )}
-
-      {error && (
-        <div className="mb-4 bg-rose-500/10 border border-rose-500/20 text-rose-300 px-4 py-2 rounded-xl text-xs font-semibold text-center animate-in fade-in">
-          ⚠️ {error}
-        </div>
-      )}
-
       {/* Header de Imagen / Portada */}
       {coverUrl && (
-        <div className="-mx-6 -mt-6 mb-5 relative h-64 sm:h-80 md:h-[420px] min-h-[280px] sm:min-h-[350px] md:min-h-[420px] bg-slate-950/90 border-b border-slate-800/80 flex items-center justify-center overflow-hidden rounded-t-2xl group">
+        <div className="relative h-64 sm:h-80 md:h-[420px] min-h-[280px] sm:min-h-[350px] md:min-h-[420px] bg-slate-950/90 border-b border-slate-800/80 flex items-center justify-center overflow-hidden rounded-t-2xl group flex-shrink-0">
           <div
             className="absolute inset-0 bg-cover bg-center opacity-25 blur-2xl scale-110 pointer-events-none"
             style={{ backgroundImage: `url(${coverUrl})` }}
@@ -296,7 +283,7 @@ export default function PedidoDetailModal({
             alt={`Portada Pedido #${currentPedido.id}`}
             className="relative z-10 max-h-full max-w-full object-contain p-4 transition duration-200"
             onError={(e) => {
-              ;(e.target as HTMLImageElement).src =
+              ; (e.target as HTMLImageElement).src =
                 "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200' viewBox='0 0 200 200'><rect width='200' height='200' fill='%230f172a'/><text x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' fill='%2364748b' font-family='sans-serif' font-size='13'>Imagen no disponible</text></svg>"
             }}
           />
@@ -315,8 +302,23 @@ export default function PedidoDetailModal({
         </div>
       )}
 
-      {/* Header del Modal */}
-      <div className="border-b border-slate-800 pb-4 mb-4 space-y-4">
+      {/* Contenedor con Scroll de toda la Segunda Parte */}
+      <div className="flex-1 overflow-y-auto p-6 space-y-6 min-h-0 text-slate-300">
+        {/* Notificación rápida */}
+        {notification && (
+          <div className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 px-4 py-2 rounded-xl text-xs font-semibold text-center animate-in fade-in">
+            ✓ {notification}
+          </div>
+        )}
+
+        {error && (
+          <div className="bg-rose-500/10 border border-rose-500/20 text-rose-300 px-4 py-2 rounded-xl text-xs font-semibold text-center animate-in fade-in">
+            ⚠️ {error}
+          </div>
+        )}
+
+        {/* Header del Modal */}
+        <div className="border-b border-slate-800 pb-4 space-y-4">
         {/* Fila Superior: Título + Estado a la izquierda, Acciones a la derecha */}
         <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 pr-8">
           <div className="text-left space-y-1.5 min-w-0">
@@ -466,7 +468,7 @@ export default function PedidoDetailModal({
       </div>
 
       {/* Cuerpo Principal: Dos Columnas */}
-      <div className="grid grid-cols-1 md:grid-cols-12 gap-6 flex-grow overflow-y-auto">
+      <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
         {/* Columna Izquierda (8 cols) */}
         <div className="md:col-span-8 space-y-6 text-left">
           {/* Sección: Descripción */}
@@ -568,16 +570,42 @@ export default function PedidoDetailModal({
                               </span>
                             </div>
                             {currentInfo.task?.estado !== 'completado' && currentPedido.estado !== 'pendiente' && (
-                              <button
-                                type="button"
-                                disabled={completingTaskId === (currentInfo.task?.id || currentInfo.stage.id)}
-                                onClick={() => handleCompleteTask(currentInfo.task || null, currentInfo.stage)}
-                                className="mt-1 bg-emerald-600 hover:bg-emerald-500 active:scale-95 disabled:opacity-50 text-white text-xs font-extrabold px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition shadow cursor-pointer"
-                                title="Marcar etapa como completada"
-                              >
-                                <span>✓</span>
-                                <span>{completingTaskId === (currentInfo.task?.id || currentInfo.stage.id) ? 'Guardando...' : 'Completar Etapa'}</span>
-                              </button>
+                              (() => {
+                                const explicitDepIds = (currentInfo.stage as any).dependencias?.map((d: any) => d.id) || []
+                                const isBlockedByExplicitDeps = explicitDepIds.some((depId: number) => {
+                                  const depTask = assignments.find(
+                                    (t) =>
+                                      t.pedido_id === currentPedido.id &&
+                                      ((t as any).etapa_producto_id === depId ||
+                                        t.etapa_id === depId ||
+                                        t.etapa?.id === depId)
+                                  )
+                                  return (depTask?.estado || 'pendiente') !== 'completado'
+                                })
+
+                                const isCurrentBlocked = currentInfo.task?.estado === 'bloqueada' || isBlockedByExplicitDeps
+
+                                if (isCurrentBlocked) {
+                                  return (
+                                    <span className="mt-1 text-[10px] font-bold text-rose-400 bg-rose-500/10 border border-rose-500/20 px-2.5 py-1 rounded-lg flex items-center gap-1 shadow-sm">
+                                      🔒 Requiere etapa previa
+                                    </span>
+                                  )
+                                }
+
+                                return (
+                                  <button
+                                    type="button"
+                                    disabled={completingTaskId === (currentInfo.task?.id || currentInfo.stage.id)}
+                                    onClick={() => handleCompleteTask(currentInfo.task || null, currentInfo.stage)}
+                                    className="mt-1 bg-emerald-600 hover:bg-emerald-500 active:scale-95 disabled:opacity-50 text-white text-xs font-extrabold px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition shadow cursor-pointer"
+                                    title="Marcar etapa como completada"
+                                  >
+                                    <span>✓</span>
+                                    <span>{completingTaskId === (currentInfo.task?.id || currentInfo.stage.id) ? 'Guardando...' : 'Completar Etapa'}</span>
+                                  </button>
+                                )
+                              })()
                             )}
                           </div>
                         ) : (
@@ -626,30 +654,44 @@ export default function PedidoDetailModal({
                                   )
                                   const state = task?.estado || 'pendiente'
 
+                                  const explicitDepIds = (stage as any).dependencias?.map((d: any) => d.id) || []
+                                  const isBlockedByExplicitDeps = explicitDepIds.some((depId: number) => {
+                                    const depTask = assignments.find(
+                                      (t) =>
+                                        t.pedido_id === currentPedido.id &&
+                                        ((t as any).etapa_producto_id === depId ||
+                                          t.etapa_id === depId ||
+                                          t.etapa?.id === depId)
+                                    )
+                                    return (depTask?.estado || 'pendiente') !== 'completado'
+                                  })
+
+                                  const isBlockedNode = state === 'bloqueada' || isBlockedByExplicitDeps
+
                                   let nodeBg = 'bg-slate-900 border-slate-800 text-slate-400'
                                   let stateLabel = 'Pendiente'
                                   if (state === 'completado') {
                                     nodeBg =
                                       'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
                                     stateLabel = 'Completado'
+                                  } else if (isBlockedNode) {
+                                    nodeBg = 'bg-rose-500/10 border-rose-500/30 text-rose-400'
+                                    stateLabel = 'Bloqueada'
                                   } else if (state === 'en_progreso') {
                                     nodeBg =
                                       'bg-blue-500/10 border-blue-500/30 text-blue-400 shadow-[0_0_8px_rgba(59,130,246,0.15)] animate-pulse'
                                     stateLabel = 'En Progreso'
-                                  } else if (state === 'bloqueada') {
-                                    nodeBg = 'bg-rose-500/10 border-rose-500/30 text-rose-400'
-                                    stateLabel = 'Bloqueada'
                                   }
 
                                   const completionDate =
                                     state === 'completado' && (task?.fecha_fin || task?.updated_at)
                                       ? new Date(
-                                          task.fecha_fin || task.updated_at
-                                        ).toLocaleDateString('es-ES', {
-                                          day: 'numeric',
-                                          month: 'short',
-                                          year: 'numeric'
-                                        })
+                                        task.fecha_fin || task.updated_at
+                                      ).toLocaleDateString('es-ES', {
+                                        day: 'numeric',
+                                        month: 'short',
+                                        year: 'numeric'
+                                      })
                                       : null
 
                                   return (
@@ -681,16 +723,26 @@ export default function PedidoDetailModal({
                                           </span>
                                         )}
                                         {state !== 'completado' && currentPedido.estado !== 'pendiente' && (
-                                          <button
-                                            type="button"
-                                            disabled={completingTaskId === (task?.id || stage.id)}
-                                            onClick={() => handleCompleteTask(task || null, stage)}
-                                            className="mt-2 w-full text-[10px] font-extrabold px-2 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 active:scale-95 disabled:opacity-50 text-white transition shadow flex items-center justify-center gap-1 cursor-pointer"
-                                            title="Completar esta etapa"
-                                          >
-                                            <span>✓</span>
-                                            <span>{completingTaskId === (task?.id || stage.id) ? 'Completo...' : 'Completar'}</span>
-                                          </button>
+                                          !isBlockedNode ? (
+                                            <button
+                                              type="button"
+                                              disabled={completingTaskId === (task?.id || stage.id)}
+                                              onClick={() => handleCompleteTask(task || null, stage)}
+                                              className="mt-2 w-full text-[10px] font-extrabold px-2 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 active:scale-95 disabled:opacity-50 text-white transition shadow flex items-center justify-center gap-1 cursor-pointer"
+                                              title="Completar esta etapa"
+                                            >
+                                              <span>✓</span>
+                                              <span>{completingTaskId === (task?.id || stage.id) ? 'Completo...' : 'Completar'}</span>
+                                            </button>
+                                          ) : (
+                                            <div
+                                              className="mt-2 w-full text-[10px] font-semibold px-2 py-1 rounded-lg bg-slate-900/90 text-rose-400/80 border border-rose-500/20 flex items-center justify-center gap-1 opacity-80"
+                                              title="Esta etapa requiere que se completen las etapas de las que depende"
+                                            >
+                                              <span>🔒</span>
+                                              <span>Bloqueada</span>
+                                            </div>
+                                          )
                                         )}
                                       </div>
 
@@ -733,7 +785,7 @@ export default function PedidoDetailModal({
         </div>
 
         {/* Columna Derecha - Comentarios y Actividad */}
-        <div className="md:col-span-4 border-t md:border-t-0 md:border-l border-slate-800 pt-6 md:pt-0 md:pl-6 flex flex-col max-h-[60vh] md:max-h-full">
+        <div className="md:col-span-4 border-t md:border-t-0 md:border-l border-slate-800 pt-6 md:pt-0 md:pl-6 flex flex-col">
           <h3 className="text-sm font-bold text-white flex items-center gap-2 mb-3 text-left">
             <span>💬</span> Comentarios y Actividad
           </h3>
@@ -755,7 +807,7 @@ export default function PedidoDetailModal({
             </button>
           </div>
 
-          <div className="space-y-3 overflow-y-auto flex-grow pr-1 max-h-[30vh] md:max-h-[45vh]">
+          <div className="space-y-3 flex-grow">
             {!currentPedido.comentarios || currentPedido.comentarios.length === 0 ? (
               <p className="text-xs text-slate-500 italic text-center py-4">
                 No hay comentarios en este pedido todavía.
@@ -783,6 +835,7 @@ export default function PedidoDetailModal({
           </div>
         </div>
       </div>
-    </Modal>
+    </div>
+  </Modal>
   )
 }
