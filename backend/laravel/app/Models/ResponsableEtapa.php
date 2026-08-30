@@ -128,12 +128,21 @@ class ResponsableEtapa extends Model
             }
         }
 
+        if ($this->estado === 'bloqueada') {
+            $this->update(['estado' => 'pendiente']);
+        }
+
         return false;
     }
 
     public static function unblockDependentTasks($task)
     {
-        $blockedTasks = self::where('pedido_id', $task->pedido_id)
+        self::unblockAllSatisfiedTasksForPedido($task->pedido_id);
+    }
+
+    public static function unblockAllSatisfiedTasksForPedido($pedidoId)
+    {
+        $blockedTasks = self::where('pedido_id', $pedidoId)
             ->where('estado', 'bloqueada')
             ->get();
 

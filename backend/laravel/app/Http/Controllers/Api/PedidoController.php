@@ -295,6 +295,8 @@ class PedidoController extends Controller
      */
     public function show($id): JsonResponse
     {
+        ResponsableEtapa::unblockAllSatisfiedTasksForPedido($id);
+
         $pedido = Pedido::with([
             'cliente',
             'user',
