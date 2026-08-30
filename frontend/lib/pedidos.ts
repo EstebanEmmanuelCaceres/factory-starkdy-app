@@ -72,6 +72,9 @@ export interface CreatePedidoInput {
   precio?: number | null
   comentario?: string | null
   tipo_pago?: 'unico' | 'parcial'
+  monto_pago_inicial?: number | null
+  medio_pago_inicial?: string | null
+  observaciones_pago_inicial?: string | null
   productos?: { id: number; cantidad: number }[]
   etapas?: { id?: number; producto_id: number; nombre: string; orden: number; temp_id?: string }[]
   asignaciones?: { etapa_id?: number; etapa_temp_id?: string; user_id: number | null }[]

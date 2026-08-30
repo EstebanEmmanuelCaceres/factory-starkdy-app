@@ -154,6 +154,9 @@ class PedidoController extends Controller
             'precio' => 'required|numeric|min:0',
             'comentario' => 'nullable|string',
             'tipo_pago' => 'nullable|string|in:unico,parcial',
+            'monto_pago_inicial' => 'nullable|numeric|min:0',
+            'medio_pago_inicial' => 'nullable|string|max:255',
+            'observaciones_pago_inicial' => 'nullable|string|max:1000',
             'productos' => 'nullable|array',
             'productos.*.id' => 'required|exists:productos,id',
             'productos.*.cantidad' => 'required|integer|min:1',
@@ -174,6 +177,18 @@ class PedidoController extends Controller
                 'status' => 'error',
                 'message' => implode('. ', $validator->errors()->all()),
                 'errors' => $validator->errors()
+            ], 422);
+        }
+
+        $montoInicial = (float) ($request->input('monto_pago_inicial') ?? 0);
+        $precioPedido = (float) ($request->input('precio') ?? 0);
+        if ($montoInicial > 0 && round($montoInicial, 2) > round($precioPedido, 2)) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'El monto del pago inicial ($' . number_format($montoInicial, 2) . ') no puede ser superior al precio total del pedido ($' . number_format($precioPedido, 2) . ').',
+                'errors' => [
+                    'monto_pago_inicial' => ['El pago inicial excede el precio total del pedido.']
+                ]
             ], 422);
         }
 
@@ -220,7 +235,7 @@ class PedidoController extends Controller
         }
 
         $data = $request->only(['codigo', 'prioridad', 'fecha_entrega', 'precio', 'comentario', 'tipo_pago']);
-        $data['tipo_pago'] = $data['tipo_pago'] ?? 'parcial';
+        $data['tipo_pago'] = $data['tipo_pago'] ?? ($montoInicial >= $precioPedido && $precioPedido > 0 ? 'unico' : 'parcial');
         $data['cliente_id'] = $clienteId;
         $data['user_id'] = Auth::id() ?? 1; // Asocia el usuario autenticado
         $data['estado'] = 'pendiente';      // Por defecto al crear
@@ -244,6 +259,26 @@ class PedidoController extends Controller
             $pedido->productos()->sync($syncData);
         }
         $this->syncEtapasYAsignaciones($pedido, $request);
+
+        // Registrar pago inicial si fue proporcionado
+        if ($montoInicial > 0) {
+            $medioPago = $request->input('medio_pago_inicial') ?: 'efectivo';
+            $tipoCobro = ($montoInicial >= $precioPedido) ? 'unico' : 'seña';
+
+            $pedido->pagos()->create([
+                'monto' => $montoInicial,
+                'medio_pago' => $medioPago,
+                'medio' => $medioPago,
+                'tipo_cobro' => $tipoCobro,
+                'observaciones' => $request->input('observaciones_pago_inicial') ?: 'Pago registrado al crear el pedido',
+                'fecha_pago' => now(),
+                'pagado_at' => now(),
+                'estado' => 'pagado',
+                'registrado_por' => Auth::id() ?? 1,
+                'vendedor_id' => Auth::id() ?? 1,
+                'moneda' => 'ARS',
+            ]);
+        }
 
         // Cargar relaciones para la respuesta
         $pedido->load(['cliente', 'user', 'productos', 'pago', 'pagos']);

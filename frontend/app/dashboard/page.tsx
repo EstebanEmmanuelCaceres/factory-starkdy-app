@@ -249,6 +249,8 @@ export default function DashboardPage() {
         return 'Completado'
       case 'completado_pd':
         return 'Completado - Pend. Pago (PD)'
+      case 'enviado':
+        return 'Enviado'
       case 'enviado_faltante':
         return 'Enviado con Faltante'
       case 'en_progreso':
@@ -267,6 +269,8 @@ export default function DashboardPage() {
         return 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
       case 'completado_pd':
         return 'bg-purple-500/10 text-purple-400 border border-purple-500/20'
+      case 'enviado':
+        return 'bg-teal-500/10 text-teal-400 border border-teal-500/20'
       case 'enviado_faltante':
         return 'bg-orange-500/10 text-orange-400 border border-orange-500/20'
       case 'en_progreso':
@@ -277,6 +281,14 @@ export default function DashboardPage() {
       default:
         return 'bg-slate-500/10 text-slate-400 border border-slate-500/20'
     }
+  }
+
+  const handleRowClick = (e: React.MouseEvent, pedido: Pedido) => {
+    const target = e.target as HTMLElement
+    if (target.closest('button, select, input, a, [data-prevent-row-click]')) {
+      return
+    }
+    setSelectedPedidoForCommentModal(pedido)
   }
 
   return (
@@ -461,6 +473,7 @@ export default function DashboardPage() {
                     <option value="en_progreso">En Progreso</option>
                     <option value="completado">Completado</option>
                     <option value="completado_pd">Completado - Pend. Pago (PD)</option>
+                    <option value="enviado">Enviado</option>
                     <option value="enviado_faltante">Enviado con Faltante</option>
                     <option value="cancelado">Cancelado</option>
                   </select>
@@ -521,7 +534,11 @@ export default function DashboardPage() {
                             pedido.productos?.[0]?.imagenes?.[0]?.url
 
                           return (
-                            <div key={pedido.id} className="bg-slate-950/60 border border-slate-800/90 rounded-xl p-3.5 space-y-2.5 shadow-md text-left">
+                            <div
+                              key={pedido.id}
+                              onClick={(e) => handleRowClick(e, pedido)}
+                              className="bg-slate-950/60 border border-slate-800/90 rounded-xl p-3.5 space-y-2.5 shadow-md text-left cursor-pointer hover:border-slate-700 transition"
+                            >
                               {/* Header */}
                               <div className="flex items-start justify-between gap-2 border-b border-slate-800/80 pb-2">
                                 <div className="flex items-center gap-2.5">
@@ -678,7 +695,11 @@ export default function DashboardPage() {
                             pedido.productos?.[0]?.imagenes?.[0]?.url
 
                           return (
-                            <tr key={pedido.id} className="hover:bg-slate-800/40 text-slate-300 transition duration-150">
+                            <tr
+                              key={pedido.id}
+                              onClick={(e) => handleRowClick(e, pedido)}
+                              className="hover:bg-slate-800/40 text-slate-300 transition duration-150 cursor-pointer"
+                            >
                               <td className="px-4 py-3">
                                 {coverUrl ? (
                                   <div
@@ -941,6 +962,9 @@ export default function DashboardPage() {
             setSelectedPedidoForImages(p)
             setIsImagesModalOpen(true)
           }}
+          onOpenPayments={() => {
+            window.location.href = '/dashboard/pedidos'
+          }}
         />
 
         {/* Modal de Gestión de Imágenes del Pedido */}
@@ -962,16 +986,6 @@ export default function DashboardPage() {
                   Administra la portada e imágenes secundarias del pedido: <span className="text-blue-400 font-semibold">{selectedPedidoForImages.cliente?.nombre_empresa || selectedPedidoForImages.cliente?.nombre_cliente || `#${selectedPedidoForImages.id}`}</span>
                 </p>
               </div>
-              <button
-                onClick={() => {
-                  setIsImagesModalOpen(false)
-                  fetchPedidos().then(setPedidos).catch(console.error)
-                }}
-                className="text-slate-400 hover:text-white text-lg font-bold p-1"
-                title="Cerrar modal"
-              >
-                ✕
-              </button>
             </div>
 
             <OrderImageGallery

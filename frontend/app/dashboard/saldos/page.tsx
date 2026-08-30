@@ -344,14 +344,6 @@ function SaldosContent() {
           
           return (
             <div>
-              <button
-                onClick={() => setIsHistoryModalOpen(false)}
-                className="absolute top-4 right-4 text-slate-400 hover:text-white transition text-lg"
-                title="Cerrar"
-              >
-                ✕
-              </button>
-
               <span className="text-xs font-bold uppercase tracking-wider text-blue-400 block mb-0.5 text-left">
                 {selectedClienteForHistory.nombre_empresa || 'Empresa no especificada'}
               </span>

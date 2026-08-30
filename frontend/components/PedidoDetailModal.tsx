@@ -10,7 +10,9 @@ import {
   createPedidoComentario
 } from '@/lib/pedidos'
 import { fetchEtapas, type Etapa } from '@/lib/entities/etapas'
-import { fetchResponsablesEtapas, type ResponsableEtapa } from '@/lib/responsable_etapas'
+import { fetchResponsablesEtapas, assignTask, type ResponsableEtapa } from '@/lib/responsable_etapas'
+import { completeOperarioTask } from '@/lib/operario_tasks'
+import { getStoredUser } from '@/lib/auth'
 
 export interface PedidoDetailModalProps {
   pedido: Pedido | null
@@ -20,6 +22,8 @@ export interface PedidoDetailModalProps {
   allStages?: Etapa[]
   taskAssignments?: ResponsableEtapa[]
   onOpenGallery?: (pedido: Pedido) => void
+  onOpenPayments?: (pedido: Pedido) => void
+  onOpenEdit?: (pedido: Pedido) => void
 }
 
 export default function PedidoDetailModal({
@@ -29,7 +33,9 @@ export default function PedidoDetailModal({
   onUpdatePedido,
   allStages: propAllStages,
   taskAssignments: propTaskAssignments,
-  onOpenGallery
+  onOpenGallery,
+  onOpenPayments,
+  onOpenEdit
 }: PedidoDetailModalProps) {
   const [currentPedido, setCurrentPedido] = useState<Pedido | null>(pedido)
   const [stages, setStages] = useState<Etapa[]>(propAllStages || [])
@@ -44,6 +50,7 @@ export default function PedidoDetailModal({
   const [openAccordions, setOpenAccordions] = useState<Record<number, boolean>>({})
   const [notification, setNotification] = useState('')
   const [error, setError] = useState('')
+  const [completingTaskId, setCompletingTaskId] = useState<number | null>(null)
 
   // Sincronizar estado cuando cambia la prop 'pedido' u 'open'
   useEffect(() => {
@@ -120,6 +127,14 @@ export default function PedidoDetailModal({
     }
   }, [propTaskAssignments])
 
+  const userRole = (() => {
+    const u = getStoredUser()
+    if (!u || !u.role) return ''
+    if (typeof u.role === 'string') return u.role
+    return (u.role as any).slug || ''
+  })()
+  const isAuthorizedRole = !userRole || ['admin', 'encargado', 'vendedor'].includes(userRole)
+
   if (!isOpen || !currentPedido) return null
 
   const showNotification = (msg: string) => {
@@ -167,6 +182,47 @@ export default function PedidoDetailModal({
       setError(err instanceof Error ? err.message : 'Error al publicar comentario')
     } finally {
       setIsSubmittingComment(false)
+    }
+  }
+
+  const handleCompleteTask = async (task: ResponsableEtapa | null, stage: Etapa) => {
+    if (!currentPedido) return
+    const targetKey = task?.id || stage.id
+    try {
+      setError('')
+      setCompletingTaskId(targetKey)
+
+      if (task) {
+        await completeOperarioTask(task.id)
+      } else {
+        const storedUser = getStoredUser()
+        const newTask = await assignTask({
+          pedido_id: currentPedido.id,
+          etapa_id: stage.id,
+          user_id: storedUser?.id || null,
+          estado: 'completado'
+        })
+        if (newTask && newTask.estado !== 'completado') {
+          await completeOperarioTask(newTask.id)
+        }
+      }
+
+      showNotification(`✓ Etapa "${stage.nombre}" completada`)
+
+      // Actualizar asignaciones
+      const updatedAssignments = await fetchResponsablesEtapas({ pedido_id: currentPedido.id }).catch(() => [])
+      setAssignments(updatedAssignments)
+
+      // Actualizar pedido por si cambió su estado global
+      const updatedPedido = await getPedido(currentPedido.id).catch(() => currentPedido)
+      if (updatedPedido) {
+        setCurrentPedido(updatedPedido)
+        if (onUpdatePedido) onUpdatePedido(updatedPedido)
+      }
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Error al completar la etapa')
+    } finally {
+      setCompletingTaskId(null)
     }
   }
 
@@ -229,27 +285,21 @@ export default function PedidoDetailModal({
 
       {/* Header de Imagen / Portada */}
       {coverUrl && (
-        <div className="-mx-6 -mt-6 mb-5 relative h-48 sm:h-56 md:h-64 bg-slate-950/90 border-b border-slate-800/80 flex items-center justify-center overflow-hidden rounded-t-2xl group">
+        <div className="-mx-6 -mt-6 mb-5 relative h-64 sm:h-80 md:h-[420px] min-h-[280px] sm:min-h-[350px] md:min-h-[420px] bg-slate-950/90 border-b border-slate-800/80 flex items-center justify-center overflow-hidden rounded-t-2xl group">
           <div
-            className="absolute inset-0 bg-cover bg-center opacity-20 blur-2xl scale-110 pointer-events-none"
+            className="absolute inset-0 bg-cover bg-center opacity-25 blur-2xl scale-110 pointer-events-none"
             style={{ backgroundImage: `url(${coverUrl})` }}
           />
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={coverUrl}
             alt={`Portada Pedido #${currentPedido.id}`}
-            className="relative z-10 max-h-full max-w-full object-contain p-3 transition duration-200"
+            className="relative z-10 max-h-full max-w-full object-contain p-4 transition duration-200"
             onError={(e) => {
               ;(e.target as HTMLImageElement).src =
                 "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200' viewBox='0 0 200 200'><rect width='200' height='200' fill='%230f172a'/><text x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' fill='%2364748b' font-family='sans-serif' font-size='13'>Imagen no disponible</text></svg>"
             }}
           />
-
-          <div className="absolute top-3 left-3 z-20">
-            <span className="bg-amber-500 text-slate-950 font-extrabold text-[10px] uppercase px-2.5 py-1 rounded-full shadow-lg border border-amber-300 flex items-center gap-1">
-              ⭐ Portada del Pedido
-            </span>
-          </div>
 
           {onOpenGallery && (
             <div className="absolute bottom-3 right-3 z-20">
@@ -267,8 +317,8 @@ export default function PedidoDetailModal({
 
       {/* Header del Modal */}
       <div className="border-b border-slate-800 pb-4 mb-4 space-y-4">
-        {/* Fila Superior: Título + Estado a la izquierda, Acciones / Cerrar a la derecha */}
-        <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
+        {/* Fila Superior: Título + Estado a la izquierda, Acciones a la derecha */}
+        <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 pr-8">
           <div className="text-left space-y-1.5 min-w-0">
             <div className="flex flex-wrap items-center gap-3">
               <h2 className="text-2xl font-bold text-white tracking-tight">
@@ -299,6 +349,9 @@ export default function PedidoDetailModal({
                   <option value="completado_pd" className="bg-slate-900 text-white">
                     Completado - pendiente de pago (PD)
                   </option>
+                  <option value="enviado" className="bg-slate-900 text-white">
+                    Enviado
+                  </option>
                   <option value="enviado_faltante" className="bg-slate-900 text-white">
                     Enviado con faltante
                   </option>
@@ -320,9 +373,20 @@ export default function PedidoDetailModal({
             </p>
           </div>
 
-          {/* Botones de acción derecha: Galería y Cerrar */}
-          <div className="flex items-center gap-2.5 shrink-0 self-end sm:self-start">
-            {onOpenGallery && (
+          {/* Botones de acción derecha: Editar Pedido, Galería */}
+          <div className="flex flex-wrap items-center gap-2.5 shrink-0 self-end sm:self-start">
+            {onOpenEdit && isAuthorizedRole && (
+              <button
+                type="button"
+                onClick={() => onOpenEdit(currentPedido)}
+                className="bg-slate-900 hover:bg-slate-850 border border-slate-750 hover:border-blue-500/50 text-blue-300 text-xs font-bold px-3.5 py-2 rounded-xl flex items-center gap-1.5 transition shadow-md hover:scale-[1.02] active:scale-[0.98]"
+                title="Editar datos y asignaciones del pedido"
+              >
+                <span>✏️</span>
+                <span>Editar Pedido</span>
+              </button>
+            )}
+            {onOpenGallery && isAuthorizedRole && (
               <button
                 type="button"
                 onClick={() => onOpenGallery(currentPedido)}
@@ -338,15 +402,45 @@ export default function PedidoDetailModal({
                 )}
               </button>
             )}
-            <button
-              onClick={onClose}
-              className="text-slate-400 hover:text-white transition text-lg p-2 hover:bg-slate-800 rounded-xl"
-              title="Cerrar"
-            >
-              ✕
-            </button>
           </div>
         </div>
+
+        {/* Resumen Financiero y Botón de Cobro */}
+        {currentPedido.precio !== null && currentPedido.precio !== undefined && (
+          <div className="bg-slate-950/60 border border-slate-800/80 p-3.5 rounded-xl flex flex-wrap items-center justify-between gap-3 text-xs shadow-inner">
+            <div className="flex flex-wrap items-center gap-4 sm:gap-6">
+              <div>
+                <span className="text-slate-500 block text-[10px] uppercase font-bold tracking-wider mb-0.5">Precio Total</span>
+                <span className="font-extrabold text-white text-sm">
+                  $ {parseFloat(currentPedido.precio.toString()).toLocaleString('es-AR', { minimumFractionDigits: 2 })}
+                </span>
+              </div>
+              <div>
+                <span className="text-slate-500 block text-[10px] uppercase font-bold tracking-wider mb-0.5">Monto Pagado</span>
+                <span className="font-extrabold text-emerald-400 text-sm">
+                  $ {(currentPedido.monto_pagado || 0).toLocaleString('es-AR', { minimumFractionDigits: 2 })}
+                </span>
+              </div>
+              <div>
+                <span className="text-slate-500 block text-[10px] uppercase font-bold tracking-wider mb-0.5">Saldo Pendiente</span>
+                <span className="font-extrabold text-amber-400 text-sm">
+                  $ {(currentPedido.saldo_pendiente ?? Math.max(0, (currentPedido.precio || 0) - (currentPedido.monto_pagado || 0))).toLocaleString('es-AR', { minimumFractionDigits: 2 })}
+                </span>
+              </div>
+            </div>
+
+            {onOpenPayments && isAuthorizedRole && (
+              <button
+                type="button"
+                onClick={() => onOpenPayments(currentPedido)}
+                className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition shadow hover:scale-[1.02] active:scale-[0.98]"
+              >
+                <span>💵</span>
+                <span>Cargar Cobro</span>
+              </button>
+            )}
+          </div>
+        )}
 
         {/* Fila Banner: Alerta de Pedido Pendiente (en su propia fila dedicada) */}
         {currentPedido.estado === 'pendiente' && (
@@ -461,13 +555,30 @@ export default function PedidoDetailModal({
 
                         {/* Etapa actual a la vista */}
                         {currentInfo ? (
-                          <div className="text-right">
-                            <span className="text-[10px] text-slate-500 uppercase block font-semibold leading-none mb-1">
+                          <div className="text-right flex flex-col items-end gap-1">
+                            <span className="text-[10px] uppercase font-extrabold tracking-wider text-slate-400 block">
                               Etapa Actual
                             </span>
-                            <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-blue-500/10 text-blue-400 border border-blue-500/20 capitalize">
-                              {currentInfo.stage.nombre} ({currentInfo.task?.estado || 'pendiente'})
-                            </span>
+                            <div className="flex flex-wrap items-center justify-end gap-1.5">
+                              <span className="text-base sm:text-lg font-black text-blue-400 capitalize tracking-tight">
+                                {currentInfo.stage.nombre}
+                              </span>
+                              <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-md bg-blue-500/10 text-blue-300 border border-blue-500/20">
+                                {currentInfo.task?.estado || 'pendiente'}
+                              </span>
+                            </div>
+                            {currentInfo.task?.estado !== 'completado' && currentPedido.estado !== 'pendiente' && (
+                              <button
+                                type="button"
+                                disabled={completingTaskId === (currentInfo.task?.id || currentInfo.stage.id)}
+                                onClick={() => handleCompleteTask(currentInfo.task || null, currentInfo.stage)}
+                                className="mt-1 bg-emerald-600 hover:bg-emerald-500 active:scale-95 disabled:opacity-50 text-white text-xs font-extrabold px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition shadow cursor-pointer"
+                                title="Marcar etapa como completada"
+                              >
+                                <span>✓</span>
+                                <span>{completingTaskId === (currentInfo.task?.id || currentInfo.stage.id) ? 'Guardando...' : 'Completar Etapa'}</span>
+                              </button>
+                            )}
                           </div>
                         ) : (
                           <span className="text-xs text-slate-500 italic">Sin etapas</span>
@@ -568,6 +679,18 @@ export default function PedidoDetailModal({
                                           >
                                             {completionDate}
                                           </span>
+                                        )}
+                                        {state !== 'completado' && currentPedido.estado !== 'pendiente' && (
+                                          <button
+                                            type="button"
+                                            disabled={completingTaskId === (task?.id || stage.id)}
+                                            onClick={() => handleCompleteTask(task || null, stage)}
+                                            className="mt-2 w-full text-[10px] font-extrabold px-2 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 active:scale-95 disabled:opacity-50 text-white transition shadow flex items-center justify-center gap-1 cursor-pointer"
+                                            title="Completar esta etapa"
+                                          >
+                                            <span>✓</span>
+                                            <span>{completingTaskId === (task?.id || stage.id) ? 'Completo...' : 'Completar'}</span>
+                                          </button>
                                         )}
                                       </div>
 

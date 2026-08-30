@@ -40,20 +40,25 @@ export default function TareasPage() {
 
       const targetUserId = overrideUserId !== undefined ? overrideUserId : selectedUserId
 
+      const isPendingOrderTask = (t: ResponsableEtapa) => {
+        const pState = t.pedido?.estado || (t.pedido as any)?.ultimo_estado?.estado
+        return pState === 'pendiente'
+      }
+
       if (user && ['admin', 'supervisor', 'encargado'].includes(user.role)) {
         const filters: { user_id?: number } = {}
         if (targetUserId) {
           filters.user_id = targetUserId
         }
         const allTasks = await fetchResponsablesEtapas(filters)
-        setTasks(allTasks.filter(t => t.estado !== 'completado'))
+        setTasks(allTasks.filter(t => t.estado !== 'completado' && !isPendingOrderTask(t)))
       } else {
         if (targetUserId && targetUserId !== user?.id) {
           const tasksData = await fetchResponsablesEtapas({ user_id: targetUserId })
-          setTasks(tasksData.filter(t => t.estado !== 'completado'))
+          setTasks(tasksData.filter(t => t.estado !== 'completado' && !isPendingOrderTask(t)))
         } else {
           const tasksData = await fetchOperarioTasks()
-          setTasks(tasksData.filter(t => t.estado !== 'completado'))
+          setTasks(tasksData.filter(t => t.estado !== 'completado' && !isPendingOrderTask(t)))
         }
       }
     } catch (err: unknown) {
@@ -179,12 +184,361 @@ export default function TareasPage() {
     }
   }
 
-  // Clasificación de tareas activas en 3 grupos
+  // Clasificación de tareas activas
   const inProgressTasks = tasks.filter(t => t.estado === 'en_progreso')
   const pendingTasks = tasks.filter(t => t.estado === 'pendiente')
-  const blockedTasks = tasks.filter(t => t.estado === 'bloqueada')
 
   const isManager = currentUser && ['admin', 'supervisor', 'encargado'].includes(currentUser.role)
+  const isEncargado = currentUser && (
+    currentUser.role === 'encargado' ||
+    (typeof currentUser.role === 'object' && (currentUser.role as any).slug === 'encargado')
+  )
+
+  const renderInProgressSection = () => (
+    <div className="space-y-4">
+      <h2 className="text-xl font-bold text-amber-400 flex items-center gap-2">
+        <span>🔥</span> Tareas En Progreso ({inProgressTasks.length})
+      </h2>
+
+      {inProgressTasks.length === 0 ? (
+        <div className="bg-slate-900/50 border border-slate-800/80 rounded-xl p-6 text-sm text-slate-500 italic text-center">
+          No hay tareas actualmente en progreso.
+        </div>
+      ) : (
+        <>
+          {/* VISTA EN TARJETAS PARA MOBILE (< md) */}
+          <div className="md:hidden space-y-3">
+            {inProgressTasks.map((task) => (
+              <div key={task.id} className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-3 shadow-xl text-left">
+                <div className="flex items-start justify-between gap-2 border-b border-slate-800 pb-2.5">
+                  <div>
+                    <span className="font-bold text-white text-base block">
+                      {task.pedido?.cliente?.nombre_empresa || task.pedido?.cliente?.nombre_cliente || 'N/A'}
+                    </span>
+                    <span className="text-xs text-slate-400 font-semibold">
+                      {task.created_at ? new Date(task.created_at).toLocaleDateString('es-ES') : '-'}
+                    </span>
+                  </div>
+                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-extrabold uppercase tracking-wide bg-amber-500/10 text-amber-400 border border-amber-500/30">
+                    🔥 En Progreso
+                  </span>
+                </div>
+
+                <div className="space-y-0.5">
+                  <span className="font-bold text-white text-base block">{task.etapa?.nombre}</span>
+                  <span className="text-xs text-slate-400 font-normal block">
+                    {task.etapa?.producto?.nombre || 'Producto'}
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between pt-1">
+                  <span className="text-xs font-bold text-slate-400 uppercase">Operario:</span>
+                  {isManager ? (
+                    <select
+                      value={task.user_id || ''}
+                      onChange={(e) => handleReassignUser(task, e.target.value)}
+                      disabled={actionLoading === task.id}
+                      className="bg-slate-950 border border-slate-800 text-xs font-bold text-blue-400 rounded-lg px-2.5 py-1.5 focus:outline-none cursor-pointer"
+                    >
+                      <option value="" className="bg-slate-900 text-slate-400">Sin Asignar</option>
+                      {operarios.map((op) => (
+                        <option key={op.id} value={op.id} className="bg-slate-900 text-white">
+                          {op.name}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <span className="text-xs text-slate-300 font-semibold">{task.user?.name || 'Sin Asignar'}</span>
+                  )}
+                </div>
+
+                <div className="flex flex-wrap items-center justify-end gap-2 pt-2 border-t border-slate-800">
+                  <button
+                    onClick={() => setViewingTask(task)}
+                    className="bg-slate-800 hover:bg-slate-700 text-blue-400 text-xs font-bold px-3 py-2 rounded-xl border border-slate-700 transition"
+                  >
+                    👁️ Ver
+                  </button>
+                  <button
+                    onClick={() => handleCancelTask(task.id)}
+                    disabled={actionLoading === task.id}
+                    className="bg-rose-600/20 hover:bg-rose-600/30 text-rose-300 border border-rose-500/30 text-xs font-bold px-3 py-2 rounded-xl transition"
+                    title="Cancelar tarea iniciada y devolver a pendiente"
+                  >
+                    {actionLoading === task.id ? 'Cancelando...' : '⏹️ Cancelar'}
+                  </button>
+                  <button
+                    onClick={() => handleOpenCompleteModal(task)}
+                    disabled={actionLoading === task.id}
+                    className="bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-slate-950 text-xs font-extrabold px-3.5 py-2 rounded-xl shadow-lg shadow-amber-500/20 transition hover:scale-[1.02] active:scale-[0.98]"
+                  >
+                    {actionLoading === task.id ? 'Cargando...' : 'Completar Tarea'}
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* VISTA EN TABLA PARA ESCRITORIO (hidden md:block) */}
+          <div className="hidden md:block bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="border-b border-slate-800 bg-slate-950/60 text-slate-400 font-bold text-sm uppercase tracking-wider">
+                    <th className="px-6 py-4">Empresa</th>
+                    <th className="px-6 py-4">Fecha Creación</th>
+                    <th className="px-6 py-4">Tarea / Etapa</th>
+                    <th className="px-6 py-4">Operario Asignado</th>
+                    <th className="px-6 py-4">Estado</th>
+                    <th className="px-6 py-4 text-right">Acciones</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-800 text-base font-medium text-slate-200">
+                  {inProgressTasks.map((task) => (
+                    <tr key={task.id} className="hover:bg-slate-800/50 transition">
+                      <td className="px-6 py-4 font-bold text-white text-base">
+                        {task.pedido?.cliente?.nombre_empresa || task.pedido?.cliente?.nombre_cliente || 'N/A'}
+                      </td>
+                      <td className="px-6 py-4 text-sm font-semibold text-slate-300">
+                        {task.created_at ? new Date(task.created_at).toLocaleDateString('es-ES') : '-'}
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className="font-bold text-white text-base block">{task.etapa?.nombre}</span>
+                        <span className="text-sm text-slate-400 font-normal">
+                          {task.etapa?.producto?.nombre || 'Producto'}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4">
+                        {isManager ? (
+                          <select
+                            value={task.user_id || ''}
+                            onChange={(e) => handleReassignUser(task, e.target.value)}
+                            disabled={actionLoading === task.id}
+                            className="bg-slate-950 border border-slate-800 text-xs font-bold text-blue-400 rounded-lg px-2.5 py-1.5 focus:outline-none cursor-pointer"
+                          >
+                            <option value="" className="bg-slate-900 text-slate-400">Sin Asignar</option>
+                            {operarios.map((op) => (
+                              <option key={op.id} value={op.id} className="bg-slate-900 text-white">
+                                {op.name}
+                              </option>
+                            ))}
+                          </select>
+                        ) : (
+                          <span className="text-sm text-slate-300 font-semibold">{task.user?.name || 'Sin Asignar'}</span>
+                        )}
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-extrabold uppercase tracking-wide bg-amber-500/10 text-amber-400 border border-amber-500/30">
+                          🔥 En Progreso
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        <div className="flex items-center justify-end gap-3">
+                          <button
+                            onClick={() => setViewingTask(task)}
+                            className="bg-slate-800 hover:bg-slate-700 text-blue-400 text-sm font-bold px-4 py-2.5 rounded-xl border border-slate-700 transition"
+                          >
+                            👁️ Ver
+                          </button>
+                          <button
+                            onClick={() => handleCancelTask(task.id)}
+                            disabled={actionLoading === task.id}
+                            className="bg-rose-600/20 hover:bg-rose-600/30 text-rose-300 border border-rose-500/30 text-sm font-bold px-4 py-2.5 rounded-xl transition"
+                            title="Cancelar tarea iniciada y devolver a pendiente"
+                          >
+                            {actionLoading === task.id ? 'Cancelando...' : '⏹️ Cancelar Tarea'}
+                          </button>
+                          <button
+                            onClick={() => handleOpenCompleteModal(task)}
+                            disabled={actionLoading === task.id}
+                            className="bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-slate-950 text-sm font-extrabold px-5 py-2.5 rounded-xl shadow-lg shadow-amber-500/20 transition hover:scale-[1.02] active:scale-[0.98]"
+                          >
+                            {actionLoading === task.id ? 'Cargando...' : 'Completar Tarea'}
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  )
+
+  const renderPendingSection = () => (
+    <div className="space-y-4">
+      <h2 className="text-xl font-bold text-blue-400 flex items-center gap-2">
+        <span>⏳</span> Tareas Pendientes ({pendingTasks.length})
+      </h2>
+
+      {pendingTasks.length === 0 ? (
+        <div className="bg-slate-900/50 border border-slate-800/80 rounded-xl p-6 text-sm text-slate-500 italic text-center">
+          No hay tareas pendientes en espera.
+        </div>
+      ) : (
+        <>
+          {/* VISTA EN TARJETAS PARA MOBILE (< md) */}
+          <div className="md:hidden space-y-3">
+            {pendingTasks.map((task) => (
+              <div key={task.id} className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-3 shadow-xl text-left">
+                <div className="flex items-start justify-between gap-2 border-b border-slate-800 pb-2.5">
+                  <div>
+                    <span className="font-bold text-white text-base block">
+                      {task.pedido?.cliente?.nombre_empresa || task.pedido?.cliente?.nombre_cliente || 'N/A'}
+                    </span>
+                    <span className="text-xs text-slate-400 font-semibold">
+                      {task.created_at ? new Date(task.created_at).toLocaleDateString('es-ES') : '-'}
+                    </span>
+                  </div>
+                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-extrabold uppercase tracking-wide bg-blue-500/10 text-blue-400 border border-blue-500/30">
+                    ⏳ Pendiente
+                  </span>
+                </div>
+
+                <div className="space-y-0.5">
+                  <span className="font-bold text-white text-base block">{task.etapa?.nombre}</span>
+                  <span className="text-xs text-slate-400 font-normal block">
+                    {task.etapa?.producto?.nombre || 'Producto'}
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between pt-1">
+                  <span className="text-xs font-bold text-slate-400 uppercase">Operario:</span>
+                  {isManager ? (
+                    <select
+                      value={task.user_id || ''}
+                      onChange={(e) => handleReassignUser(task, e.target.value)}
+                      disabled={actionLoading === task.id}
+                      className="bg-slate-950 border border-slate-800 text-xs font-bold text-blue-400 rounded-lg px-2.5 py-1.5 focus:outline-none cursor-pointer"
+                    >
+                      <option value="" className="bg-slate-900 text-slate-400">Sin Asignar</option>
+                      {operarios.map((op) => (
+                        <option key={op.id} value={op.id} className="bg-slate-900 text-white">
+                          {op.name}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <span className="text-xs text-slate-300 font-semibold">{task.user?.name || 'Sin Asignar'}</span>
+                  )}
+                </div>
+
+                <div className="flex flex-wrap items-center justify-end gap-2 pt-2 border-t border-slate-800">
+                  <button
+                    onClick={() => setViewingTask(task)}
+                    className="bg-slate-800 hover:bg-slate-700 text-blue-400 text-xs font-bold px-3 py-2 rounded-xl border border-slate-700 transition"
+                  >
+                    👁️ Ver
+                  </button>
+                  <button
+                    onClick={() => handleOpenCompleteModal(task)}
+                    disabled={actionLoading === task.id}
+                    className="bg-slate-800 hover:bg-slate-700 text-emerald-400 border border-emerald-500/30 text-xs font-bold px-3 py-2 rounded-xl transition"
+                  >
+                    ✓ Completar
+                  </button>
+                  <button
+                    onClick={() => handleStartTask(task.id)}
+                    disabled={actionLoading === task.id}
+                    className="bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white text-xs font-extrabold px-3.5 py-2 rounded-xl shadow-lg shadow-blue-600/20 transition hover:scale-[1.02] active:scale-[0.98]"
+                  >
+                    {actionLoading === task.id ? 'Iniciando...' : '🚀 Iniciar Tarea'}
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* VISTA EN TABLA PARA ESCRITORIO (hidden md:block) */}
+          <div className="hidden md:block bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="border-b border-slate-800 bg-slate-950/60 text-slate-400 font-bold text-sm uppercase tracking-wider">
+                    <th className="px-6 py-4">Empresa</th>
+                    <th className="px-6 py-4">Fecha Creación</th>
+                    <th className="px-6 py-4">Tarea / Etapa</th>
+                    <th className="px-6 py-4">Operario Asignado</th>
+                    <th className="px-6 py-4">Estado</th>
+                    <th className="px-6 py-4 text-right">Acciones</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-800 text-base font-medium text-slate-200">
+                  {pendingTasks.map((task) => (
+                    <tr key={task.id} className="hover:bg-slate-800/50 transition">
+                      <td className="px-6 py-4 font-bold text-white text-base">
+                        {task.pedido?.cliente?.nombre_empresa || task.pedido?.cliente?.nombre_cliente || 'N/A'}
+                      </td>
+                      <td className="px-6 py-4 text-sm font-semibold text-slate-300">
+                        {task.created_at ? new Date(task.created_at).toLocaleDateString('es-ES') : '-'}
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className="font-bold text-white text-base block">{task.etapa?.nombre}</span>
+                        <span className="text-sm text-slate-400 font-normal">
+                          {task.etapa?.producto?.nombre || 'Producto'}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4">
+                        {isManager ? (
+                          <select
+                            value={task.user_id || ''}
+                            onChange={(e) => handleReassignUser(task, e.target.value)}
+                            disabled={actionLoading === task.id}
+                            className="bg-slate-950 border border-slate-800 text-xs font-bold text-blue-400 rounded-lg px-2.5 py-1.5 focus:outline-none cursor-pointer"
+                          >
+                            <option value="" className="bg-slate-900 text-slate-400">Sin Asignar</option>
+                            {operarios.map((op) => (
+                              <option key={op.id} value={op.id} className="bg-slate-900 text-white">
+                                {op.name}
+                              </option>
+                            ))}
+                          </select>
+                        ) : (
+                          <span className="text-sm text-slate-300 font-semibold">{task.user?.name || 'Sin Asignar'}</span>
+                        )}
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-extrabold uppercase tracking-wide bg-blue-500/10 text-blue-400 border border-blue-500/30">
+                          ⏳ Pendiente
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        <div className="flex items-center justify-end gap-3">
+                          <button
+                            onClick={() => setViewingTask(task)}
+                            className="bg-slate-800 hover:bg-slate-700 text-blue-400 text-sm font-bold px-4 py-2.5 rounded-xl border border-slate-700 transition"
+                          >
+                            👁️ Ver
+                          </button>
+                          <button
+                            onClick={() => handleOpenCompleteModal(task)}
+                            disabled={actionLoading === task.id}
+                            className="bg-slate-800 hover:bg-slate-700 text-emerald-400 border border-emerald-500/30 text-sm font-bold px-4 py-2.5 rounded-xl transition"
+                          >
+                            ✓ Completar
+                          </button>
+                          <button
+                            onClick={() => handleStartTask(task.id)}
+                            disabled={actionLoading === task.id}
+                            className="bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white text-sm font-bold px-5 py-2.5 rounded-xl transition hover:scale-[1.02] active:scale-[0.98]"
+                          >
+                            {actionLoading === task.id ? 'Iniciando...' : '🚀 Iniciar Tarea'}
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  )
 
   return (
     <RoleGuard allowedRoles={['admin', 'supervisor', 'encargado', 'operario']}>
@@ -204,552 +558,79 @@ export default function TareasPage() {
           </div>
         )}
 
-        {/* Encabezado Principal y Selección Únicamente de Operarios */}
+        {/* Encabezado Principal */}
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 mb-8 bg-slate-900 border border-slate-800 p-6 rounded-2xl shadow-xl">
           <div>
             <h1 className="text-3xl font-extrabold text-white tracking-tight flex items-center gap-3">
               <span>🏭</span> {isManager ? 'Panel Global de Tareas de Fábrica' : 'Panel de Tareas de Producción'}
             </h1>
-            <p className="text-base text-slate-400 mt-1">
-              Visualiza tus asignaciones, controla las tareas en proceso y registra el progreso diario.
-            </p>
           </div>
 
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4">
             {/* Desplegable para filtrar por usuario */}
             <div className="flex items-center gap-2 bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 shadow-inner min-w-0 w-full sm:w-auto">
-              <span className="text-xs sm:text-sm font-bold text-slate-400 uppercase tracking-wider whitespace-nowrap shrink-0">👤 Usuario:</span>
+              <span className="text-xs font-bold text-slate-400 uppercase tracking-wider shrink-0">
+                👤 {isManager ? 'Filtrar por Operario:' : 'Ver tareas de:'}
+              </span>
               <select
                 value={selectedUserId || ''}
-                onChange={(e) => handleUserSelectChange(e.target.value)}
-                className="bg-transparent text-sm sm:text-base font-bold text-blue-400 focus:outline-none cursor-pointer min-w-0 w-full truncate pr-1"
+                onChange={(e) => {
+                  const val = e.target.value ? Number(e.target.value) : null
+                  setSelectedUserId(val)
+                  loadData(val)
+                }}
+                className="bg-transparent text-sm font-extrabold text-blue-400 focus:outline-none cursor-pointer w-full"
               >
-                <option value="" className="bg-slate-900 text-white">
-                  {currentUser && (currentUser.role === 'operario' || currentUser.role === 'operator')
-                    ? `${currentUser.name} (Mi Perfil)`
-                    : 'Todos los Usuarios'}
-                </option>
-                {operarios
-                  .filter(op => op.id !== currentUser?.id)
-                  .map((op) => (
-                    <option key={op.id} value={op.id} className="bg-slate-900 text-white">
-                      {op.name}
-                    </option>
-                  ))}
+                {isManager && <option value="" className="bg-slate-900 text-slate-300">👥 Todos los operarios</option>}
+                {operarios.map((op) => (
+                  <option key={op.id} value={op.id} className="bg-slate-900 text-white">
+                    {op.name} {currentUser?.id === op.id ? '(Tú)' : ''}
+                  </option>
+                ))}
               </select>
             </div>
 
-            <button
-              onClick={() => loadData()}
-              className="flex items-center justify-center gap-2 bg-slate-800 hover:bg-slate-700 text-white text-sm font-bold px-5 py-3 rounded-xl border border-slate-700 transition shadow hover:scale-[1.02] active:scale-[0.98]"
-            >
-              🔄 Sincronizar
-            </button>
+            {selectedUserId !== null && (
+              <button
+                onClick={() => {
+                  setSelectedUserId(null)
+                  loadData(null)
+                }}
+                className="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 px-3.5 py-2.5 rounded-xl font-bold transition flex items-center justify-center gap-1 shrink-0"
+              >
+                <span>🔄</span> Limpiar filtro
+              </button>
+            )}
           </div>
         </div>
 
-        {/* TAREAS DE PRODUCCIÓN EN 3 TABLAS SEPARADAS */}
+        {/* TAREAS DE PRODUCCIÓN */}
         <div className="space-y-10">
           {loading ? (
             <div className="bg-slate-900 border border-slate-800 rounded-2xl py-20 flex flex-col items-center justify-center text-slate-400 gap-3">
               <div className="animate-spin rounded-full h-10 w-10 border-4 border-blue-500 border-t-transparent"></div>
               <span className="text-base font-semibold">Cargando tareas de producción...</span>
             </div>
-          ) : tasks.length === 0 ? (
+          ) : inProgressTasks.length === 0 && pendingTasks.length === 0 ? (
             <div className="bg-slate-900 border border-slate-800 rounded-2xl py-20 flex flex-col items-center justify-center text-slate-400 gap-4">
               <span className="text-5xl">🎉</span>
               <span className="text-lg font-bold text-white">¡No hay tareas activas pendientes!</span>
               <p className="text-sm text-slate-500">No se registran tareas pendientes para el operario seleccionado.</p>
             </div>
           ) : (
-            <>
-              {/* 1. TABLA: TAREAS EN PROGRESO */}
-              <div className="space-y-4">
-                <h2 className="text-xl font-bold text-amber-400 flex items-center gap-2">
-                  <span>🔥</span> Tareas En Progreso ({inProgressTasks.length})
-                </h2>
-
-                {inProgressTasks.length === 0 ? (
-                  <div className="bg-slate-900/50 border border-slate-800/80 rounded-xl p-6 text-sm text-slate-500 italic text-center">
-                    No hay tareas actualmente en progreso.
-                  </div>
-                ) : (
-                  <>
-                    {/* VISTA EN TARJETAS PARA MOBILE (< md) */}
-                    <div className="md:hidden space-y-3">
-                      {inProgressTasks.map((task) => (
-                        <div key={task.id} className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-3 shadow-xl text-left">
-                          <div className="flex items-start justify-between gap-2 border-b border-slate-800 pb-2.5">
-                            <div>
-                              <span className="font-bold text-white text-base block">
-                                {task.pedido?.cliente?.nombre_empresa || task.pedido?.cliente?.nombre_cliente || 'N/A'}
-                              </span>
-                              <span className="text-xs text-slate-400 font-semibold">
-                                {task.created_at ? new Date(task.created_at).toLocaleDateString('es-ES') : '-'}
-                              </span>
-                            </div>
-                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-extrabold uppercase tracking-wide bg-amber-500/10 text-amber-400 border border-amber-500/30">
-                              🔥 En Progreso
-                            </span>
-                          </div>
-
-                          <div className="space-y-0.5">
-                            <span className="font-bold text-white text-base block">{task.etapa?.nombre}</span>
-                            <span className="text-xs text-slate-400 font-normal block">
-                              {task.etapa?.producto?.nombre || 'Producto'}
-                            </span>
-                          </div>
-
-                          <div className="flex items-center justify-between pt-1">
-                            <span className="text-xs font-bold text-slate-400 uppercase">Operario:</span>
-                            {isManager ? (
-                              <select
-                                value={task.user_id || ''}
-                                onChange={(e) => handleReassignUser(task, e.target.value)}
-                                disabled={actionLoading === task.id}
-                                className="bg-slate-950 border border-slate-800 text-xs font-bold text-blue-400 rounded-lg px-2.5 py-1.5 focus:outline-none cursor-pointer"
-                              >
-                                <option value="" className="bg-slate-900 text-slate-400">Sin Asignar</option>
-                                {operarios.map((op) => (
-                                  <option key={op.id} value={op.id} className="bg-slate-900 text-white">
-                                    {op.name}
-                                  </option>
-                                ))}
-                              </select>
-                            ) : (
-                              <span className="text-xs text-slate-300 font-semibold">{task.user?.name || 'Sin Asignar'}</span>
-                            )}
-                          </div>
-
-                          <div className="flex flex-wrap items-center justify-end gap-2 pt-2 border-t border-slate-800">
-                            <button
-                              onClick={() => setViewingTask(task)}
-                              className="bg-slate-800 hover:bg-slate-700 text-blue-400 text-xs font-bold px-3 py-2 rounded-xl border border-slate-700 transition"
-                            >
-                              👁️ Ver
-                            </button>
-                            <button
-                              onClick={() => handleCancelTask(task.id)}
-                              disabled={actionLoading === task.id}
-                              className="bg-rose-600/20 hover:bg-rose-600/30 text-rose-300 border border-rose-500/30 text-xs font-bold px-3 py-2 rounded-xl transition"
-                              title="Cancelar tarea iniciada y devolver a pendiente"
-                            >
-                              {actionLoading === task.id ? 'Cancelando...' : '⏹️ Cancelar'}
-                            </button>
-                            <button
-                              onClick={() => handleOpenCompleteModal(task)}
-                              disabled={actionLoading === task.id}
-                              className="bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-slate-950 text-xs font-extrabold px-3.5 py-2 rounded-xl shadow-lg shadow-amber-500/20 transition hover:scale-[1.02] active:scale-[0.98]"
-                            >
-                              {actionLoading === task.id ? 'Cargando...' : 'Completar Tarea'}
-                            </button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-
-                    {/* VISTA EN TABLA PARA ESCRITORIO (hidden md:block) */}
-                    <div className="hidden md:block bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
-                      <div className="overflow-x-auto">
-                        <table className="w-full text-left border-collapse">
-                          <thead>
-                            <tr className="border-b border-slate-800 bg-slate-950/60 text-slate-400 font-bold text-sm uppercase tracking-wider">
-                              <th className="px-6 py-4">Empresa</th>
-                              <th className="px-6 py-4">Fecha Creación</th>
-                              <th className="px-6 py-4">Tarea / Etapa</th>
-                              <th className="px-6 py-4">Operario Asignado</th>
-                              <th className="px-6 py-4">Estado</th>
-                              <th className="px-6 py-4 text-right">Acciones</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-slate-800 text-base font-medium text-slate-200">
-                            {inProgressTasks.map((task) => (
-                              <tr key={task.id} className="hover:bg-slate-800/50 transition">
-                                <td className="px-6 py-4 font-bold text-white text-base">
-                                  {task.pedido?.cliente?.nombre_empresa || task.pedido?.cliente?.nombre_cliente || 'N/A'}
-                                </td>
-                                <td className="px-6 py-4 text-sm font-semibold text-slate-300">
-                                  {task.created_at ? new Date(task.created_at).toLocaleDateString('es-ES') : '-'}
-                                </td>
-                                <td className="px-6 py-4">
-                                  <span className="font-bold text-white text-base block">{task.etapa?.nombre}</span>
-                                  <span className="text-sm text-slate-400 font-normal">
-                                    {task.etapa?.producto?.nombre || 'Producto'}
-                                  </span>
-                                </td>
-                                <td className="px-6 py-4">
-                                  {isManager ? (
-                                    <select
-                                      value={task.user_id || ''}
-                                      onChange={(e) => handleReassignUser(task, e.target.value)}
-                                      disabled={actionLoading === task.id}
-                                      className="bg-slate-950 border border-slate-800 text-xs font-bold text-blue-400 rounded-lg px-2.5 py-1.5 focus:outline-none cursor-pointer"
-                                    >
-                                      <option value="" className="bg-slate-900 text-slate-400">Sin Asignar</option>
-                                      {operarios.map((op) => (
-                                        <option key={op.id} value={op.id} className="bg-slate-900 text-white">
-                                          {op.name}
-                                        </option>
-                                      ))}
-                                    </select>
-                                  ) : (
-                                    <span className="text-sm text-slate-300 font-semibold">{task.user?.name || 'Sin Asignar'}</span>
-                                  )}
-                                </td>
-                                <td className="px-6 py-4">
-                                  <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-extrabold uppercase tracking-wide bg-amber-500/10 text-amber-400 border border-amber-500/30">
-                                    🔥 En Progreso
-                                  </span>
-                                </td>
-                                <td className="px-6 py-4 text-right">
-                                  <div className="flex items-center justify-end gap-3">
-                                    <button
-                                      onClick={() => setViewingTask(task)}
-                                      className="bg-slate-800 hover:bg-slate-700 text-blue-400 text-sm font-bold px-4 py-2.5 rounded-xl border border-slate-700 transition"
-                                    >
-                                      👁️ Ver
-                                    </button>
-                                    <button
-                                      onClick={() => handleCancelTask(task.id)}
-                                      disabled={actionLoading === task.id}
-                                      className="bg-rose-600/20 hover:bg-rose-600/30 text-rose-300 border border-rose-500/30 text-sm font-bold px-4 py-2.5 rounded-xl transition"
-                                      title="Cancelar tarea iniciada y devolver a pendiente"
-                                    >
-                                      {actionLoading === task.id ? 'Cancelando...' : '⏹️ Cancelar Tarea'}
-                                    </button>
-                                    <button
-                                      onClick={() => handleOpenCompleteModal(task)}
-                                      disabled={actionLoading === task.id}
-                                      className="bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-slate-950 text-sm font-extrabold px-5 py-2.5 rounded-xl shadow-lg shadow-amber-500/20 transition hover:scale-[1.02] active:scale-[0.98]"
-                                    >
-                                      {actionLoading === task.id ? 'Cargando...' : 'Completar Tarea'}
-                                    </button>
-                                  </div>
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-                  </>
-                )}
-              </div>
-
-              {/* 2. TABLA: TAREAS PENDIENTES */}
-              <div className="space-y-4">
-                <h2 className="text-xl font-bold text-blue-400 flex items-center gap-2">
-                  <span>⏳</span> Tareas Pendientes ({pendingTasks.length})
-                </h2>
-
-                {pendingTasks.length === 0 ? (
-                  <div className="bg-slate-900/50 border border-slate-800/80 rounded-xl p-6 text-sm text-slate-500 italic text-center">
-                    No hay tareas pendientes en espera.
-                  </div>
-                ) : (
-                  <>
-                    {/* VISTA EN TARJETAS PARA MOBILE (< md) */}
-                    <div className="md:hidden space-y-3">
-                      {pendingTasks.map((task) => (
-                        <div key={task.id} className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-3 shadow-xl text-left">
-                          <div className="flex items-start justify-between gap-2 border-b border-slate-800 pb-2.5">
-                            <div>
-                              <span className="font-bold text-white text-base block">
-                                {task.pedido?.cliente?.nombre_empresa || task.pedido?.cliente?.nombre_cliente || 'N/A'}
-                              </span>
-                              <span className="text-xs text-slate-400 font-semibold">
-                                {task.created_at ? new Date(task.created_at).toLocaleDateString('es-ES') : '-'}
-                              </span>
-                            </div>
-                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-extrabold uppercase tracking-wide bg-blue-500/10 text-blue-400 border border-blue-500/30">
-                              ⏳ Pendiente
-                            </span>
-                          </div>
-
-                          <div className="space-y-0.5">
-                            <span className="font-bold text-white text-base block">{task.etapa?.nombre}</span>
-                            <span className="text-xs text-slate-400 font-normal block">
-                              {task.etapa?.producto?.nombre || 'Producto'}
-                            </span>
-                          </div>
-
-                          <div className="flex items-center justify-between pt-1">
-                            <span className="text-xs font-bold text-slate-400 uppercase">Operario:</span>
-                            {isManager ? (
-                              <select
-                                value={task.user_id || ''}
-                                onChange={(e) => handleReassignUser(task, e.target.value)}
-                                disabled={actionLoading === task.id}
-                                className="bg-slate-950 border border-slate-800 text-xs font-bold text-blue-400 rounded-lg px-2.5 py-1.5 focus:outline-none cursor-pointer"
-                              >
-                                <option value="" className="bg-slate-900 text-slate-400">Sin Asignar</option>
-                                {operarios.map((op) => (
-                                  <option key={op.id} value={op.id} className="bg-slate-900 text-white">
-                                    {op.name}
-                                  </option>
-                                ))}
-                              </select>
-                            ) : (
-                              <span className="text-xs text-slate-300 font-semibold">{task.user?.name || 'Sin Asignar'}</span>
-                            )}
-                          </div>
-
-                          <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-800">
-                            <button
-                              onClick={() => setViewingTask(task)}
-                              className="bg-slate-800 hover:bg-slate-700 text-blue-400 text-xs font-bold px-3 py-2 rounded-xl border border-slate-700 transition"
-                            >
-                              👁️ Ver
-                            </button>
-                            <button
-                              onClick={() => handleStartTask(task.id)}
-                              disabled={actionLoading === task.id}
-                              className="bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white text-xs font-bold px-4 py-2 rounded-xl transition hover:scale-[1.02] active:scale-[0.98]"
-                            >
-                              {actionLoading === task.id ? 'Iniciando...' : '🚀 Iniciar Tarea'}
-                            </button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-
-                    {/* VISTA EN TABLA PARA ESCRITORIO (hidden md:block) */}
-                    <div className="hidden md:block bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
-                      <div className="overflow-x-auto">
-                        <table className="w-full text-left border-collapse">
-                          <thead>
-                            <tr className="border-b border-slate-800 bg-slate-950/60 text-slate-400 font-bold text-sm uppercase tracking-wider">
-                              <th className="px-6 py-4">Empresa</th>
-                              <th className="px-6 py-4">Fecha Creación</th>
-                              <th className="px-6 py-4">Tarea / Etapa</th>
-                              <th className="px-6 py-4">Operario Asignado</th>
-                              <th className="px-6 py-4">Estado</th>
-                              <th className="px-6 py-4 text-right">Acciones</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-slate-800 text-base font-medium text-slate-200">
-                            {pendingTasks.map((task) => (
-                              <tr key={task.id} className="hover:bg-slate-800/50 transition">
-                                <td className="px-6 py-4 font-bold text-white text-base">
-                                  {task.pedido?.cliente?.nombre_empresa || task.pedido?.cliente?.nombre_cliente || 'N/A'}
-                                </td>
-                                <td className="px-6 py-4 text-sm font-semibold text-slate-300">
-                                  {task.created_at ? new Date(task.created_at).toLocaleDateString('es-ES') : '-'}
-                                </td>
-                                <td className="px-6 py-4">
-                                  <span className="font-bold text-white text-base block">{task.etapa?.nombre}</span>
-                                  <span className="text-sm text-slate-400 font-normal">
-                                    {task.etapa?.producto?.nombre || 'Producto'}
-                                  </span>
-                                </td>
-                                <td className="px-6 py-4">
-                                  {isManager ? (
-                                    <select
-                                      value={task.user_id || ''}
-                                      onChange={(e) => handleReassignUser(task, e.target.value)}
-                                      disabled={actionLoading === task.id}
-                                      className="bg-slate-950 border border-slate-800 text-xs font-bold text-blue-400 rounded-lg px-2.5 py-1.5 focus:outline-none cursor-pointer"
-                                    >
-                                      <option value="" className="bg-slate-900 text-slate-400">Sin Asignar</option>
-                                      {operarios.map((op) => (
-                                        <option key={op.id} value={op.id} className="bg-slate-900 text-white">
-                                          {op.name}
-                                        </option>
-                                      ))}
-                                    </select>
-                                  ) : (
-                                    <span className="text-sm text-slate-300 font-semibold">{task.user?.name || 'Sin Asignar'}</span>
-                                  )}
-                                </td>
-                                <td className="px-6 py-4">
-                                  <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-extrabold uppercase tracking-wide bg-blue-500/10 text-blue-400 border border-blue-500/30">
-                                    ⏳ Pendiente
-                                  </span>
-                                </td>
-                                <td className="px-6 py-4 text-right">
-                                  <div className="flex items-center justify-end gap-3">
-                                    <button
-                                      onClick={() => setViewingTask(task)}
-                                      className="bg-slate-800 hover:bg-slate-700 text-blue-400 text-sm font-bold px-4 py-2.5 rounded-xl border border-slate-700 transition"
-                                    >
-                                      👁️ Ver
-                                    </button>
-                                    <button
-                                      onClick={() => handleStartTask(task.id)}
-                                      disabled={actionLoading === task.id}
-                                      className="bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white text-sm font-bold px-5 py-2.5 rounded-xl transition hover:scale-[1.02] active:scale-[0.98]"
-                                    >
-                                      {actionLoading === task.id ? 'Iniciando...' : '🚀 Iniciar Tarea'}
-                                    </button>
-                                  </div>
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-                  </>
-                )}
-              </div>
-
-              {/* 3. TABLA: TAREAS BLOQUEADAS */}
-              <div className="space-y-4">
-                <h2 className="text-xl font-bold text-rose-400 flex items-center gap-2">
-                  <span>🔒</span> Tareas Bloqueadas por Dependencias ({blockedTasks.length})
-                </h2>
-
-                {blockedTasks.length === 0 ? (
-                  <div className="bg-slate-900/50 border border-slate-800/80 rounded-xl p-6 text-sm text-slate-500 italic text-center">
-                    No hay tareas bloqueadas.
-                  </div>
-                ) : (
-                  <>
-                    {/* VISTA EN TARJETAS PARA MOBILE (< md) */}
-                    <div className="md:hidden space-y-3">
-                      {blockedTasks.map((task) => (
-                        <div key={task.id} className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-3 shadow-xl opacity-90 text-left">
-                          <div className="flex items-start justify-between gap-2 border-b border-slate-800 pb-2.5">
-                            <div>
-                              <span className="font-bold text-white text-base block">
-                                {task.pedido?.cliente?.nombre_empresa || task.pedido?.cliente?.nombre_cliente || 'N/A'}
-                              </span>
-                              <span className="text-xs text-slate-400 font-semibold">
-                                {task.created_at ? new Date(task.created_at).toLocaleDateString('es-ES') : '-'}
-                              </span>
-                            </div>
-                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-extrabold uppercase tracking-wide bg-rose-500/10 text-rose-400 border border-rose-500/30">
-                              🔒 Bloqueada
-                            </span>
-                          </div>
-
-                          <div className="space-y-0.5">
-                            <span className="font-bold text-white text-base block">{task.etapa?.nombre}</span>
-                            <span className="text-xs text-slate-400 font-normal block">
-                              {task.etapa?.producto?.nombre || 'Producto'}
-                            </span>
-                          </div>
-
-                          <div className="flex items-center justify-between pt-1">
-                            <span className="text-xs font-bold text-slate-400 uppercase">Operario:</span>
-                            {isManager ? (
-                              <select
-                                value={task.user_id || ''}
-                                onChange={(e) => handleReassignUser(task, e.target.value)}
-                                disabled={actionLoading === task.id}
-                                className="bg-slate-950 border border-slate-800 text-xs font-bold text-blue-400 rounded-lg px-2.5 py-1.5 focus:outline-none cursor-pointer"
-                              >
-                                <option value="" className="bg-slate-900 text-slate-400">Sin Asignar</option>
-                                {operarios.map((op) => (
-                                  <option key={op.id} value={op.id} className="bg-slate-900 text-white">
-                                    {op.name}
-                                  </option>
-                                ))}
-                              </select>
-                            ) : (
-                              <span className="text-xs text-slate-300 font-semibold">{task.user?.name || 'Sin Asignar'}</span>
-                            )}
-                          </div>
-
-                          <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-800">
-                            <button
-                              onClick={() => setViewingTask(task)}
-                              className="bg-slate-800 hover:bg-slate-700 text-blue-400 text-xs font-bold px-3 py-2 rounded-xl border border-slate-700 transition"
-                            >
-                              👁️ Ver
-                            </button>
-                            <button
-                              disabled
-                              className="bg-rose-600/20 text-rose-400 border border-rose-500/30 text-xs font-bold px-3 py-2 rounded-xl cursor-not-allowed opacity-80"
-                              title="No se puede iniciar hasta que se completen las etapas anteriores"
-                            >
-                              🔒 Bloqueada
-                            </button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-
-                    {/* VISTA EN TABLA PARA ESCRITORIO (hidden md:block) */}
-                    <div className="hidden md:block bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-xl opacity-90">
-                      <div className="overflow-x-auto">
-                        <table className="w-full text-left border-collapse">
-                          <thead>
-                            <tr className="border-b border-slate-800 bg-slate-950/60 text-slate-400 font-bold text-sm uppercase tracking-wider">
-                              <th className="px-6 py-4">Empresa</th>
-                              <th className="px-6 py-4">Fecha Creación</th>
-                              <th className="px-6 py-4">Tarea / Etapa</th>
-                              <th className="px-6 py-4">Operario Asignado</th>
-                              <th className="px-6 py-4">Estado</th>
-                              <th className="px-6 py-4 text-right">Acciones</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-slate-800 text-base font-medium text-slate-200">
-                            {blockedTasks.map((task) => (
-                              <tr key={task.id} className="hover:bg-slate-800/50 transition">
-                                <td className="px-6 py-4 font-bold text-white text-base">
-                                  {task.pedido?.cliente?.nombre_empresa || task.pedido?.cliente?.nombre_cliente || 'N/A'}
-                                </td>
-                                <td className="px-6 py-4 text-sm font-semibold text-slate-300">
-                                  {task.created_at ? new Date(task.created_at).toLocaleDateString('es-ES') : '-'}
-                                </td>
-                                <td className="px-6 py-4">
-                                  <span className="font-bold text-white text-base block">{task.etapa?.nombre}</span>
-                                  <span className="text-sm text-slate-400 font-normal">
-                                    {task.etapa?.producto?.nombre || 'Producto'}
-                                  </span>
-                                </td>
-                                <td className="px-6 py-4">
-                                  {isManager ? (
-                                    <select
-                                      value={task.user_id || ''}
-                                      onChange={(e) => handleReassignUser(task, e.target.value)}
-                                      disabled={actionLoading === task.id}
-                                      className="bg-slate-950 border border-slate-800 text-xs font-bold text-blue-400 rounded-lg px-2.5 py-1.5 focus:outline-none cursor-pointer"
-                                    >
-                                      <option value="" className="bg-slate-900 text-slate-400">Sin Asignar</option>
-                                      {operarios.map((op) => (
-                                        <option key={op.id} value={op.id} className="bg-slate-900 text-white">
-                                          {op.name}
-                                        </option>
-                                      ))}
-                                    </select>
-                                  ) : (
-                                    <span className="text-sm text-slate-300 font-semibold">{task.user?.name || 'Sin Asignar'}</span>
-                                  )}
-                                </td>
-                                <td className="px-6 py-4">
-                                  <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-extrabold uppercase tracking-wide bg-rose-500/10 text-rose-400 border border-rose-500/30">
-                                    🔒 Bloqueada
-                                  </span>
-                                </td>
-                                <td className="px-6 py-4 text-right">
-                                  <div className="flex items-center justify-end gap-3">
-                                    <button
-                                      onClick={() => setViewingTask(task)}
-                                      className="bg-slate-800 hover:bg-slate-700 text-blue-400 text-sm font-bold px-4 py-2.5 rounded-xl border border-slate-700 transition"
-                                    >
-                                      👁️ Ver
-                                    </button>
-                                    <button
-                                      disabled
-                                      className="bg-rose-600/20 text-rose-400 border border-rose-500/30 text-sm font-bold px-4 py-2.5 rounded-xl cursor-not-allowed opacity-80"
-                                      title="No se puede iniciar hasta que se completen las etapas anteriores"
-                                    >
-                                      🔒 Bloqueada
-                                    </button>
-                                  </div>
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-                  </>
-                )}
-              </div>
-            </>
+            <div className="space-y-8">
+              {isEncargado ? (
+                <>
+                  {renderPendingSection()}
+                  {renderInProgressSection()}
+                </>
+              ) : (
+                <>
+                  {renderInProgressSection()}
+                  {renderPendingSection()}
+                </>
+              )}
+            </div>
           )}
         </div>
 
@@ -760,7 +641,7 @@ export default function TareasPage() {
           return (
             <Modal isOpen={!!viewingTask} onClose={() => setViewingTask(null)} className="max-w-xl p-6">
               {/* Header del Modal */}
-              <div className="flex items-center justify-between border-b border-slate-800 pb-4 mb-4">
+              <div className="flex items-center justify-between border-b border-slate-800 pb-4 mb-4 pr-10">
                 <div className="flex items-center gap-3">
                   <span className="text-sm font-mono font-extrabold text-white bg-slate-800 px-3 py-1 rounded-lg border border-slate-700">
                     Pedido #{viewingTask.pedido?.id}
@@ -771,12 +652,6 @@ export default function TareasPage() {
                     {getStatusLabel(viewingTask.estado)}
                   </span>
                 </div>
-                <button
-                  onClick={() => setViewingTask(null)}
-                  className="text-slate-400 hover:text-white text-xl font-bold w-9 h-9 flex items-center justify-center rounded-lg hover:bg-slate-800 transition"
-                >
-                  ✕
-                </button>
               </div>
 
               {/* Contenido de la Tarjeta */}

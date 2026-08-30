@@ -150,18 +150,12 @@ class OperarioTaskController extends Controller
     public function complete(Request $request, $id): JsonResponse
     {
         $user = Auth::user();
-        if ($user && ($user->isAdmin() || $user->isEncargado() || $user->isSupervisor())) {
-            $task = ResponsableEtapa::find($id);
-        } else {
-            $task = ResponsableEtapa::where('id', $id)
-                ->where('user_id', $user?->id)
-                ->first();
-        }
+        $task = ResponsableEtapa::find($id);
 
         if (!$task) {
             return response()->json([
                 'status' => 'error',
-                'message' => 'Tarea no encontrada o no está asignada a tu usuario'
+                'message' => 'Tarea no encontrada'
             ], 404);
         }
 

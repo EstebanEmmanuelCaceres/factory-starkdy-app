@@ -27,6 +27,10 @@ class ResponsableEtapaController extends Controller
 
         if ($request->has('pedido_id')) {
             $query->where('pedido_id', $request->input('pedido_id'));
+        } else {
+            $query->whereHas('pedido.ultimoEstado', function ($q) {
+                $q->where('estado', '!=', 'pendiente');
+            });
         }
 
         if ($request->has('user_id')) {

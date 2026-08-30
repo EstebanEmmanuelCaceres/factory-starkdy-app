@@ -41,6 +41,51 @@ export default function ProductImageGallery({ productId, productName, onImagesUp
     loadImages()
   }, [productId])
 
+  useEffect(() => {
+    const handlePaste = async (e: ClipboardEvent) => {
+      const target = e.target as HTMLElement
+      // Ignorar si el usuario está escribiendo en un input o textarea
+      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA')) {
+        return
+      }
+
+      const items = e.clipboardData?.items
+      if (!items) return
+
+      const files: File[] = []
+      for (let i = 0; i < items.length; i++) {
+        const item = items[i]
+        if (item.type.indexOf('image') !== -1) {
+          const blob = item.getAsFile()
+          if (blob) {
+            const ext = item.type.split('/')[1] || 'png'
+            const file = new File([blob], `producto_${productId}_pegado_${Date.now()}.${ext}`, { type: item.type })
+            files.push(file)
+          }
+        }
+      }
+
+      if (files.length > 0) {
+        e.preventDefault()
+        setUploading(true)
+        setError('')
+        try {
+          const updated = await uploadProductImages(productId, files)
+          setImages(updated)
+          showNotification('Imagen pegada desde el portapapeles subida correctamente')
+          notifyUpdate()
+        } catch (err: unknown) {
+          setError(err instanceof Error ? err.message : 'Error al subir la imagen pegada')
+        } finally {
+          setUploading(false)
+        }
+      }
+    }
+
+    window.addEventListener('paste', handlePaste)
+    return () => window.removeEventListener('paste', handlePaste)
+  }, [productId])
+
   const notifyUpdate = () => {
     if (onImagesUpdated) onImagesUpdated()
   }
@@ -148,8 +193,8 @@ export default function ProductImageGallery({ productId, productName, onImagesUp
             <div className="w-10 h-10 rounded-full bg-blue-600/10 text-blue-400 border border-blue-500/20 flex items-center justify-center mb-2 group-hover:scale-110 transition">
               📁
             </div>
-            <span className="text-xs font-semibold text-slate-200">Seleccionar archivos</span>
-            <span className="text-[10px] text-slate-500 mt-1">PNG, JPG, WEBP o GIF (Máx. 10MB)</span>
+            <span className="text-xs font-semibold text-slate-200">Seleccionar archivos o Pegar (Ctrl + V)</span>
+            <span className="text-[10px] text-slate-500 mt-1">Sube archivos o pega directamente fotos del portapapeles</span>
           </div>
 
           {/* Subir por URL externa */}

@@ -102,7 +102,10 @@ export default function PedidosPage() {
     productQuantities: {} as Record<number, number>,
     precio: '',
     comentario: '',
-    tipo_pago: 'parcial' as 'unico' | 'parcial'
+    tipo_pago: 'parcial' as 'unico' | 'parcial',
+    monto_pago_inicial: '',
+    medio_pago_inicial: 'efectivo',
+    observaciones_pago_inicial: ''
   })
 
   // Ordenamiento
@@ -280,7 +283,10 @@ export default function PedidosPage() {
       productQuantities: {},
       precio: '',
       comentario: '',
-      tipo_pago: 'parcial'
+      tipo_pago: 'parcial',
+      monto_pago_inicial: '',
+      medio_pago_inicial: 'efectivo',
+      observaciones_pago_inicial: ''
     })
     setClientSearchText('')
     setProductSearchQuery('')
@@ -331,7 +337,10 @@ export default function PedidosPage() {
       productQuantities: quantities,
       precio: pedido.precio !== null && pedido.precio !== undefined ? pedido.precio.toString() : '',
       comentario: pedido.comentario || '',
-      tipo_pago: pedido.tipo_pago || 'parcial'
+      tipo_pago: pedido.tipo_pago || 'parcial',
+      monto_pago_inicial: '',
+      medio_pago_inicial: 'efectivo',
+      observaciones_pago_inicial: ''
     })
     const assignedClient = clientes.find((c) => c.id === pedido.cliente_id)
     setClientSearchText(assignedClient ? `${assignedClient.nombre_cliente} - ${assignedClient.nombre_empresa}` : '')
@@ -518,6 +527,14 @@ export default function PedidosPage() {
       return
     }
 
+    const montoInicialNum = formData.monto_pago_inicial ? parseFloat(formData.monto_pago_inicial) : 0
+    const precioNum = parseFloat(formData.precio)
+
+    if (montoInicialNum > 0 && montoInicialNum > precioNum) {
+      setError(`El pago inicial ($${montoInicialNum.toLocaleString('es-AR')}) no puede superar el precio total ($${precioNum.toLocaleString('es-AR')})`)
+      return
+    }
+
     try {
       const isNewClient = formData.cliente_id === 'new'
       const payload: CreatePedidoInput = {
@@ -526,9 +543,12 @@ export default function PedidosPage() {
         codigo: formData.codigo.trim() || `PD-${Date.now().toString().slice(-6)}`,
         prioridad: formData.prioridad,
         fecha_entrega: formData.fecha_entrega,
-        precio: parseFloat(formData.precio),
+        precio: precioNum,
         comentario: formData.comentario || null,
         tipo_pago: formData.tipo_pago,
+        monto_pago_inicial: montoInicialNum > 0 ? montoInicialNum : null,
+        medio_pago_inicial: montoInicialNum > 0 ? formData.medio_pago_inicial : null,
+        observaciones_pago_inicial: montoInicialNum > 0 ? formData.observaciones_pago_inicial : null,
         productos: formData.selectedProductIds.map((id) => ({
           id,
           cantidad: formData.productQuantities[id] || 1
@@ -693,9 +713,16 @@ export default function PedidosPage() {
           return [...otherStages, ...fetchedStages]
         })
       } catch (err) {
-        console.error('Error al precargar etapas de productos del pedido:', err)
       }
     }
+  }
+
+  const handleRowClick = (e: React.MouseEvent, pedido: Pedido) => {
+    const target = e.target as HTMLElement
+    if (target.closest('button, select, input, a, [data-prevent-row-click]')) {
+      return
+    }
+    handleOpenViewModal(pedido)
   }
 
   // ── Gestores de Pagos Parciales/Únicos ─────────────────────────────
@@ -849,6 +876,8 @@ export default function PedidosPage() {
         return 'Completado'
       case 'completado_pd':
         return 'Completado - Pend. Pago (PD)'
+      case 'enviado':
+        return 'Enviado'
       case 'enviado_faltante':
         return 'Enviado con Faltante'
       case 'en_progreso':
@@ -871,6 +900,8 @@ export default function PedidosPage() {
         return 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
       case 'completado_pd':
         return 'bg-purple-500/10 text-purple-400 border border-purple-500/20'
+      case 'enviado':
+        return 'bg-teal-500/10 text-teal-400 border border-teal-500/20'
       case 'enviado_faltante':
         return 'bg-orange-500/10 text-orange-400 border border-orange-500/20'
       case 'en_progreso':
@@ -1032,6 +1063,7 @@ export default function PedidosPage() {
               <option value="en_progreso">En Progreso</option>
               <option value="completado">Completado</option>
               <option value="completado_pd">Completado - Pend. Pago (PD)</option>
+              <option value="enviado">Enviado</option>
               <option value="enviado_faltante">Enviado con Faltante</option>
               <option value="cancelado">Cancelado</option>
             </select>
@@ -1088,12 +1120,17 @@ export default function PedidosPage() {
                     pedido.productos?.[0]?.imagenes?.[0]?.url
 
                   return (
-                    <div key={pedido.id} className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-3 shadow-xl text-left">
+                    <div
+                      key={pedido.id}
+                      onClick={(e) => handleRowClick(e, pedido)}
+                      className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-3 shadow-xl text-left cursor-pointer hover:border-slate-700 transition"
+                    >
                       {/* Encabezado de la Tarjeta */}
                       <div className="flex items-start justify-between gap-2 border-b border-slate-800 pb-2.5">
                         <div className="flex items-center gap-3">
                           {coverUrl ? (
                             <div
+                              data-prevent-row-click="true"
                               onClick={() => handleOpenImagesModal(pedido)}
                               className="w-12 h-12 rounded-lg overflow-hidden border border-slate-700 bg-slate-950 flex-shrink-0 relative cursor-pointer group shadow"
                               title="Ver o editar imágenes del pedido"
@@ -1107,6 +1144,7 @@ export default function PedidosPage() {
                             </div>
                           ) : (
                             <div
+                              data-prevent-row-click="true"
                               onClick={() => handleOpenImagesModal(pedido)}
                               className="w-12 h-12 rounded-lg border border-slate-800/80 bg-slate-950/50 flex-shrink-0 flex items-center justify-center text-slate-600 text-sm cursor-pointer hover:border-slate-700 transition"
                               title="Sin imagen - Hacer clic para agregar"
@@ -1204,32 +1242,11 @@ export default function PedidosPage() {
                           </button>
                         )}
                         <button
-                          onClick={() => handleOpenImagesModal(pedido)}
-                          className="text-slate-300 hover:text-amber-400 p-2 bg-slate-950 border border-slate-800 hover:bg-slate-800 rounded-lg transition text-xs flex items-center gap-1 font-semibold"
-                          title="Gestionar imágenes y planos del pedido"
-                        >
-                          🖼️ <span className="text-[11px]">Fotos</span>
-                        </button>
-                        <button
                           onClick={() => handleOpenViewModal(pedido)}
                           className="text-blue-400 hover:text-blue-300 p-2 bg-slate-950 border border-slate-800 hover:bg-blue-500/10 rounded-lg transition text-xs flex items-center gap-1 font-semibold"
                           title="Ver detalles del pedido"
                         >
                           👁️ <span className="text-[11px]">Ver</span>
-                        </button>
-                        <button
-                          onClick={() => handleOpenPaymentsModal(pedido)}
-                          className="text-emerald-400 hover:text-emerald-300 p-2 bg-slate-950 border border-slate-800 hover:bg-emerald-500/10 rounded-lg transition text-xs flex items-center gap-1 font-semibold"
-                          title="Gestionar pagos del pedido"
-                        >
-                          💵 <span className="text-[11px]">Pagos</span>
-                        </button>
-                        <button
-                          onClick={() => handleOpenEditModal(pedido)}
-                          className="text-slate-300 hover:text-white p-2 bg-slate-950 border border-slate-800 hover:bg-slate-800 rounded-lg transition text-xs flex items-center gap-1 font-semibold"
-                          title="Editar/Asignar pedido"
-                        >
-                          ✏️ <span className="text-[11px]">Editar</span>
                         </button>
                         <button
                           onClick={() => handleDelete(pedido.id)}
@@ -1285,10 +1302,15 @@ export default function PedidosPage() {
                         pedido.productos?.[0]?.imagenes?.[0]?.url
 
                       return (
-                        <tr key={pedido.id} className="hover:bg-slate-800/40 text-slate-300 transition duration-100">
+                        <tr
+                          key={pedido.id}
+                          onClick={(e) => handleRowClick(e, pedido)}
+                          className="hover:bg-slate-800/40 text-slate-300 transition duration-100 cursor-pointer"
+                        >
                           <td className="px-6 py-4">
                             {coverUrl ? (
                               <div
+                                data-prevent-row-click="true"
                                 onClick={() => handleOpenImagesModal(pedido)}
                                 className="w-10 h-10 rounded-lg overflow-hidden border border-slate-700 bg-slate-950 relative flex items-center justify-center group shadow cursor-pointer hover:border-amber-500/80 transition duration-150"
                                 title="Ver o editar imágenes de portada del pedido"
@@ -1302,6 +1324,7 @@ export default function PedidosPage() {
                               </div>
                             ) : (
                               <div
+                                data-prevent-row-click="true"
                                 onClick={() => handleOpenImagesModal(pedido)}
                                 className="w-10 h-10 rounded-lg border border-slate-800/80 bg-slate-950/50 flex items-center justify-center text-slate-600 text-xs cursor-pointer hover:border-slate-700 hover:text-slate-400 transition"
                                 title="Sin imagen - Hacer clic para agregar"
@@ -1389,32 +1412,11 @@ export default function PedidosPage() {
                               </button>
                             )}
                             <button
-                              onClick={() => handleOpenImagesModal(pedido)}
-                              className="text-slate-400 hover:text-amber-400 p-1 hover:bg-slate-800 rounded transition"
-                              title="Gestionar imágenes y planos del pedido"
-                            >
-                              🖼️
-                            </button>
-                            <button
                               onClick={() => handleOpenViewModal(pedido)}
                               className="text-blue-400 hover:text-blue-300 p-1 hover:bg-blue-500/10 rounded transition"
                               title="Ver detalles del pedido (Trello)"
                             >
                               👁️
-                            </button>
-                            <button
-                              onClick={() => handleOpenPaymentsModal(pedido)}
-                              className="text-emerald-400 hover:text-emerald-300 p-1 hover:bg-emerald-500/10 rounded transition"
-                              title="Gestionar pagos del pedido"
-                            >
-                              💵
-                            </button>
-                            <button
-                              onClick={() => handleOpenEditModal(pedido)}
-                              className="text-slate-400 hover:text-white p-1 hover:bg-slate-800 rounded transition"
-                              title="Editar/Asignar pedido"
-                            >
-                              ✏️
                             </button>
                             <button
                               onClick={() => handleDelete(pedido.id)}
@@ -2060,6 +2062,87 @@ export default function PedidosPage() {
                     />
                   </div>
 
+                  {/* Sección de Pago Inicial / Adelanto */}
+                  <div className="bg-slate-950/70 border border-slate-800/80 p-4 rounded-xl space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="text-base">💵</span>
+                        <span className="text-xs font-bold uppercase tracking-wider text-emerald-400">
+                          Pago Inicial / Adelanto (Opcional)
+                        </span>
+                      </div>
+                      {parseFloat(formData.monto_pago_inicial || '0') > 0 && (
+                        <span className="text-[10px] bg-emerald-500/20 text-emerald-300 font-bold px-2.5 py-0.5 rounded-full border border-emerald-500/30">
+                          {parseFloat(formData.monto_pago_inicial || '0') >= parseFloat(formData.precio || '0') && parseFloat(formData.precio || '0') > 0
+                            ? '✓ Pago Total'
+                            : '✓ Pago Parcial (Seña)'}
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-400 mb-1">
+                          Monto del Pago Inicial ($)
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="0.00"
+                          value={formData.monto_pago_inicial}
+                          onChange={(e) => {
+                            const val = e.target.value
+                            if (/^[0-9]*\.?[0-9]*$/.test(val)) {
+                              setFormData({ ...formData, monto_pago_inicial: val })
+                            }
+                          }}
+                          className="w-full bg-slate-900 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white font-semibold focus:outline-none focus:border-emerald-500 transition"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-400 mb-1">
+                          Medio de Pago
+                        </label>
+                        <select
+                          value={formData.medio_pago_inicial}
+                          onChange={(e) => setFormData({ ...formData, medio_pago_inicial: e.target.value })}
+                          className="w-full bg-slate-900 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-emerald-500 transition"
+                        >
+                          <option value="efectivo">💵 Efectivo</option>
+                          <option value="transferencia">🏦 Transferencia Bancaria</option>
+                          <option value="tarjeta_credito">💳 Tarjeta de Crédito</option>
+                          <option value="tarjeta_debito">💳 Tarjeta de Débito</option>
+                          <option value="mercado_pago">📱 Mercado Pago</option>
+                          <option value="cheque">📄 Cheque</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    {parseFloat(formData.monto_pago_inicial || '0') > 0 && (
+                      <div className="space-y-2 pt-1 border-t border-slate-850">
+                        <div>
+                          <label className="block text-[11px] font-semibold text-slate-400 mb-1">
+                            Observación o Referencia del Pago
+                          </label>
+                          <input
+                            type="text"
+                            placeholder="Ej: Seña recibida por transferencia en cuenta..."
+                            value={formData.observaciones_pago_inicial}
+                            onChange={(e) => setFormData({ ...formData, observaciones_pago_inicial: e.target.value })}
+                            className="w-full bg-slate-900 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-emerald-500 transition"
+                          />
+                        </div>
+
+                        <div className="flex items-center justify-between bg-slate-900/60 p-2.5 rounded-lg text-xs">
+                          <span className="text-slate-400">Saldo Pendiente Restante:</span>
+                          <span className="font-bold font-mono text-emerald-400 text-sm">
+                            ${Math.max(0, parseFloat(formData.precio || '0') - parseFloat(formData.monto_pago_inicial || '0')).toLocaleString('es-AR', { minimumFractionDigits: 2 })}
+                          </span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
                   {/* Selección de Productos */}
                   <div>
                     <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
@@ -2280,6 +2363,26 @@ export default function PedidosPage() {
                         </div>
                       </div>
                     )}
+
+                    {(createdPedidoResult.monto_pagado || 0) > 0 && (
+                      <div className="pt-3 border-t border-slate-850/50 space-y-1 bg-emerald-500/10 border border-emerald-500/20 p-2.5 rounded-lg">
+                        <span className="text-[10px] text-emerald-400 font-bold uppercase tracking-wider block flex items-center gap-1">
+                          💵 Pago Inicial Registrado Con Éxito
+                        </span>
+                        <div className="flex justify-between items-center text-xs text-slate-300">
+                          <span>Monto Pagado:</span>
+                          <span className="font-bold font-mono text-emerald-300">
+                            ${parseFloat((createdPedidoResult.monto_pagado || 0).toString()).toLocaleString('es-AR', { minimumFractionDigits: 2 })}
+                          </span>
+                        </div>
+                        <div className="flex justify-between items-center text-xs text-slate-400">
+                          <span>Saldo Pendiente:</span>
+                          <span className="font-semibold font-mono text-white">
+                            ${parseFloat((createdPedidoResult.saldo_pendiente || 0).toString()).toLocaleString('es-AR', { minimumFractionDigits: 2 })}
+                          </span>
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   <div className="flex items-center justify-center gap-3 pt-6 border-t border-slate-800">
@@ -2417,6 +2520,7 @@ export default function PedidosPage() {
                       <option value="en_progreso">En Progreso</option>
                       <option value="completado">Completado</option>
                       <option value="completado_pd">Completado - Pendiente de pago (PD)</option>
+                      <option value="enviado">Enviado</option>
                       <option value="enviado_faltante">Enviado con faltante</option>
                       <option value="cancelado">Cancelado</option>
                     </select>
@@ -2816,13 +2920,6 @@ export default function PedidosPage() {
             onClose={() => setIsPaymentsModalOpen(false)}
             className="max-w-4xl p-6"
           >
-              <button
-                onClick={() => setIsPaymentsModalOpen(false)}
-                className="absolute top-4 right-4 text-slate-400 hover:text-white transition text-lg"
-                title="Cerrar"
-              >
-                ✕
-              </button>
 
               <h2 className="text-xl font-bold text-white mb-1">
                 Gestión de Pagos: Pedido #{selectedPedidoForPayments.id}
@@ -3072,6 +3169,8 @@ export default function PedidosPage() {
           allStages={allStages}
           taskAssignments={taskAssignments}
           onOpenGallery={(pedidoToGallery) => handleOpenImagesModal(pedidoToGallery)}
+          onOpenPayments={(pedidoToPay) => handleOpenPaymentsModal(pedidoToPay)}
+          onOpenEdit={(pedidoToEdit) => handleOpenEditModal(pedidoToEdit)}
         />
 
         {/* Modal de Gestión de Imágenes del Pedido */}
@@ -3093,16 +3192,6 @@ export default function PedidosPage() {
                     Administra la portada e imágenes secundarias del pedido: <span className="text-blue-400 font-semibold">{selectedPedidoForImages.cliente?.nombre_empresa || selectedPedidoForImages.cliente?.nombre_cliente || `#${selectedPedidoForImages.id}`}</span>
                   </p>
                 </div>
-                <button
-                  onClick={() => {
-                    setIsImagesModalOpen(false)
-                    loadData()
-                  }}
-                  className="text-slate-400 hover:text-white text-lg font-bold p-1"
-                  title="Cerrar modal"
-                >
-                  ✕
-                </button>
               </div>
 
               <OrderImageGallery

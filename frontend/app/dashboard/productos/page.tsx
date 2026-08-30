@@ -674,16 +674,6 @@ export default function ProductosPage() {
                   >
                     {loadingStages ? 'Guardando...' : 'Guardar en Servidor'}
                   </button>
-                  <button
-                    onClick={() => {
-                      if (hasUnsavedChanges && !confirm('Tienes cambios sin guardar en el servidor. ¿Deseas cerrar igualmente y descartar los cambios?')) return;
-                      setIsStagesModalOpen(false)
-                    }}
-                    className="text-slate-400 hover:text-white text-lg font-bold p-1 ml-1"
-                    title="Cerrar modal"
-                  >
-                    ✕
-                  </button>
                 </div>
               </div>
 
@@ -979,16 +969,6 @@ export default function ProductosPage() {
                     Administra el logo e imágenes secundarias de: <span className="text-blue-400 font-semibold">{selectedProductForImages.nombre}</span>
                   </p>
                 </div>
-                <button
-                  onClick={() => {
-                    setIsImagesModalOpen(false)
-                    loadProducts()
-                  }}
-                  className="text-slate-400 hover:text-white text-lg font-bold p-1"
-                  title="Cerrar modal"
-                >
-                  ✕
-                </button>
               </div>
 
               <ProductImageGallery
