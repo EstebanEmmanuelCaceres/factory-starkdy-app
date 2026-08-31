@@ -65,7 +65,7 @@ api.interceptors.response.use(
       message.includes('Connection:') ||
       message.includes('not-null constraint')
     ) {
-      message = 'Error en el servidor: Verifique que todos los datos obligatorios del pedido estén completos.'
+      message = 'Error en el servidor. Por favor, vuelva a intentarlo más tarde.'
     }
 
     return Promise.reject(new Error(message))

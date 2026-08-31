@@ -64,10 +64,10 @@ class AuthController extends Controller
             'password.min'      => 'La contraseña debe tener al menos 8 caracteres.',
         ]);
 
-        $userRole = Role::where('name', 'user')->first();
+        $userRole = Role::where('slug', 'operario')->orWhere('name', 'operario')->first();
 
         if (! $userRole) {
-            $userRole = Role::create(['name' => 'user', 'display_name' => 'Usuario']);
+            $userRole = Role::create(['name' => 'Operario', 'slug' => 'operario']);
         }
 
         $user = User::create([

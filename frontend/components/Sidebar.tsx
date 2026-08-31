@@ -106,9 +106,8 @@ export default function Sidebar({ user, isOpen = false, onClose }: SidebarProps)
       )}
 
       <nav
-        className={`sidebar fixed top-0 bottom-0 left-0 w-[240px] bg-slate-900 border-r border-slate-800 flex flex-col z-50 transition-transform duration-300 ease-in-out lg:translate-x-0 ${
-          isOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full lg:translate-x-0'
-        }`}
+        className={`sidebar fixed top-0 bottom-0 left-0 w-[240px] bg-slate-900 border-r border-slate-800 flex flex-col z-50 transition-transform duration-300 ease-in-out lg:translate-x-0 ${isOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full lg:translate-x-0'
+          }`}
         aria-label="Navegación principal"
       >
         {/* Logo y Botón de Cierre en Mobile */}
@@ -167,42 +166,42 @@ export default function Sidebar({ user, isOpen = false, onClose }: SidebarProps)
           </div>
         ))}
 
-      {/* Footer — usuario */}
-      <div className="sidebar-footer">
-        {user ? (
-          <div className="user-card">
-            <div
-              className="user-avatar"
-              style={{ background: `linear-gradient(135deg, ${ROLE_COLORS[user.role] ?? 'var(--blue)'}, rgba(0,0,0,0.4))` }}
-            >
-              {getInitials(user.name)}
+        {/* Footer — usuario */}
+        <div className="sidebar-footer">
+          {user ? (
+            <div className="user-card">
+              <div
+                className="user-avatar"
+                style={{ background: `linear-gradient(135deg, ${ROLE_COLORS[user.role] ?? 'var(--blue)'}, rgba(0,0,0,0.4))` }}
+              >
+                {getInitials(user.name)}
+              </div>
+              <div className="user-info">
+                <div className="user-name">{user.name}</div>
+                <span className={`user-role-badge role-${user.role}`}>
+                  {user.role_label}
+                </span>
+              </div>
+              <button
+                id="sidebar-logout-btn"
+                className="logout-btn"
+                onClick={handleLogout}
+                title="Cerrar sesión"
+                aria-label="Cerrar sesión"
+              >
+                <Icons.logout />
+              </button>
             </div>
-            <div className="user-info">
-              <div className="user-name">{user.name}</div>
-              <span className={`user-role-badge role-${user.role}`}>
-                {user.role_label}
-              </span>
+          ) : (
+            <div className="user-card" style={{ opacity: 0.5 }}>
+              <div className="user-avatar" style={{ background: 'var(--border)' }}>?</div>
+              <div className="user-info">
+                <div className="user-name">Cargando...</div>
+              </div>
             </div>
-            <button
-              id="sidebar-logout-btn"
-              className="logout-btn"
-              onClick={handleLogout}
-              title="Cerrar sesión"
-              aria-label="Cerrar sesión"
-            >
-              <Icons.logout />
-            </button>
-          </div>
-        ) : (
-          <div className="user-card" style={{ opacity: 0.5 }}>
-            <div className="user-avatar" style={{ background: 'var(--border)' }}>?</div>
-            <div className="user-info">
-              <div className="user-name">Cargando...</div>
-            </div>
-          </div>
-        )}
-      </div>
-    </nav>
-  </>
+          )}
+        </div>
+      </nav>
+    </>
   )
 }

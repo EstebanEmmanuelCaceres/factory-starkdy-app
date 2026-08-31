@@ -151,8 +151,8 @@ export default function DashboardPage() {
   const scopedPedidos = isVendedor && currentUser
     ? pedidos.filter(p => p.user_id === currentUser.id)
     : isOperativo
-    ? pedidos.filter(p => p.estado !== 'pendiente')
-    : pedidos
+      ? pedidos.filter(p => p.estado !== 'pendiente')
+      : pedidos
 
   const sortedPedidos = [...scopedPedidos].sort((a, b) => {
     let valA: any = (a as any)[sortField]

@@ -1338,99 +1338,99 @@ export default function PedidosPage() {
                               {pedido.cliente?.nombre_empresa || pedido.cliente?.nombre_cliente || 'Sin empresa'}
                             </span>
                           </td>
-                        <td className="px-6 py-4 max-w-xs">
-                          {pedido.productos && pedido.productos.length > 0 ? (
-                            <div className="flex flex-col gap-1.5 items-stretch justify-center">
-                              {pedido.productos.slice(0, 2).map((prod) => {
-                                const qty = (prod as any).pivot?.cantidad
-                                return (
-                                  <span
-                                    key={prod.id}
-                                    className="bg-slate-950 border border-slate-800 text-slate-200 text-sm px-3 py-1.5 rounded-lg text-center font-medium shadow-sm transition hover:border-slate-700"
-                                    title={prod.descripcion || ''}
-                                  >
-                                    {prod.nombre} {qty ? `(x${qty})` : ''}
+                          <td className="px-6 py-4 max-w-xs">
+                            {pedido.productos && pedido.productos.length > 0 ? (
+                              <div className="flex flex-col gap-1.5 items-stretch justify-center">
+                                {pedido.productos.slice(0, 2).map((prod) => {
+                                  const qty = (prod as any).pivot?.cantidad
+                                  return (
+                                    <span
+                                      key={prod.id}
+                                      className="bg-slate-950 border border-slate-800 text-slate-200 text-sm px-3 py-1.5 rounded-lg text-center font-medium shadow-sm transition hover:border-slate-700"
+                                      title={prod.descripcion || ''}
+                                    >
+                                      {prod.nombre} {qty ? `(x${qty})` : ''}
+                                    </span>
+                                  )
+                                })}
+                                {pedido.productos.length > 2 && (
+                                  <span className="text-[10px] text-slate-500 font-bold text-center mt-0.5 select-none">
+                                    + {pedido.productos.length - 2} más
                                   </span>
-                                )
-                              })}
-                              {pedido.productos.length > 2 && (
-                                <span className="text-[10px] text-slate-500 font-bold text-center mt-0.5 select-none">
-                                  + {pedido.productos.length - 2} más
-                                </span>
-                              )}
-                            </div>
-                          ) : (
-                            <span className="text-slate-650 italic text-xs block text-center">Ninguno</span>
-                          )}
-                        </td>
-                        <td className="px-6 py-4">
-                          <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold capitalize ${getPriorityBadgeClass(pedido.prioridad)}`}>
-                            {pedido.prioridad}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4">
-                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold uppercase tracking-wide ${getStatusBadgeClass(pedido.estado)}`}>
-                            {getStatusLabel(pedido.estado)}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 text-xs text-slate-400">
-                          {pedido.created_at ? (
-                            new Date(pedido.created_at).toLocaleDateString('es-ES', {
-                              year: 'numeric',
-                              month: 'short',
-                              day: 'numeric'
-                            })
-                          ) : (
-                            <span className="text-slate-600 italic">-</span>
-                          )}
-                        </td>
-                        <td className="px-6 py-4 text-right text-xs font-semibold text-white">
-                          {pedido.precio !== null && pedido.precio !== undefined ? (
-                            `$ ${parseFloat(pedido.precio.toString()).toLocaleString('es-AR', { minimumFractionDigits: 2 })}`
-                          ) : (
-                            <span className="text-slate-600 italic">-</span>
-                          )}
-                        </td>
-                        <td className="px-6 py-4 text-xs text-slate-400">{pedido.user?.name || 'Desconocido'}</td>
-                        <td className="px-6 py-4 text-right">
-                          <div className="flex justify-end gap-2.5">
-                            {pedido.estado === 'pendiente' && (
-                              <button
-                                onClick={async () => {
-                                  try {
-                                    await updatePedido(pedido.id, { estado: 'listo_para_produccion' })
-                                    showNotification('Pedido enviado a producción correctamente')
-                                    loadData()
-                                  } catch (err: unknown) {
-                                    setError(err instanceof Error ? err.message : 'Error al enviar a producción')
-                                  }
-                                }}
-                                className="bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-500/40 text-xs px-2.5 py-1 rounded font-semibold transition flex items-center gap-1"
-                                title="Pasar pedido a 'Listo para producción'"
-                              >
-                                🚀 Habilitar Producción
-                              </button>
+                                )}
+                              </div>
+                            ) : (
+                              <span className="text-slate-650 italic text-xs block text-center">Ninguno</span>
                             )}
-                            <button
-                              onClick={() => handleOpenViewModal(pedido)}
-                              className="text-blue-400 hover:text-blue-300 p-1 hover:bg-blue-500/10 rounded transition"
-                              title="Ver detalles del pedido (Trello)"
-                            >
-                              👁️
-                            </button>
-                            <button
-                              onClick={() => handleDelete(pedido.id)}
-                              className="text-rose-400 hover:text-rose-300 p-1 hover:bg-rose-500/10 rounded transition"
-                              title="Dar de baja pedido"
-                            >
-                              🗑️
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
+                          </td>
+                          <td className="px-6 py-4">
+                            <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold capitalize ${getPriorityBadgeClass(pedido.prioridad)}`}>
+                              {pedido.prioridad}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4">
+                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold uppercase tracking-wide ${getStatusBadgeClass(pedido.estado)}`}>
+                              {getStatusLabel(pedido.estado)}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 text-xs text-slate-400">
+                            {pedido.created_at ? (
+                              new Date(pedido.created_at).toLocaleDateString('es-ES', {
+                                year: 'numeric',
+                                month: 'short',
+                                day: 'numeric'
+                              })
+                            ) : (
+                              <span className="text-slate-600 italic">-</span>
+                            )}
+                          </td>
+                          <td className="px-6 py-4 text-right text-xs font-semibold text-white">
+                            {pedido.precio !== null && pedido.precio !== undefined ? (
+                              `$ ${parseFloat(pedido.precio.toString()).toLocaleString('es-AR', { minimumFractionDigits: 2 })}`
+                            ) : (
+                              <span className="text-slate-600 italic">-</span>
+                            )}
+                          </td>
+                          <td className="px-6 py-4 text-xs text-slate-400">{pedido.user?.name || 'Desconocido'}</td>
+                          <td className="px-6 py-4 text-right">
+                            <div className="flex justify-end gap-2.5">
+                              {pedido.estado === 'pendiente' && (
+                                <button
+                                  onClick={async () => {
+                                    try {
+                                      await updatePedido(pedido.id, { estado: 'listo_para_produccion' })
+                                      showNotification('Pedido enviado a producción correctamente')
+                                      loadData()
+                                    } catch (err: unknown) {
+                                      setError(err instanceof Error ? err.message : 'Error al enviar a producción')
+                                    }
+                                  }}
+                                  className="bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-500/40 text-xs px-2.5 py-1 rounded font-semibold transition flex items-center gap-1"
+                                  title="Pasar pedido a 'Listo para producción'"
+                                >
+                                  🚀 Habilitar Producción
+                                </button>
+                              )}
+                              <button
+                                onClick={() => handleOpenViewModal(pedido)}
+                                className="text-blue-400 hover:text-blue-300 p-1 hover:bg-blue-500/10 rounded transition"
+                                title="Ver detalles del pedido (Trello)"
+                              >
+                                👁️
+                              </button>
+                              <button
+                                onClick={() => handleDelete(pedido.id)}
+                                className="text-rose-400 hover:text-rose-300 p-1 hover:bg-rose-500/10 rounded transition"
+                                title="Dar de baja pedido"
+                              >
+                                🗑️
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
                 </table>
               </div>
 
@@ -1495,713 +1495,713 @@ export default function PedidosPage() {
             }}
             className="max-w-xl p-6"
           >
-              <h2 className="text-xl font-bold text-white mb-4">Registrar Nuevo Pedido</h2>
+            <h2 className="text-xl font-bold text-white mb-4">Registrar Nuevo Pedido</h2>
 
-              {/* Stepper Indicator */}
-              <div className="flex items-center justify-between mb-6 pb-4 border-b border-slate-800">
-                <div className="flex items-center gap-2">
-                  <span className={`flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold transition-all ${wizardStep === 'select_client' || wizardStep === 'client_confirmation'
-                    ? 'bg-blue-600 text-white shadow-[0_0_8px_rgba(37,99,235,0.6)]'
-                    : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
-                    }`}>
-                    {['order_details', 'order_confirmation'].includes(wizardStep) ? '✓' : '1'}
-                  </span>
-                  <span className={`text-xs font-semibold ${wizardStep === 'select_client' || wizardStep === 'client_confirmation' ? 'text-blue-400' : 'text-slate-400'
-                    }`}>
-                    Cliente
-                  </span>
-                </div>
-
-                <div className="flex-1 h-px bg-slate-800 mx-4" />
-
-                <div className="flex items-center gap-2">
-                  <span className={`flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold transition-all ${wizardStep === 'order_details'
-                    ? 'bg-blue-600 text-white shadow-[0_0_8px_rgba(37,99,235,0.6)]'
-                    : wizardStep === 'order_confirmation'
-                      ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
-                      : 'bg-slate-800 text-slate-500 border border-slate-700/30'
-                    }`}>
-                    {wizardStep === 'order_confirmation' ? '✓' : '2'}
-                  </span>
-                  <span className={`text-xs font-semibold ${wizardStep === 'order_details' ? 'text-blue-450' : 'text-slate-500'
-                    }`}>
-                    Pedido
-                  </span>
-                </div>
-
-                <div className="flex-1 h-px bg-slate-800 mx-4" />
-
-                <div className="flex items-center gap-2">
-                  <span className={`flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold transition-all ${wizardStep === 'order_confirmation'
-                    ? 'bg-blue-600 text-white shadow-[0_0_8px_rgba(37,99,235,0.6)]'
-                    : 'bg-slate-800 text-slate-500 border border-slate-700/30'
-                    }`}>
-                    3
-                  </span>
-                  <span className={`text-xs font-semibold ${wizardStep === 'order_confirmation' ? 'text-blue-450' : 'text-slate-500'
-                    }`}>
-                    Resumen
-                  </span>
-                </div>
+            {/* Stepper Indicator */}
+            <div className="flex items-center justify-between mb-6 pb-4 border-b border-slate-800">
+              <div className="flex items-center gap-2">
+                <span className={`flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold transition-all ${wizardStep === 'select_client' || wizardStep === 'client_confirmation'
+                  ? 'bg-blue-600 text-white shadow-[0_0_8px_rgba(37,99,235,0.6)]'
+                  : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                  }`}>
+                  {['order_details', 'order_confirmation'].includes(wizardStep) ? '✓' : '1'}
+                </span>
+                <span className={`text-xs font-semibold ${wizardStep === 'select_client' || wizardStep === 'client_confirmation' ? 'text-blue-400' : 'text-slate-400'
+                  }`}>
+                  Cliente
+                </span>
               </div>
 
-              {/* Errores internos del wizard */}
-              {error && (
-                <div className="mb-4 bg-rose-500/10 border border-rose-500/20 text-rose-200 px-3 py-2 rounded-lg flex items-center gap-2 text-xs">
-                  <span>❌</span>
-                  <span className="font-semibold">{error}</span>
+              <div className="flex-1 h-px bg-slate-800 mx-4" />
+
+              <div className="flex items-center gap-2">
+                <span className={`flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold transition-all ${wizardStep === 'order_details'
+                  ? 'bg-blue-600 text-white shadow-[0_0_8px_rgba(37,99,235,0.6)]'
+                  : wizardStep === 'order_confirmation'
+                    ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                    : 'bg-slate-800 text-slate-500 border border-slate-700/30'
+                  }`}>
+                  {wizardStep === 'order_confirmation' ? '✓' : '2'}
+                </span>
+                <span className={`text-xs font-semibold ${wizardStep === 'order_details' ? 'text-blue-450' : 'text-slate-500'
+                  }`}>
+                  Pedido
+                </span>
+              </div>
+
+              <div className="flex-1 h-px bg-slate-800 mx-4" />
+
+              <div className="flex items-center gap-2">
+                <span className={`flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold transition-all ${wizardStep === 'order_confirmation'
+                  ? 'bg-blue-600 text-white shadow-[0_0_8px_rgba(37,99,235,0.6)]'
+                  : 'bg-slate-800 text-slate-500 border border-slate-700/30'
+                  }`}>
+                  3
+                </span>
+                <span className={`text-xs font-semibold ${wizardStep === 'order_confirmation' ? 'text-blue-450' : 'text-slate-500'
+                  }`}>
+                  Resumen
+                </span>
+              </div>
+            </div>
+
+            {/* Errores internos del wizard */}
+            {error && (
+              <div className="mb-4 bg-rose-500/10 border border-rose-500/20 text-rose-200 px-3 py-2 rounded-lg flex items-center gap-2 text-xs">
+                <span>❌</span>
+                <span className="font-semibold">{error}</span>
+              </div>
+            )}
+
+            {/* Paso 1: Selección o Registro de Cliente */}
+            {wizardStep === 'select_client' && (
+              <div className="space-y-4">
+                <h3 className="text-sm font-semibold text-slate-400 uppercase tracking-wider">Seleccionar o Registrar Cliente</h3>
+
+                {/* Selector de modo */}
+                <div className="flex bg-slate-950/80 p-1 rounded-lg border border-slate-800">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setClientMode('search')
+                      setError('')
+                    }}
+                    className={`flex-1 py-1.5 text-center text-xs font-semibold rounded-md transition ${clientMode === 'search'
+                      ? 'bg-blue-600 text-white shadow'
+                      : 'text-slate-400 hover:text-slate-200'
+                      }`}
+                  >
+                    🔍 Buscar Cliente Existente
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setClientMode('create')
+                      setError('')
+                    }}
+                    className={`flex-1 py-1.5 text-center text-xs font-semibold rounded-md transition ${clientMode === 'create'
+                      ? 'bg-blue-600 text-white shadow'
+                      : 'text-slate-400 hover:text-slate-200'
+                      }`}
+                  >
+                    ➕ Registrar Nuevo Cliente
+                  </button>
                 </div>
-              )}
 
-              {/* Paso 1: Selección o Registro de Cliente */}
-              {wizardStep === 'select_client' && (
-                <div className="space-y-4">
-                  <h3 className="text-sm font-semibold text-slate-400 uppercase tracking-wider">Seleccionar o Registrar Cliente</h3>
-
-                  {/* Selector de modo */}
-                  <div className="flex bg-slate-950/80 p-1 rounded-lg border border-slate-800">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setClientMode('search')
-                        setError('')
+                {clientMode === 'search' ? (
+                  <div className="space-y-3 relative text-left">
+                    <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                      Buscar Cliente *
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Escribe el nombre o empresa del cliente..."
+                      value={clientSearchText}
+                      onChange={(e) => {
+                        setClientSearchText(e.target.value)
+                        setIsClientDropdownOpen(true)
                       }}
-                      className={`flex-1 py-1.5 text-center text-xs font-semibold rounded-md transition ${clientMode === 'search'
-                        ? 'bg-blue-600 text-white shadow'
-                        : 'text-slate-400 hover:text-slate-200'
-                        }`}
-                    >
-                      🔍 Buscar Cliente Existente
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setClientMode('create')
-                        setError('')
-                      }}
-                      className={`flex-1 py-1.5 text-center text-xs font-semibold rounded-md transition ${clientMode === 'create'
-                        ? 'bg-blue-600 text-white shadow'
-                        : 'text-slate-400 hover:text-slate-200'
-                        }`}
-                    >
-                      ➕ Registrar Nuevo Cliente
-                    </button>
-                  </div>
+                      onFocus={() => setIsClientDropdownOpen(true)}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition"
+                    />
 
-                  {clientMode === 'search' ? (
-                    <div className="space-y-3 relative text-left">
-                      <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                        Buscar Cliente *
-                      </label>
-                      <input
-                        type="text"
-                        placeholder="Escribe el nombre o empresa del cliente..."
-                        value={clientSearchText}
-                        onChange={(e) => {
-                          setClientSearchText(e.target.value)
-                          setIsClientDropdownOpen(true)
-                        }}
-                        onFocus={() => setIsClientDropdownOpen(true)}
-                        className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition"
-                      />
-
-                      {isClientDropdownOpen && (
-                        <>
-                          <div className="fixed inset-0 z-40" onClick={() => setIsClientDropdownOpen(false)} />
-                          <div className="absolute z-50 left-0 right-0 mt-1 max-h-48 overflow-y-auto bg-slate-950 border border-slate-800 rounded-lg shadow-xl divide-y divide-slate-900 text-left">
-                            {clientes
-                              .filter((c) => {
-                                const query = clientSearchText.toLowerCase()
-                                return (
-                                  c.nombre_cliente.toLowerCase().includes(query) ||
-                                  c.nombre_empresa.toLowerCase().includes(query) ||
-                                  (c.email || '').toLowerCase().includes(query)
-                                )
-                              })
-                              .map((c) => {
-                                const isBlocked = Boolean(c.alcanzo_limite || (Number(c.saldo || 0) > 0 && Number(c.total_pedidos || 0) >= Number(c.saldo || 0)))
-                                return (
-                                  <div
-                                    key={c.id}
-                                    onClick={() => {
-                                      setFormData({ ...formData, cliente_id: c.id.toString() })
-                                      setClientSearchText(`${c.nombre_cliente} - ${c.nombre_empresa}`)
-                                      setSelectedWizardClient(c)
-                                      setIsClientDropdownOpen(false)
-                                    }}
-                                    className={`px-3.5 py-2 cursor-pointer text-sm transition flex justify-between items-center ${isBlocked ? 'bg-rose-950/20 hover:bg-rose-900/30 text-rose-300' : 'hover:bg-slate-900 text-slate-300 hover:text-white'}`}
-                                  >
-                                    <div>
-                                      <div className="flex items-center gap-2">
-                                        <span className="font-semibold">{c.nombre_cliente}</span>
-                                        {isBlocked && (
-                                          <span className="text-[10px] bg-rose-500/20 text-rose-400 font-bold px-1.5 py-0.5 rounded border border-rose-500/30">
-                                            🚨 Alcanzó el límite
-                                          </span>
-                                        )}
-                                      </div>
-                                      <span className="text-xs text-slate-500">{c.nombre_empresa}</span>
-                                    </div>
-                                    {c.email && <span className="text-xs text-slate-500">{c.email}</span>}
-                                  </div>
-                                )
-                              })}
-                            {clientes.filter((c) => {
+                    {isClientDropdownOpen && (
+                      <>
+                        <div className="fixed inset-0 z-40" onClick={() => setIsClientDropdownOpen(false)} />
+                        <div className="absolute z-50 left-0 right-0 mt-1 max-h-48 overflow-y-auto bg-slate-950 border border-slate-800 rounded-lg shadow-xl divide-y divide-slate-900 text-left">
+                          {clientes
+                            .filter((c) => {
                               const query = clientSearchText.toLowerCase()
                               return (
                                 c.nombre_cliente.toLowerCase().includes(query) ||
                                 c.nombre_empresa.toLowerCase().includes(query) ||
                                 (c.email || '').toLowerCase().includes(query)
                               )
-                            }).length === 0 && (
-                                <div className="px-3.5 py-2 text-xs text-slate-500 italic text-center">
-                                  No se encontraron clientes con ese nombre.
+                            })
+                            .map((c) => {
+                              const isBlocked = Boolean(c.alcanzo_limite || (Number(c.saldo || 0) > 0 && Number(c.total_pedidos || 0) >= Number(c.saldo || 0)))
+                              return (
+                                <div
+                                  key={c.id}
+                                  onClick={() => {
+                                    setFormData({ ...formData, cliente_id: c.id.toString() })
+                                    setClientSearchText(`${c.nombre_cliente} - ${c.nombre_empresa}`)
+                                    setSelectedWizardClient(c)
+                                    setIsClientDropdownOpen(false)
+                                  }}
+                                  className={`px-3.5 py-2 cursor-pointer text-sm transition flex justify-between items-center ${isBlocked ? 'bg-rose-950/20 hover:bg-rose-900/30 text-rose-300' : 'hover:bg-slate-900 text-slate-300 hover:text-white'}`}
+                                >
+                                  <div>
+                                    <div className="flex items-center gap-2">
+                                      <span className="font-semibold">{c.nombre_cliente}</span>
+                                      {isBlocked && (
+                                        <span className="text-[10px] bg-rose-500/20 text-rose-400 font-bold px-1.5 py-0.5 rounded border border-rose-500/30">
+                                          🚨 Alcanzó el límite
+                                        </span>
+                                      )}
+                                    </div>
+                                    <span className="text-xs text-slate-500">{c.nombre_empresa}</span>
+                                  </div>
+                                  {c.email && <span className="text-xs text-slate-500">{c.email}</span>}
                                 </div>
-                              )}
-                          </div>
-                        </>
-                      )}
-
-                      {/* Tarjeta de cliente seleccionado */}
-                      {selectedWizardClient && (
-                        <div className="bg-slate-950/50 border border-slate-800 p-4 rounded-xl flex flex-col gap-2 animate-in fade-in slide-in-from-top-1 duration-150">
-                          <div className="flex items-center justify-between border-b border-slate-850 pb-2 mb-1">
-                            <span className="text-xs font-bold text-blue-400 uppercase tracking-wider">Cliente Seleccionado</span>
-                            {selectedWizardClient.alcanzo_limite || (Number(selectedWizardClient.saldo || 0) > 0 && Number(selectedWizardClient.total_pedidos || 0) >= Number(selectedWizardClient.saldo || 0)) ? (
-                              <span className="text-rose-400 text-xs font-bold">⛔ Límite Alcanzado</span>
-                            ) : (
-                              <span className="text-emerald-400 text-xs">✓ Listo</span>
+                              )
+                            })}
+                          {clientes.filter((c) => {
+                            const query = clientSearchText.toLowerCase()
+                            return (
+                              c.nombre_cliente.toLowerCase().includes(query) ||
+                              c.nombre_empresa.toLowerCase().includes(query) ||
+                              (c.email || '').toLowerCase().includes(query)
+                            )
+                          }).length === 0 && (
+                              <div className="px-3.5 py-2 text-xs text-slate-500 italic text-center">
+                                No se encontraron clientes con ese nombre.
+                              </div>
                             )}
-                          </div>
-                          <div>
-                            <span className="text-sm font-bold text-white">{selectedWizardClient.nombre_cliente}</span>
-                            <span className="text-xs text-slate-400 block">{selectedWizardClient.nombre_empresa}</span>
-                          </div>
-                          <div className="grid grid-cols-2 gap-2 text-xs text-slate-400 pt-1">
-                            <div>📞 {selectedWizardClient.telefono || 'Sin teléfono'}</div>
-                            <div>✉️ {selectedWizardClient.email || 'Sin correo'}</div>
-                          </div>
+                        </div>
+                      </>
+                    )}
 
-                          {Number(selectedWizardClient.saldo || 0) > 0 ? (
-                            <div className="bg-slate-900/60 border border-slate-800 p-3 rounded-lg text-xs space-y-1 mt-1">
-                              <div className="flex justify-between">
-                                <span className="text-slate-400">Límite de Crédito:</span>
-                                <span className="font-bold text-white">${Number(selectedWizardClient.saldo).toFixed(2)}</span>
-                              </div>
-                              <div className="flex justify-between">
-                                <span className="text-slate-400">Total en Pedidos:</span>
-                                <span className="font-bold text-amber-400">${Number(selectedWizardClient.total_pedidos || 0).toFixed(2)}</span>
-                              </div>
-                              <div className="flex justify-between border-t border-slate-800 pt-1">
-                                <span className="font-semibold text-slate-300">Crédito Disponible:</span>
-                                <span className={`font-bold ${(selectedWizardClient.alcanzo_limite || (Number(selectedWizardClient.total_pedidos || 0) >= Number(selectedWizardClient.saldo || 0))) ? 'text-rose-400' : 'text-emerald-400'}`}>
-                                  ${Number(selectedWizardClient.saldo_disponible ?? (Number(selectedWizardClient.saldo) - Number(selectedWizardClient.total_pedidos || 0))).toFixed(2)}
-                                </span>
-                              </div>
-                            </div>
+                    {/* Tarjeta de cliente seleccionado */}
+                    {selectedWizardClient && (
+                      <div className="bg-slate-950/50 border border-slate-800 p-4 rounded-xl flex flex-col gap-2 animate-in fade-in slide-in-from-top-1 duration-150">
+                        <div className="flex items-center justify-between border-b border-slate-850 pb-2 mb-1">
+                          <span className="text-xs font-bold text-blue-400 uppercase tracking-wider">Cliente Seleccionado</span>
+                          {selectedWizardClient.alcanzo_limite || (Number(selectedWizardClient.saldo || 0) > 0 && Number(selectedWizardClient.total_pedidos || 0) >= Number(selectedWizardClient.saldo || 0)) ? (
+                            <span className="text-rose-400 text-xs font-bold">⛔ Límite Alcanzado</span>
                           ) : (
-                            <div className="text-xs text-slate-400 bg-slate-900/40 p-2 rounded border border-slate-850">
-                              ♾️ Cliente sin límite de crédito configurado.
-                            </div>
-                          )}
-
-                          {(selectedWizardClient.alcanzo_limite || (Number(selectedWizardClient.saldo || 0) > 0 && Number(selectedWizardClient.total_pedidos || 0) >= Number(selectedWizardClient.saldo || 0))) && (
-                            <div className="mt-1 bg-rose-500/10 border border-rose-500/30 p-3 rounded-xl text-rose-300 text-xs font-semibold flex items-center gap-2.5">
-                              <span className="text-lg">⛔</span>
-                              <div>
-                                <span className="font-bold block text-sm mb-0.5">¡Ha alcanzado el límite de crédito!</span>
-                                Total en pedidos (${Number(selectedWizardClient.total_pedidos || 0).toFixed(2)}) alcanzó o superó el límite asignado (${Number(selectedWizardClient.saldo || 0).toFixed(2)}). Debe saldar o ampliar el límite para registrar nuevos pedidos.
-                              </div>
-                            </div>
+                            <span className="text-emerald-400 text-xs">✓ Listo</span>
                           )}
                         </div>
-                      )}
+                        <div>
+                          <span className="text-sm font-bold text-white">{selectedWizardClient.nombre_cliente}</span>
+                          <span className="text-xs text-slate-400 block">{selectedWizardClient.nombre_empresa}</span>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2 text-xs text-slate-400 pt-1">
+                          <div>📞 {selectedWizardClient.telefono || 'Sin teléfono'}</div>
+                          <div>✉️ {selectedWizardClient.email || 'Sin correo'}</div>
+                        </div>
 
-                      <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-800 mt-6">
-                        <button
-                          type="button"
-                          onClick={() => setIsCreateModalOpen(false)}
-                          className="px-4 py-2 rounded-lg text-sm text-slate-400 hover:text-white hover:bg-slate-800 transition"
-                        >
-                          Cancelar
-                        </button>
-                        <button
-                          type="button"
-                          disabled={!formData.cliente_id || Boolean(selectedWizardClient?.alcanzo_limite || (Number(selectedWizardClient?.saldo || 0) > 0 && Number(selectedWizardClient?.total_pedidos || 0) >= Number(selectedWizardClient?.saldo || 0)))}
-                          onClick={() => setWizardStep('order_details')}
-                          className="px-4 py-2 rounded-lg text-sm bg-blue-600 hover:bg-blue-500 disabled:bg-slate-800 disabled:text-slate-500 text-white font-medium shadow transition hover:scale-[1.02] active:scale-[0.98] disabled:scale-100"
-                        >
-                          Continuar ➡️
-                        </button>
+                        {Number(selectedWizardClient.saldo || 0) > 0 ? (
+                          <div className="bg-slate-900/60 border border-slate-800 p-3 rounded-lg text-xs space-y-1 mt-1">
+                            <div className="flex justify-between">
+                              <span className="text-slate-400">Límite de Crédito:</span>
+                              <span className="font-bold text-white">${Number(selectedWizardClient.saldo).toFixed(2)}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-slate-400">Total en Pedidos:</span>
+                              <span className="font-bold text-amber-400">${Number(selectedWizardClient.total_pedidos || 0).toFixed(2)}</span>
+                            </div>
+                            <div className="flex justify-between border-t border-slate-800 pt-1">
+                              <span className="font-semibold text-slate-300">Crédito Disponible:</span>
+                              <span className={`font-bold ${(selectedWizardClient.alcanzo_limite || (Number(selectedWizardClient.total_pedidos || 0) >= Number(selectedWizardClient.saldo || 0))) ? 'text-rose-400' : 'text-emerald-400'}`}>
+                                ${Number(selectedWizardClient.saldo_disponible ?? (Number(selectedWizardClient.saldo) - Number(selectedWizardClient.total_pedidos || 0))).toFixed(2)}
+                              </span>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="text-xs text-slate-400 bg-slate-900/40 p-2 rounded border border-slate-850">
+                            ♾️ Cliente sin límite de crédito configurado.
+                          </div>
+                        )}
+
+                        {(selectedWizardClient.alcanzo_limite || (Number(selectedWizardClient.saldo || 0) > 0 && Number(selectedWizardClient.total_pedidos || 0) >= Number(selectedWizardClient.saldo || 0))) && (
+                          <div className="mt-1 bg-rose-500/10 border border-rose-500/30 p-3 rounded-xl text-rose-300 text-xs font-semibold flex items-center gap-2.5">
+                            <span className="text-lg">⛔</span>
+                            <div>
+                              <span className="font-bold block text-sm mb-0.5">¡Ha alcanzado el límite de crédito!</span>
+                              Total en pedidos (${Number(selectedWizardClient.total_pedidos || 0).toFixed(2)}) alcanzó o superó el límite asignado (${Number(selectedWizardClient.saldo || 0).toFixed(2)}). Debe saldar o ampliar el límite para registrar nuevos pedidos.
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-800 mt-6">
+                      <button
+                        type="button"
+                        onClick={() => setIsCreateModalOpen(false)}
+                        className="px-4 py-2 rounded-lg text-sm text-slate-400 hover:text-white hover:bg-slate-800 transition"
+                      >
+                        Cancelar
+                      </button>
+                      <button
+                        type="button"
+                        disabled={!formData.cliente_id || Boolean(selectedWizardClient?.alcanzo_limite || (Number(selectedWizardClient?.saldo || 0) > 0 && Number(selectedWizardClient?.total_pedidos || 0) >= Number(selectedWizardClient?.saldo || 0)))}
+                        onClick={() => setWizardStep('order_details')}
+                        className="px-4 py-2 rounded-lg text-sm bg-blue-600 hover:bg-blue-500 disabled:bg-slate-800 disabled:text-slate-500 text-white font-medium shadow transition hover:scale-[1.02] active:scale-[0.98] disabled:scale-100"
+                      >
+                        Continuar ➡️
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  /* Formulario de Registro Rápido integrado */
+                  <form onSubmit={handleWizardCreateClienteSubmit} className="space-y-4 text-left">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
+                          Nombre del Cliente *
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          value={clienteFormData.nombre_cliente}
+                          onChange={(e) => setClienteFormData({ ...clienteFormData, nombre_cliente: e.target.value })}
+                          className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition"
+                          placeholder="Ej. Juan Pérez"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
+                          Nombre de la Empresa *
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          value={clienteFormData.nombre_empresa}
+                          onChange={(e) => setClienteFormData({ ...clienteFormData, nombre_empresa: e.target.value })}
+                          className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition"
+                          placeholder="Ej. Empresa S.A."
+                        />
                       </div>
                     </div>
-                  ) : (
-                    /* Formulario de Registro Rápido integrado */
-                    <form onSubmit={handleWizardCreateClienteSubmit} className="space-y-4 text-left">
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div>
-                          <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
-                            Nombre del Cliente *
-                          </label>
-                          <input
-                            type="text"
-                            required
-                            value={clienteFormData.nombre_cliente}
-                            onChange={(e) => setClienteFormData({ ...clienteFormData, nombre_cliente: e.target.value })}
-                            className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition"
-                            placeholder="Ej. Juan Pérez"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
-                            Nombre de la Empresa *
-                          </label>
-                          <input
-                            type="text"
-                            required
-                            value={clienteFormData.nombre_empresa}
-                            onChange={(e) => setClienteFormData({ ...clienteFormData, nombre_empresa: e.target.value })}
-                            className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition"
-                            placeholder="Ej. Empresa S.A."
-                          />
-                        </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
+                          Teléfono *
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          value={clienteFormData.telefono || ''}
+                          onChange={(e) => setClienteFormData({ ...clienteFormData, telefono: e.target.value })}
+                          className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition"
+                          placeholder="Ej. +54 9 11 1234-5678"
+                        />
                       </div>
-
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div>
-                          <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
-                            Teléfono *
-                          </label>
-                          <input
-                            type="text"
-                            required
-                            value={clienteFormData.telefono || ''}
-                            onChange={(e) => setClienteFormData({ ...clienteFormData, telefono: e.target.value })}
-                            className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition"
-                            placeholder="Ej. +54 9 11 1234-5678"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
-                            Correo Electrónico
-                          </label>
-                          <input
-                            type="email"
-                            value={clienteFormData.email || ''}
-                            onChange={(e) => setClienteFormData({ ...clienteFormData, email: e.target.value })}
-                            className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition"
-                            placeholder="ejemplo@correo.com"
-                          />
-                        </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
+                          Correo Electrónico
+                        </label>
+                        <input
+                          type="email"
+                          value={clienteFormData.email || ''}
+                          onChange={(e) => setClienteFormData({ ...clienteFormData, email: e.target.value })}
+                          className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition"
+                          placeholder="ejemplo@correo.com"
+                        />
                       </div>
+                    </div>
 
-                      <details className="group border border-slate-800 rounded-lg bg-slate-950/30 overflow-hidden">
-                        <summary className="list-none flex items-center justify-between p-3 text-xs text-slate-400 font-semibold cursor-pointer select-none hover:bg-slate-950/60 transition">
-                          <span>Información Adicional (Dirección, Facturación, etc.)</span>
-                          <span className="transition-transform group-open:rotate-180">▼</span>
-                        </summary>
-                        <div className="p-3 border-t border-slate-800 space-y-4">
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                            <div>
-                              <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
-                                DNI
-                              </label>
-                              <input
-                                type="text"
-                                value={clienteFormData.dni || ''}
-                                onChange={(e) => setClienteFormData({ ...clienteFormData, dni: e.target.value })}
-                                className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition"
-                                placeholder="Ej. 12345678"
-                              />
-                            </div>
-                            <div>
-                              <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
-                                Localidad
-                              </label>
-                              <input
-                                type="text"
-                                value={clienteFormData.localidad || ''}
-                                onChange={(e) => setClienteFormData({ ...clienteFormData, localidad: e.target.value })}
-                                className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition"
-                                placeholder="Ej. Lanús"
-                              />
-                            </div>
-                          </div>
-
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                            <div>
-                              <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
-                                Provincia
-                              </label>
-                              <input
-                                type="text"
-                                value={clienteFormData.provincia || ''}
-                                onChange={(e) => setClienteFormData({ ...clienteFormData, provincia: e.target.value })}
-                                className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition"
-                                placeholder="Ej. Buenos Aires"
-                              />
-                            </div>
-                            <div>
-                              <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
-                                Código Postal (CP)
-                              </label>
-                              <input
-                                type="text"
-                                value={clienteFormData.cp || ''}
-                                onChange={(e) => setClienteFormData({ ...clienteFormData, cp: e.target.value })}
-                                className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition"
-                                placeholder="Ej. 1824"
-                              />
-                            </div>
-                          </div>
-
+                    <details className="group border border-slate-800 rounded-lg bg-slate-950/30 overflow-hidden">
+                      <summary className="list-none flex items-center justify-between p-3 text-xs text-slate-400 font-semibold cursor-pointer select-none hover:bg-slate-950/60 transition">
+                        <span>Información Adicional (Dirección, Facturación, etc.)</span>
+                        <span className="transition-transform group-open:rotate-180">▼</span>
+                      </summary>
+                      <div className="p-3 border-t border-slate-800 space-y-4">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                           <div>
                             <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
-                              Dirección
+                              DNI
                             </label>
                             <input
                               type="text"
-                              value={clienteFormData.direccion || ''}
-                              onChange={(e) => setClienteFormData({ ...clienteFormData, direccion: e.target.value })}
+                              value={clienteFormData.dni || ''}
+                              onChange={(e) => setClienteFormData({ ...clienteFormData, dni: e.target.value })}
                               className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition"
-                              placeholder="Ej. Av. 9 de Julio 1234"
+                              placeholder="Ej. 12345678"
                             />
                           </div>
-
                           <div>
                             <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
-                              Saldo ($)
+                              Localidad
                             </label>
                             <input
-                              type="number"
-                              step="0.01"
-                              value={clienteFormData.saldo}
-                              onChange={(e) => setClienteFormData({ ...clienteFormData, saldo: Number(e.target.value) })}
+                              type="text"
+                              value={clienteFormData.localidad || ''}
+                              onChange={(e) => setClienteFormData({ ...clienteFormData, localidad: e.target.value })}
                               className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition"
-                              placeholder="0.00"
-                            />
-                            <span className="text-[11px] text-slate-500 mt-1 block">
-                              Si el saldo es negativo, la creación de pedidos estará deshabilitada para este cliente.
-                            </span>
-                          </div>
-
-                          <div>
-                            <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
-                              Observaciones
-                            </label>
-                            <textarea
-                              rows={2}
-                              value={clienteFormData.observaciones || ''}
-                              onChange={(e) => setClienteFormData({ ...clienteFormData, observaciones: e.target.value })}
-                              className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition"
-                              placeholder="Notas sobre el cliente..."
+                              placeholder="Ej. Lanús"
                             />
                           </div>
                         </div>
-                      </details>
 
-                      <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-800 mt-6">
-                        <button
-                          type="button"
-                          onClick={() => setIsCreateModalOpen(false)}
-                          className="px-4 py-2 rounded-lg text-sm text-slate-400 hover:text-white hover:bg-slate-800 transition"
-                        >
-                          Cancelar
-                        </button>
-                        <button
-                          type="submit"
-                          className="px-4 py-2 rounded-lg text-sm bg-blue-600 hover:bg-blue-500 text-white font-medium shadow transition hover:scale-[1.02] active:scale-[0.98]"
-                        >
-                          Registrar y Continuar ➡️
-                        </button>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
+                              Provincia
+                            </label>
+                            <input
+                              type="text"
+                              value={clienteFormData.provincia || ''}
+                              onChange={(e) => setClienteFormData({ ...clienteFormData, provincia: e.target.value })}
+                              className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition"
+                              placeholder="Ej. Buenos Aires"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
+                              Código Postal (CP)
+                            </label>
+                            <input
+                              type="text"
+                              value={clienteFormData.cp || ''}
+                              onChange={(e) => setClienteFormData({ ...clienteFormData, cp: e.target.value })}
+                              className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition"
+                              placeholder="Ej. 1824"
+                            />
+                          </div>
+                        </div>
+
+                        <div>
+                          <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
+                            Dirección
+                          </label>
+                          <input
+                            type="text"
+                            value={clienteFormData.direccion || ''}
+                            onChange={(e) => setClienteFormData({ ...clienteFormData, direccion: e.target.value })}
+                            className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition"
+                            placeholder="Ej. Av. 9 de Julio 1234"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
+                            Saldo ($)
+                          </label>
+                          <input
+                            type="number"
+                            step="0.01"
+                            value={clienteFormData.saldo}
+                            onChange={(e) => setClienteFormData({ ...clienteFormData, saldo: Number(e.target.value) })}
+                            className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition"
+                            placeholder="0.00"
+                          />
+                          <span className="text-[11px] text-slate-500 mt-1 block">
+                            Si el saldo es negativo, la creación de pedidos estará deshabilitada para este cliente.
+                          </span>
+                        </div>
+
+                        <div>
+                          <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
+                            Observaciones
+                          </label>
+                          <textarea
+                            rows={2}
+                            value={clienteFormData.observaciones || ''}
+                            onChange={(e) => setClienteFormData({ ...clienteFormData, observaciones: e.target.value })}
+                            className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition"
+                            placeholder="Notas sobre el cliente..."
+                          />
+                        </div>
                       </div>
-                    </form>
-                  )}
+                    </details>
+
+                    <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-800 mt-6">
+                      <button
+                        type="button"
+                        onClick={() => setIsCreateModalOpen(false)}
+                        className="px-4 py-2 rounded-lg text-sm text-slate-400 hover:text-white hover:bg-slate-800 transition"
+                      >
+                        Cancelar
+                      </button>
+                      <button
+                        type="submit"
+                        className="px-4 py-2 rounded-lg text-sm bg-blue-600 hover:bg-blue-500 text-white font-medium shadow transition hover:scale-[1.02] active:scale-[0.98]"
+                      >
+                        Registrar y Continuar ➡️
+                      </button>
+                    </div>
+                  </form>
+                )}
+              </div>
+            )}
+
+            {/* Paso 1.5: Confirmación de Registro de Cliente */}
+            {wizardStep === 'client_confirmation' && selectedWizardClient && (
+              <div className="space-y-6 text-center py-6 animate-in fade-in zoom-in-95 duration-200">
+                <div className="flex items-center justify-center mx-auto w-16 h-16 bg-emerald-500/10 border border-emerald-500/20 text-emerald-405 rounded-full text-2xl shadow-[0_0_15px_rgba(16,185,129,0.2)]">
+                  ✅
                 </div>
-              )}
+                <div className="space-y-2">
+                  <h3 className="text-lg font-bold text-white">¡Cliente Registrado con Éxito!</h3>
+                  <p className="text-xs text-slate-400 max-w-sm mx-auto">
+                    Se ha guardado la ficha del cliente en el sistema y se ha seleccionado automáticamente para este pedido.
+                  </p>
+                </div>
 
-              {/* Paso 1.5: Confirmación de Registro de Cliente */}
-              {wizardStep === 'client_confirmation' && selectedWizardClient && (
-                <div className="space-y-6 text-center py-6 animate-in fade-in zoom-in-95 duration-200">
-                  <div className="flex items-center justify-center mx-auto w-16 h-16 bg-emerald-500/10 border border-emerald-500/20 text-emerald-405 rounded-full text-2xl shadow-[0_0_15px_rgba(16,185,129,0.2)]">
-                    ✅
+                <div className="bg-slate-950/60 border border-slate-800 rounded-xl p-5 text-left max-w-md mx-auto space-y-3">
+                  <div className="border-b border-slate-850 pb-2 flex justify-between items-center">
+                    <span className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">Ficha de Cliente</span>
+                    <span className="text-[9px] bg-blue-500/10 text-blue-400 border border-blue-500/20 px-2 py-0.5 rounded-full font-mono">ID: #{selectedWizardClient.id}</span>
                   </div>
-                  <div className="space-y-2">
-                    <h3 className="text-lg font-bold text-white">¡Cliente Registrado con Éxito!</h3>
-                    <p className="text-xs text-slate-400 max-w-sm mx-auto">
-                      Se ha guardado la ficha del cliente en el sistema y se ha seleccionado automáticamente para este pedido.
-                    </p>
+                  <div>
+                    <span className="text-sm font-bold text-white block">{selectedWizardClient.nombre_cliente}</span>
+                    <span className="text-xs text-slate-400 font-medium block">{selectedWizardClient.nombre_empresa}</span>
                   </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-slate-400 pt-2 border-t border-slate-850/50">
+                    <div>📞 {selectedWizardClient.telefono || 'Sin teléfono'}</div>
+                    <div>✉️ {selectedWizardClient.email || 'Sin correo'}</div>
+                    <div className="sm:col-span-2">📍 {selectedWizardClient.direccion ? `${selectedWizardClient.direccion}, ${selectedWizardClient.localidad || ''}` : 'Sin dirección registrada'}</div>
+                  </div>
+                </div>
 
-                  <div className="bg-slate-950/60 border border-slate-800 rounded-xl p-5 text-left max-w-md mx-auto space-y-3">
-                    <div className="border-b border-slate-850 pb-2 flex justify-between items-center">
-                      <span className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">Ficha de Cliente</span>
-                      <span className="text-[9px] bg-blue-500/10 text-blue-400 border border-blue-500/20 px-2 py-0.5 rounded-full font-mono">ID: #{selectedWizardClient.id}</span>
-                    </div>
-                    <div>
-                      <span className="text-sm font-bold text-white block">{selectedWizardClient.nombre_cliente}</span>
-                      <span className="text-xs text-slate-400 font-medium block">{selectedWizardClient.nombre_empresa}</span>
-                    </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-slate-400 pt-2 border-t border-slate-850/50">
-                      <div>📞 {selectedWizardClient.telefono || 'Sin teléfono'}</div>
-                      <div>✉️ {selectedWizardClient.email || 'Sin correo'}</div>
-                      <div className="sm:col-span-2">📍 {selectedWizardClient.direccion ? `${selectedWizardClient.direccion}, ${selectedWizardClient.localidad || ''}` : 'Sin dirección registrada'}</div>
-                    </div>
-                  </div>
+                <div className="flex items-center justify-center gap-3 pt-6 border-t border-slate-800">
+                  <button
+                    type="button"
+                    onClick={() => setWizardStep('select_client')}
+                    className="px-4 py-2 rounded-lg text-sm text-slate-400 hover:text-white hover:bg-slate-800 transition"
+                  >
+                    Atrás
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setWizardStep('order_details')}
+                    className="px-5 py-2 rounded-lg text-sm bg-blue-600 hover:bg-blue-500 text-white font-semibold shadow transition hover:scale-[1.02] active:scale-[0.98]"
+                  >
+                    Continuar al Pedido ➡️
+                  </button>
+                </div>
+              </div>
+            )}
 
-                  <div className="flex items-center justify-center gap-3 pt-6 border-t border-slate-800">
+            {/* Paso 2: Creación de Pedido */}
+            {wizardStep === 'order_details' && (
+              <form onSubmit={handleCreateSubmit} className="space-y-4 text-slate-300">
+                {/* Banner de Cliente pre-seleccionado */}
+                {selectedWizardClient ? (
+                  <div className="bg-slate-950/50 border border-slate-800 rounded-xl p-3.5 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <span className="text-xl">👤</span>
+                      <div className="text-left">
+                        <span className="text-[10px] uppercase font-bold text-slate-500 block leading-tight">Cliente Asignado</span>
+                        <span className="text-xs font-bold text-white">{selectedWizardClient.nombre_cliente} - <span className="text-slate-400 font-medium">{selectedWizardClient.nombre_empresa}</span></span>
+                      </div>
+                    </div>
                     <button
                       type="button"
                       onClick={() => setWizardStep('select_client')}
-                      className="px-4 py-2 rounded-lg text-sm text-slate-400 hover:text-white hover:bg-slate-800 transition"
+                      className="text-xs text-blue-400 hover:underline hover:text-blue-300 font-medium"
                     >
-                      Atrás
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setWizardStep('order_details')}
-                      className="px-5 py-2 rounded-lg text-sm bg-blue-600 hover:bg-blue-500 text-white font-semibold shadow transition hover:scale-[1.02] active:scale-[0.98]"
-                    >
-                      Continuar al Pedido ➡️
+                      Cambiar
                     </button>
                   </div>
+                ) : (
+                  <div className="bg-rose-500/10 border border-rose-500/20 text-rose-200 p-3 rounded-lg text-sm flex justify-between items-center">
+                    <span>No hay cliente asignado a este pedido.</span>
+                    <button
+                      type="button"
+                      onClick={() => setWizardStep('select_client')}
+                      className="text-xs underline"
+                    >
+                      Asignar ahora
+                    </button>
+                  </div>
+                )}
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
+                    Fecha Estimada de Entrega
+                  </label>
+                  <input
+                    type="date"
+                    value={formData.fecha_entrega}
+                    onChange={(e) => setFormData({ ...formData, fecha_entrega: e.target.value })}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition"
+                  />
                 </div>
-              )}
 
-              {/* Paso 2: Creación de Pedido */}
-              {wizardStep === 'order_details' && (
-                <form onSubmit={handleCreateSubmit} className="space-y-4 text-slate-300">
-                  {/* Banner de Cliente pre-seleccionado */}
-                  {selectedWizardClient ? (
-                    <div className="bg-slate-950/50 border border-slate-800 rounded-xl p-3.5 flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <span className="text-xl">👤</span>
-                        <div className="text-left">
-                          <span className="text-[10px] uppercase font-bold text-slate-500 block leading-tight">Cliente Asignado</span>
-                          <span className="text-xs font-bold text-white">{selectedWizardClient.nombre_cliente} - <span className="text-slate-400 font-medium">{selectedWizardClient.nombre_empresa}</span></span>
-                        </div>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => setWizardStep('select_client')}
-                        className="text-xs text-blue-400 hover:underline hover:text-blue-300 font-medium"
-                      >
-                        Cambiar
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="bg-rose-500/10 border border-rose-500/20 text-rose-200 p-3 rounded-lg text-sm flex justify-between items-center">
-                      <span>No hay cliente asignado a este pedido.</span>
-                      <button
-                        type="button"
-                        onClick={() => setWizardStep('select_client')}
-                        className="text-xs underline"
-                      >
-                        Asignar ahora
-                      </button>
-                    </div>
-                  )}
-
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                   <div>
                     <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
-                      Fecha Estimada de Entrega
+                      Prioridad *
+                    </label>
+                    <select
+                      value={formData.prioridad}
+                      onChange={(e) => setFormData({ ...formData, prioridad: e.target.value as any })}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition"
+                    >
+                      <option value="baja">Baja</option>
+                      <option value="normal">Normal</option>
+                      <option value="alta">Alta</option>
+                      <option value="critica">Crítica</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
+                      Precio ($)
                     </label>
                     <input
-                      type="date"
-                      value={formData.fecha_entrega}
-                      onChange={(e) => setFormData({ ...formData, fecha_entrega: e.target.value })}
+                      type="text"
+                      placeholder="Ej. 1500"
+                      value={formData.precio}
+                      onChange={(e) => {
+                        const val = e.target.value
+                        if (/^[0-9]*$/.test(val)) {
+                          setFormData({ ...formData, precio: val })
+                        }
+                      }}
                       className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition"
                     />
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
-                        Prioridad *
-                      </label>
-                      <select
-                        value={formData.prioridad}
-                        onChange={(e) => setFormData({ ...formData, prioridad: e.target.value as any })}
-                        className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition"
-                      >
-                        <option value="baja">Baja</option>
-                        <option value="normal">Normal</option>
-                        <option value="alta">Alta</option>
-                        <option value="critica">Crítica</option>
-                      </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
+                    Comentario
+                  </label>
+                  <textarea
+                    placeholder="Escribe un comentario o notas adicionales para el pedido..."
+                    value={formData.comentario}
+                    onChange={(e) => setFormData({ ...formData, comentario: e.target.value })}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition h-20 resize-none"
+                  />
+                </div>
+
+                {/* Sección de Pago Inicial / Adelanto */}
+                <div className="bg-slate-950/70 border border-slate-800/80 p-4 rounded-xl space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="text-base">💵</span>
+                      <span className="text-xs font-bold uppercase tracking-wider text-emerald-400">
+                        Pago Inicial / Adelanto (Opcional)
+                      </span>
                     </div>
+                    {parseFloat(formData.monto_pago_inicial || '0') > 0 && (
+                      <span className="text-[10px] bg-emerald-500/20 text-emerald-300 font-bold px-2.5 py-0.5 rounded-full border border-emerald-500/30">
+                        {parseFloat(formData.monto_pago_inicial || '0') >= parseFloat(formData.precio || '0') && parseFloat(formData.precio || '0') > 0
+                          ? '✓ Pago Total'
+                          : '✓ Pago Parcial (Seña)'}
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
-                        Precio ($)
+                      <label className="block text-xs font-semibold text-slate-400 mb-1">
+                        Monto del Pago Inicial ($)
                       </label>
                       <input
                         type="text"
-                        placeholder="Ej. 1500"
-                        value={formData.precio}
+                        placeholder="0.00"
+                        value={formData.monto_pago_inicial}
                         onChange={(e) => {
                           const val = e.target.value
-                          if (/^[0-9]*$/.test(val)) {
-                            setFormData({ ...formData, precio: val })
+                          if (/^[0-9]*\.?[0-9]*$/.test(val)) {
+                            setFormData({ ...formData, monto_pago_inicial: val })
                           }
                         }}
-                        className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition"
+                        className="w-full bg-slate-900 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white font-semibold focus:outline-none focus:border-emerald-500 transition"
                       />
                     </div>
 
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
-                      Comentario
-                    </label>
-                    <textarea
-                      placeholder="Escribe un comentario o notas adicionales para el pedido..."
-                      value={formData.comentario}
-                      onChange={(e) => setFormData({ ...formData, comentario: e.target.value })}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition h-20 resize-none"
-                    />
-                  </div>
-
-                  {/* Sección de Pago Inicial / Adelanto */}
-                  <div className="bg-slate-950/70 border border-slate-800/80 p-4 rounded-xl space-y-3">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <span className="text-base">💵</span>
-                        <span className="text-xs font-bold uppercase tracking-wider text-emerald-400">
-                          Pago Inicial / Adelanto (Opcional)
-                        </span>
-                      </div>
-                      {parseFloat(formData.monto_pago_inicial || '0') > 0 && (
-                        <span className="text-[10px] bg-emerald-500/20 text-emerald-300 font-bold px-2.5 py-0.5 rounded-full border border-emerald-500/30">
-                          {parseFloat(formData.monto_pago_inicial || '0') >= parseFloat(formData.precio || '0') && parseFloat(formData.precio || '0') > 0
-                            ? '✓ Pago Total'
-                            : '✓ Pago Parcial (Seña)'}
-                        </span>
-                      )}
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-400 mb-1">
+                        Medio de Pago
+                      </label>
+                      <select
+                        value={formData.medio_pago_inicial}
+                        onChange={(e) => setFormData({ ...formData, medio_pago_inicial: e.target.value })}
+                        className="w-full bg-slate-900 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-emerald-500 transition"
+                      >
+                        <option value="efectivo">💵 Efectivo</option>
+                        <option value="transferencia">🏦 Transferencia Bancaria</option>
+                        <option value="tarjeta_credito">💳 Tarjeta de Crédito</option>
+                        <option value="tarjeta_debito">💳 Tarjeta de Débito</option>
+                        <option value="mercado_pago">📱 Mercado Pago</option>
+                        <option value="cheque">📄 Cheque</option>
+                      </select>
                     </div>
+                  </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {parseFloat(formData.monto_pago_inicial || '0') > 0 && (
+                    <div className="space-y-2 pt-1 border-t border-slate-850">
                       <div>
-                        <label className="block text-xs font-semibold text-slate-400 mb-1">
-                          Monto del Pago Inicial ($)
+                        <label className="block text-[11px] font-semibold text-slate-400 mb-1">
+                          Observación o Referencia del Pago
                         </label>
                         <input
                           type="text"
-                          placeholder="0.00"
-                          value={formData.monto_pago_inicial}
-                          onChange={(e) => {
-                            const val = e.target.value
-                            if (/^[0-9]*\.?[0-9]*$/.test(val)) {
-                              setFormData({ ...formData, monto_pago_inicial: val })
-                            }
-                          }}
-                          className="w-full bg-slate-900 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white font-semibold focus:outline-none focus:border-emerald-500 transition"
+                          placeholder="Ej: Seña recibida por transferencia en cuenta..."
+                          value={formData.observaciones_pago_inicial}
+                          onChange={(e) => setFormData({ ...formData, observaciones_pago_inicial: e.target.value })}
+                          className="w-full bg-slate-900 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-emerald-500 transition"
                         />
                       </div>
 
-                      <div>
-                        <label className="block text-xs font-semibold text-slate-400 mb-1">
-                          Medio de Pago
-                        </label>
-                        <select
-                          value={formData.medio_pago_inicial}
-                          onChange={(e) => setFormData({ ...formData, medio_pago_inicial: e.target.value })}
-                          className="w-full bg-slate-900 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-emerald-500 transition"
-                        >
-                          <option value="efectivo">💵 Efectivo</option>
-                          <option value="transferencia">🏦 Transferencia Bancaria</option>
-                          <option value="tarjeta_credito">💳 Tarjeta de Crédito</option>
-                          <option value="tarjeta_debito">💳 Tarjeta de Débito</option>
-                          <option value="mercado_pago">📱 Mercado Pago</option>
-                          <option value="cheque">📄 Cheque</option>
-                        </select>
+                      <div className="flex items-center justify-between bg-slate-900/60 p-2.5 rounded-lg text-xs">
+                        <span className="text-slate-400">Saldo Pendiente Restante:</span>
+                        <span className="font-bold font-mono text-emerald-400 text-sm">
+                          ${Math.max(0, parseFloat(formData.precio || '0') - parseFloat(formData.monto_pago_inicial || '0')).toLocaleString('es-AR', { minimumFractionDigits: 2 })}
+                        </span>
                       </div>
                     </div>
+                  )}
+                </div>
 
-                    {parseFloat(formData.monto_pago_inicial || '0') > 0 && (
-                      <div className="space-y-2 pt-1 border-t border-slate-850">
-                        <div>
-                          <label className="block text-[11px] font-semibold text-slate-400 mb-1">
-                            Observación o Referencia del Pago
-                          </label>
-                          <input
-                            type="text"
-                            placeholder="Ej: Seña recibida por transferencia en cuenta..."
-                            value={formData.observaciones_pago_inicial}
-                            onChange={(e) => setFormData({ ...formData, observaciones_pago_inicial: e.target.value })}
-                            className="w-full bg-slate-900 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-emerald-500 transition"
-                          />
-                        </div>
-
-                        <div className="flex items-center justify-between bg-slate-900/60 p-2.5 rounded-lg text-xs">
-                          <span className="text-slate-400">Saldo Pendiente Restante:</span>
-                          <span className="font-bold font-mono text-emerald-400 text-sm">
-                            ${Math.max(0, parseFloat(formData.precio || '0') - parseFloat(formData.monto_pago_inicial || '0')).toLocaleString('es-AR', { minimumFractionDigits: 2 })}
-                          </span>
-                        </div>
-                      </div>
-                    )}
+                {/* Selección de Productos */}
+                <div>
+                  <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
+                    Asociar Productos (Opcional)
+                  </label>
+                  <div className="mb-2">
+                    <input
+                      type="text"
+                      placeholder="Filtrar productos..."
+                      value={productSearchQuery}
+                      onChange={(e) => setProductSearchQuery(e.target.value)}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-blue-500 transition"
+                    />
                   </div>
-
-                  {/* Selección de Productos */}
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
-                      Asociar Productos (Opcional)
-                    </label>
-                    <div className="mb-2">
-                      <input
-                        type="text"
-                        placeholder="Filtrar productos..."
-                        value={productSearchQuery}
-                        onChange={(e) => setProductSearchQuery(e.target.value)}
-                        className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-blue-500 transition"
-                      />
-                    </div>
-                    {productos.length === 0 ? (
-                      <p className="text-slate-500 italic text-xs">No hay productos cargados en el catálogo.</p>
-                    ) : (
-                      <div className="bg-slate-950 border border-slate-800 rounded-lg p-3 max-h-48 overflow-y-auto space-y-2">
-                        {productos
-                          .filter((prod) => {
-                            const query = productSearchQuery.toLowerCase()
-                            return (
-                              prod.nombre.toLowerCase().includes(query)
-                            )
-                          })
-                          .map((prod) => {
-                            const isSelected = formData.selectedProductIds.includes(prod.id)
-                            return (
-                              <div key={prod.id} className="flex items-center justify-between text-sm hover:text-white transition p-1 hover:bg-slate-900/60 rounded">
-                                <label className="flex items-center gap-2.5 cursor-pointer flex-grow text-left">
+                  {productos.length === 0 ? (
+                    <p className="text-slate-500 italic text-xs">No hay productos cargados en el catálogo.</p>
+                  ) : (
+                    <div className="bg-slate-950 border border-slate-800 rounded-lg p-3 max-h-48 overflow-y-auto space-y-2">
+                      {productos
+                        .filter((prod) => {
+                          const query = productSearchQuery.toLowerCase()
+                          return (
+                            prod.nombre.toLowerCase().includes(query)
+                          )
+                        })
+                        .map((prod) => {
+                          const isSelected = formData.selectedProductIds.includes(prod.id)
+                          return (
+                            <div key={prod.id} className="flex items-center justify-between text-sm hover:text-white transition p-1 hover:bg-slate-900/60 rounded">
+                              <label className="flex items-center gap-2.5 cursor-pointer flex-grow text-left">
+                                <input
+                                  type="checkbox"
+                                  checked={isSelected}
+                                  onChange={() => handleProductCheckboxChange(prod.id)}
+                                  className="rounded border-slate-800 bg-slate-900 text-blue-600 focus:ring-blue-500/20"
+                                />
+                                <span className="font-semibold ml-1">{prod.nombre}</span>
+                              </label>
+                              {isSelected && (
+                                <div className="flex items-center gap-1">
+                                  <span className="text-[10px] text-slate-500 uppercase font-semibold">Cant:</span>
                                   <input
-                                    type="checkbox"
-                                    checked={isSelected}
-                                    onChange={() => handleProductCheckboxChange(prod.id)}
-                                    className="rounded border-slate-800 bg-slate-900 text-blue-600 focus:ring-blue-500/20"
+                                    type="number"
+                                    min="1"
+                                    value={formData.productQuantities[prod.id] || 1}
+                                    onChange={(e) => handleProductQuantityChange(prod.id, parseInt(e.target.value) || 1)}
+                                    className="w-16 bg-slate-950 border border-slate-800 rounded px-1.5 py-0.5 text-xs text-white focus:outline-none focus:border-blue-500 text-center"
                                   />
-                                  <span className="font-semibold ml-1">{prod.nombre}</span>
-                                </label>
-                                {isSelected && (
-                                  <div className="flex items-center gap-1">
-                                    <span className="text-[10px] text-slate-500 uppercase font-semibold">Cant:</span>
-                                    <input
-                                      type="number"
-                                      min="1"
-                                      value={formData.productQuantities[prod.id] || 1}
-                                      onChange={(e) => handleProductQuantityChange(prod.id, parseInt(e.target.value) || 1)}
-                                      className="w-16 bg-slate-950 border border-slate-800 rounded px-1.5 py-0.5 text-xs text-white focus:outline-none focus:border-blue-500 text-center"
-                                    />
-                                  </div>
-                                )}
-                              </div>
-                            )
-                          })}
-                      </div>
-                    )}
-                  </div>
+                                </div>
+                              )}
+                            </div>
+                          )
+                        })}
+                    </div>
+                  )}
+                </div>
 
-                  {/* Etapas de Fabricación por Producto */}
-                  {/* {formData.selectedProductIds.length > 0 && currentUser?.role !== 'vendedor' && (
+                {/* Etapas de Fabricación por Producto */}
+                {/* {formData.selectedProductIds.length > 0 && currentUser?.role !== 'vendedor' && (
                     <div className="border-t border-slate-800 pt-4 mt-4 space-y-3">
                       <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
                         Etapas de Fabricación y Asignación de Operarios
@@ -2281,127 +2281,127 @@ export default function PedidosPage() {
                     </div>
                   )} */}
 
-                  <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-800 mt-6">
-                    <button
-                      type="button"
-                      onClick={() => setWizardStep('select_client')}
-                      className="px-4 py-2 rounded-lg text-sm text-slate-400 hover:text-white hover:bg-slate-800 transition"
-                    >
-                      Atrás
-                    </button>
-                    <button
-                      type="submit"
-                      className="px-5 py-2 rounded-lg text-sm bg-blue-600 hover:bg-blue-500 text-white font-semibold shadow transition hover:scale-[1.02] active:scale-[0.98]"
-                    >
-                      Crear Pedido ➡️
-                    </button>
-                  </div>
-                </form>
-              )}
-
-              {/* Paso 3: Confirmación de Pedido */}
-              {wizardStep === 'order_confirmation' && createdPedidoResult && (
-                <div className="space-y-6 text-center py-6 animate-in fade-in zoom-in-95 duration-200">
-                  <div className="flex items-center justify-center mx-auto w-16 h-16 bg-emerald-500/10 border border-emerald-500/20 text-emerald-405 rounded-full text-3xl shadow-[0_0_15px_rgba(16,185,129,0.2)]">
-                    🎉
-                  </div>
-                  <div className="space-y-2">
-                    <h3 className="text-lg font-bold text-white">¡Pedido Creado con Éxito!</h3>
-                    <p className="text-xs text-slate-400 max-w-sm mx-auto">
-                      El pedido de fabricación ha sido registrado correctamente y está listo para ser procesado.
-                    </p>
-                  </div>
-
-                  <div className="bg-slate-950/60 border border-slate-800 rounded-xl p-5 text-left max-w-md mx-auto space-y-3">
-                    <div className="border-b border-slate-850 pb-2 flex justify-between items-center">
-                      <span className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">Ficha de Pedido</span>
-                      <span className="text-xs font-mono font-bold text-white bg-slate-900 border border-slate-800 px-2 py-0.5 rounded-lg">#{createdPedidoResult.id}</span>
-                    </div>
-
-                    <div className="space-y-1">
-                      <span className="text-[10px] text-slate-500 uppercase font-semibold">Cliente Asignado</span>
-                      <span className="text-sm font-bold text-white block">{selectedWizardClient?.nombre_cliente || 'N/A'}</span>
-                      <span className="text-xs text-slate-400 block">{selectedWizardClient?.nombre_empresa || 'N/A'}</span>
-                    </div>
-
-                    <div className="grid grid-cols-3 gap-4 pt-2 border-t border-slate-850/50 text-xs">
-                      <div>
-                        <span className="text-slate-500 block mb-0.5">Prioridad</span>
-                        <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold capitalize ${getPriorityBadgeClass(createdPedidoResult.prioridad)}`}>
-                          {createdPedidoResult.prioridad}
-                        </span>
-                      </div>
-                      <div>
-                        <span className="text-slate-550 block mb-0.5">Fecha de Entrega</span>
-                        <span className="font-semibold text-slate-350">{createdPedidoResult.fecha_entrega || 'No planificada'}</span>
-                      </div>
-                      <div>
-                        <span className="text-slate-500 block mb-0.5">Precio</span>
-                        <span className="font-semibold text-slate-350">
-                          {createdPedidoResult.precio !== null && createdPedidoResult.precio !== undefined ? (
-                            `$ ${parseFloat(createdPedidoResult.precio.toString()).toLocaleString('es-AR', { minimumFractionDigits: 2 })}`
-                          ) : (
-                            'Sin precio'
-                          )}
-                        </span>
-                      </div>
-                    </div>
-
-                    {formData.selectedProductIds.length > 0 && (
-                      <div className="pt-3 border-t border-slate-850/50 space-y-1.5">
-                        <span className="text-[10px] text-slate-500 uppercase font-bold tracking-wider block">Productos Asociados</span>
-                        <div className="flex flex-wrap gap-1.5">
-                          {formData.selectedProductIds.map((pId) => {
-                            const p = productos.find(prod => prod.id === pId)
-                            const qty = formData.productQuantities[pId] || 1
-                            return p ? (
-                              <span key={pId} className="bg-slate-900 border border-slate-800 text-slate-200 text-xs px-2.5 py-1 rounded-md">
-                                {p.nombre} <span className="text-slate-500 font-bold ml-1">x{qty}</span>
-                              </span>
-                            ) : null
-                          })}
-                        </div>
-                      </div>
-                    )}
-
-                    {(createdPedidoResult.monto_pagado || 0) > 0 && (
-                      <div className="pt-3 border-t border-slate-850/50 space-y-1 bg-emerald-500/10 border border-emerald-500/20 p-2.5 rounded-lg">
-                        <span className="text-[10px] text-emerald-400 font-bold uppercase tracking-wider block flex items-center gap-1">
-                          💵 Pago Inicial Registrado Con Éxito
-                        </span>
-                        <div className="flex justify-between items-center text-xs text-slate-300">
-                          <span>Monto Pagado:</span>
-                          <span className="font-bold font-mono text-emerald-300">
-                            ${parseFloat((createdPedidoResult.monto_pagado || 0).toString()).toLocaleString('es-AR', { minimumFractionDigits: 2 })}
-                          </span>
-                        </div>
-                        <div className="flex justify-between items-center text-xs text-slate-400">
-                          <span>Saldo Pendiente:</span>
-                          <span className="font-semibold font-mono text-white">
-                            ${parseFloat((createdPedidoResult.saldo_pendiente || 0).toString()).toLocaleString('es-AR', { minimumFractionDigits: 2 })}
-                          </span>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="flex items-center justify-center gap-3 pt-6 border-t border-slate-800">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setIsCreateModalOpen(false)
-                        // Resetear wizard para la próxima vez
-                        setWizardStep('select_client')
-                        setSelectedWizardClient(null)
-                        setCreatedPedidoResult(null)
-                      }}
-                      className="px-6 py-2 bg-blue-600 hover:bg-blue-500 text-white font-semibold shadow transition hover:scale-[1.02] active:scale-[0.98] rounded-lg text-sm"
-                    >
-                      Finalizar y Ver en Panel
-                    </button>
-                  </div>
+                <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-800 mt-6">
+                  <button
+                    type="button"
+                    onClick={() => setWizardStep('select_client')}
+                    className="px-4 py-2 rounded-lg text-sm text-slate-400 hover:text-white hover:bg-slate-800 transition"
+                  >
+                    Atrás
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-5 py-2 rounded-lg text-sm bg-blue-600 hover:bg-blue-500 text-white font-semibold shadow transition hover:scale-[1.02] active:scale-[0.98]"
+                  >
+                    Crear Pedido ➡️
+                  </button>
                 </div>
-              )}
+              </form>
+            )}
+
+            {/* Paso 3: Confirmación de Pedido */}
+            {wizardStep === 'order_confirmation' && createdPedidoResult && (
+              <div className="space-y-6 text-center py-6 animate-in fade-in zoom-in-95 duration-200">
+                <div className="flex items-center justify-center mx-auto w-16 h-16 bg-emerald-500/10 border border-emerald-500/20 text-emerald-405 rounded-full text-3xl shadow-[0_0_15px_rgba(16,185,129,0.2)]">
+                  🎉
+                </div>
+                <div className="space-y-2">
+                  <h3 className="text-lg font-bold text-white">¡Pedido Creado con Éxito!</h3>
+                  <p className="text-xs text-slate-400 max-w-sm mx-auto">
+                    El pedido de fabricación ha sido registrado correctamente y está listo para ser procesado.
+                  </p>
+                </div>
+
+                <div className="bg-slate-950/60 border border-slate-800 rounded-xl p-5 text-left max-w-md mx-auto space-y-3">
+                  <div className="border-b border-slate-850 pb-2 flex justify-between items-center">
+                    <span className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">Ficha de Pedido</span>
+                    <span className="text-xs font-mono font-bold text-white bg-slate-900 border border-slate-800 px-2 py-0.5 rounded-lg">#{createdPedidoResult.id}</span>
+                  </div>
+
+                  <div className="space-y-1">
+                    <span className="text-[10px] text-slate-500 uppercase font-semibold">Cliente Asignado</span>
+                    <span className="text-sm font-bold text-white block">{selectedWizardClient?.nombre_cliente || 'N/A'}</span>
+                    <span className="text-xs text-slate-400 block">{selectedWizardClient?.nombre_empresa || 'N/A'}</span>
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-4 pt-2 border-t border-slate-850/50 text-xs">
+                    <div>
+                      <span className="text-slate-500 block mb-0.5">Prioridad</span>
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold capitalize ${getPriorityBadgeClass(createdPedidoResult.prioridad)}`}>
+                        {createdPedidoResult.prioridad}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-slate-550 block mb-0.5">Fecha de Entrega</span>
+                      <span className="font-semibold text-slate-350">{createdPedidoResult.fecha_entrega || 'No planificada'}</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-500 block mb-0.5">Precio</span>
+                      <span className="font-semibold text-slate-350">
+                        {createdPedidoResult.precio !== null && createdPedidoResult.precio !== undefined ? (
+                          `$ ${parseFloat(createdPedidoResult.precio.toString()).toLocaleString('es-AR', { minimumFractionDigits: 2 })}`
+                        ) : (
+                          'Sin precio'
+                        )}
+                      </span>
+                    </div>
+                  </div>
+
+                  {formData.selectedProductIds.length > 0 && (
+                    <div className="pt-3 border-t border-slate-850/50 space-y-1.5">
+                      <span className="text-[10px] text-slate-500 uppercase font-bold tracking-wider block">Productos Asociados</span>
+                      <div className="flex flex-wrap gap-1.5">
+                        {formData.selectedProductIds.map((pId) => {
+                          const p = productos.find(prod => prod.id === pId)
+                          const qty = formData.productQuantities[pId] || 1
+                          return p ? (
+                            <span key={pId} className="bg-slate-900 border border-slate-800 text-slate-200 text-xs px-2.5 py-1 rounded-md">
+                              {p.nombre} <span className="text-slate-500 font-bold ml-1">x{qty}</span>
+                            </span>
+                          ) : null
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {(createdPedidoResult.monto_pagado || 0) > 0 && (
+                    <div className="pt-3 border-t border-slate-850/50 space-y-1 bg-emerald-500/10 border border-emerald-500/20 p-2.5 rounded-lg">
+                      <span className="text-[10px] text-emerald-400 font-bold uppercase tracking-wider block flex items-center gap-1">
+                        💵 Pago Inicial Registrado Con Éxito
+                      </span>
+                      <div className="flex justify-between items-center text-xs text-slate-300">
+                        <span>Monto Pagado:</span>
+                        <span className="font-bold font-mono text-emerald-300">
+                          ${parseFloat((createdPedidoResult.monto_pagado || 0).toString()).toLocaleString('es-AR', { minimumFractionDigits: 2 })}
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center text-xs text-slate-400">
+                        <span>Saldo Pendiente:</span>
+                        <span className="font-semibold font-mono text-white">
+                          ${parseFloat((createdPedidoResult.saldo_pendiente || 0).toString()).toLocaleString('es-AR', { minimumFractionDigits: 2 })}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex items-center justify-center gap-3 pt-6 border-t border-slate-800">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsCreateModalOpen(false)
+                      // Resetear wizard para la próxima vez
+                      setWizardStep('select_client')
+                      setSelectedWizardClient(null)
+                      setCreatedPedidoResult(null)
+                    }}
+                    className="px-6 py-2 bg-blue-600 hover:bg-blue-500 text-white font-semibold shadow transition hover:scale-[1.02] active:scale-[0.98] rounded-lg text-sm"
+                  >
+                    Finalizar y Ver en Panel
+                  </button>
+                </div>
+              </div>
+            )}
           </Modal>
         )}
 
@@ -2412,220 +2412,220 @@ export default function PedidosPage() {
             onClose={() => setIsEditModalOpen(false)}
             className="max-w-xl p-6"
           >
-              <h2 className="text-xl font-bold text-white mb-4">Editar Pedido</h2>
-              <form onSubmit={handleEditSubmit} className="space-y-4 text-slate-300">
-                <div className="relative">
-                    <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5 flex items-center justify-between">
-                      <span>Cliente *</span>
-                      <button
-                        type="button"
-                        onClick={handleOpenCreateClienteModal}
-                        className="text-xs text-blue-450 hover:text-blue-300 font-semibold"
-                      >
-                        + Nuevo Cliente
-                      </button>
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="Buscar cliente..."
-                      value={clientSearchText}
-                      onChange={(e) => {
-                        setClientSearchText(e.target.value)
-                        setIsClientDropdownOpen(true)
-                      }}
-                      onFocus={() => setIsClientDropdownOpen(true)}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition"
-                    />
-                    {isClientDropdownOpen && (
-                      <>
-                        <div className="fixed inset-0 z-40" onClick={() => setIsClientDropdownOpen(false)} />
-                        <div className="absolute z-50 left-0 right-0 mt-1 max-h-60 overflow-y-auto bg-slate-950 border border-slate-800 rounded-lg shadow-xl divide-y divide-slate-900 text-left">
-                          {clientes
-                            .filter((c) => {
-                              const query = clientSearchText.toLowerCase()
-                              return (
-                                c.nombre_cliente.toLowerCase().includes(query) ||
-                                c.nombre_empresa.toLowerCase().includes(query) ||
-                                (c.email || '').toLowerCase().includes(query)
-                              )
-                            })
-                            .map((c) => (
-                              <div
-                                key={c.id}
-                                onClick={() => {
-                                  setFormData({ ...formData, cliente_id: c.id.toString() })
-                                  setClientSearchText(`${c.nombre_cliente} - ${c.nombre_empresa}`)
-                                  setIsClientDropdownOpen(false)
-                                }}
-                                className="px-3.5 py-2.5 hover:bg-slate-900 cursor-pointer text-sm text-slate-300 hover:text-white transition flex justify-between"
-                              >
-                                <div>
-                                  <span className="font-semibold block">{c.nombre_cliente}</span>
-                                  <span className="text-xs text-slate-500">{c.nombre_empresa}</span>
-                                </div>
-                                {c.email && <span className="text-xs text-slate-500 self-center">{c.email}</span>}
-                              </div>
-                            ))}
-                          {clientes.filter((c) => {
-                            const query = clientSearchText.toLowerCase()
-                            return (
-                              c.nombre_cliente.toLowerCase().includes(query) ||
-                              c.nombre_empresa.toLowerCase().includes(query) ||
-                              (c.email || '').toLowerCase().includes(query)
-                            )
-                          }).length === 0 && (
-                              <div className="px-3.5 py-2.5 text-xs text-slate-500 italic text-center">
-                                No se encontraron clientes.{" "}
-                                <button
-                                  type="button"
-                                  onClick={handleOpenCreateClienteModal}
-                                  className="text-blue-450 hover:underline font-semibold"
-                                >
-                                  Crear nuevo cliente
-                                </button>
-                              </div>
-                            )}
-                        </div>
-                      </>
-                    )}
-                  </div>
+            <h2 className="text-xl font-bold text-white mb-4">Editar Pedido</h2>
+            <form onSubmit={handleEditSubmit} className="space-y-4 text-slate-300">
+              <div className="relative">
+                <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5 flex items-center justify-between">
+                  <span>Cliente *</span>
+                  <button
+                    type="button"
+                    onClick={handleOpenCreateClienteModal}
+                    className="text-xs text-blue-450 hover:text-blue-300 font-semibold"
+                  >
+                    + Nuevo Cliente
+                  </button>
+                </label>
+                <input
+                  type="text"
+                  placeholder="Buscar cliente..."
+                  value={clientSearchText}
+                  onChange={(e) => {
+                    setClientSearchText(e.target.value)
+                    setIsClientDropdownOpen(true)
+                  }}
+                  onFocus={() => setIsClientDropdownOpen(true)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition"
+                />
+                {isClientDropdownOpen && (
+                  <>
+                    <div className="fixed inset-0 z-40" onClick={() => setIsClientDropdownOpen(false)} />
+                    <div className="absolute z-50 left-0 right-0 mt-1 max-h-60 overflow-y-auto bg-slate-950 border border-slate-800 rounded-lg shadow-xl divide-y divide-slate-900 text-left">
+                      {clientes
+                        .filter((c) => {
+                          const query = clientSearchText.toLowerCase()
+                          return (
+                            c.nombre_cliente.toLowerCase().includes(query) ||
+                            c.nombre_empresa.toLowerCase().includes(query) ||
+                            (c.email || '').toLowerCase().includes(query)
+                          )
+                        })
+                        .map((c) => (
+                          <div
+                            key={c.id}
+                            onClick={() => {
+                              setFormData({ ...formData, cliente_id: c.id.toString() })
+                              setClientSearchText(`${c.nombre_cliente} - ${c.nombre_empresa}`)
+                              setIsClientDropdownOpen(false)
+                            }}
+                            className="px-3.5 py-2.5 hover:bg-slate-900 cursor-pointer text-sm text-slate-300 hover:text-white transition flex justify-between"
+                          >
+                            <div>
+                              <span className="font-semibold block">{c.nombre_cliente}</span>
+                              <span className="text-xs text-slate-500">{c.nombre_empresa}</span>
+                            </div>
+                            {c.email && <span className="text-xs text-slate-500 self-center">{c.email}</span>}
+                          </div>
+                        ))}
+                      {clientes.filter((c) => {
+                        const query = clientSearchText.toLowerCase()
+                        return (
+                          c.nombre_cliente.toLowerCase().includes(query) ||
+                          c.nombre_empresa.toLowerCase().includes(query) ||
+                          (c.email || '').toLowerCase().includes(query)
+                        )
+                      }).length === 0 && (
+                          <div className="px-3.5 py-2.5 text-xs text-slate-500 italic text-center">
+                            No se encontraron clientes.{" "}
+                            <button
+                              type="button"
+                              onClick={handleOpenCreateClienteModal}
+                              className="text-blue-450 hover:underline font-semibold"
+                            >
+                              Crear nuevo cliente
+                            </button>
+                          </div>
+                        )}
+                    </div>
+                  </>
+                )}
+              </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
-                      Prioridad *
-                    </label>
-                    <select
-                      value={formData.prioridad}
-                      onChange={(e) => setFormData({ ...formData, prioridad: e.target.value as any })}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition"
-                    >
-                      <option value="baja">Baja</option>
-                      <option value="normal">Normal</option>
-                      <option value="alta">Alta</option>
-                      <option value="critica">Crítica</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
-                      Estado *
-                    </label>
-                    <select
-                      value={formData.estado}
-                      onChange={(e) => setFormData({ ...formData, estado: e.target.value })}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition"
-                    >
-                      <option value="pendiente">Pendiente</option>
-                      <option value="listo_para_produccion">Listo para producción</option>
-                      <option value="en_progreso">En Progreso</option>
-                      <option value="completado">Completado</option>
-                      <option value="completado_pd">Completado - Pendiente de pago (PD)</option>
-                      <option value="enviado">Enviado</option>
-                      <option value="enviado_faltante">Enviado con faltante</option>
-                      <option value="cancelado">Cancelado</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
-                      Fecha Entrega
-                    </label>
-                    <input
-                      type="date"
-                      value={formData.fecha_entrega}
-                      onChange={(e) => setFormData({ ...formData, fecha_entrega: e.target.value })}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
-                      Precio ($)
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="Ej. 1500"
-                      value={formData.precio}
-                      onChange={(e) => {
-                        const val = e.target.value
-                        if (/^[0-9]*$/.test(val)) {
-                          setFormData({ ...formData, precio: val })
-                        }
-                      }}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition"
-                    />
-                  </div>
-
-                </div>
-
+              <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
                 <div>
                   <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
-                    Comentario
+                    Prioridad *
                   </label>
-                  <textarea
-                    placeholder="Escribe un comentario o notas adicionales para el pedido..."
-                    value={formData.comentario}
-                    onChange={(e) => setFormData({ ...formData, comentario: e.target.value })}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition h-20 resize-none mb-4"
+                  <select
+                    value={formData.prioridad}
+                    onChange={(e) => setFormData({ ...formData, prioridad: e.target.value as any })}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition"
+                  >
+                    <option value="baja">Baja</option>
+                    <option value="normal">Normal</option>
+                    <option value="alta">Alta</option>
+                    <option value="critica">Crítica</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
+                    Estado *
+                  </label>
+                  <select
+                    value={formData.estado}
+                    onChange={(e) => setFormData({ ...formData, estado: e.target.value })}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition"
+                  >
+                    <option value="pendiente">Pendiente</option>
+                    <option value="listo_para_produccion">Listo para producción</option>
+                    <option value="en_progreso">En Progreso</option>
+                    <option value="completado">Completado</option>
+                    <option value="completado_pd">Completado - Pendiente de pago (PD)</option>
+                    <option value="enviado">Enviado</option>
+                    <option value="enviado_faltante">Enviado con faltante</option>
+                    <option value="cancelado">Cancelado</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
+                    Fecha Entrega
+                  </label>
+                  <input
+                    type="date"
+                    value={formData.fecha_entrega}
+                    onChange={(e) => setFormData({ ...formData, fecha_entrega: e.target.value })}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
+                    Precio ($)
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Ej. 1500"
+                    value={formData.precio}
+                    onChange={(e) => {
+                      const val = e.target.value
+                      if (/^[0-9]*$/.test(val)) {
+                        setFormData({ ...formData, precio: val })
+                      }
+                    }}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition"
                   />
                 </div>
 
-                {/* Selección de Productos */}
-                <div>
-                  <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
-                    Asociar Productos (Opcional)
-                  </label>
-                  <div className="mb-2">
-                    <input
-                      type="text"
-                      placeholder="Filtrar productos..."
-                      value={productSearchQuery}
-                      onChange={(e) => setProductSearchQuery(e.target.value)}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-blue-500 transition"
-                    />
-                  </div>
-                  {productos.length === 0 ? (
-                    <p className="text-slate-500 italic text-xs">No hay productos cargados en el catálogo.</p>
-                  ) : (
-                    <div className="bg-slate-950 border border-slate-800 rounded-lg p-3 max-h-48 overflow-y-auto space-y-2">
-                      {productos
-                        .filter((prod) => {
-                          const query = productSearchQuery.toLowerCase()
-                          return (
-                            prod.nombre.toLowerCase().includes(query)
-                          )
-                        })
-                        .map((prod) => {
-                          const isSelected = formData.selectedProductIds.includes(prod.id)
-                          return (
-                            <div key={prod.id} className="flex items-center justify-between text-sm hover:text-white transition p-1 hover:bg-slate-900/60 rounded">
-                              <label className="flex items-center gap-2.5 cursor-pointer flex-grow text-left">
-                                <input
-                                  type="checkbox"
-                                  checked={isSelected}
-                                  onChange={() => handleProductCheckboxChange(prod.id)}
-                                  className="rounded border-slate-800 bg-slate-900 text-blue-600 focus:ring-blue-500/20"
-                                />
-                                <span className="font-semibold ml-1">{prod.nombre}</span>
-                              </label>
-                              {isSelected && (
-                                <div className="flex items-center gap-1">
-                                  <span className="text-[10px] text-slate-500 uppercase font-semibold">Cant:</span>
-                                  <input
-                                    type="number"
-                                    min="1"
-                                    value={formData.productQuantities[prod.id] || 1}
-                                    onChange={(e) => handleProductQuantityChange(prod.id, parseInt(e.target.value) || 1)}
-                                    className="w-16 bg-slate-950 border border-slate-800 rounded px-1.5 py-0.5 text-xs text-white focus:outline-none focus:border-blue-500 text-center"
-                                  />
-                                </div>
-                              )}
-                            </div>
-                          )
-                        })}
-                    </div>
-                  )}
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
+                  Comentario
+                </label>
+                <textarea
+                  placeholder="Escribe un comentario o notas adicionales para el pedido..."
+                  value={formData.comentario}
+                  onChange={(e) => setFormData({ ...formData, comentario: e.target.value })}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition h-20 resize-none mb-4"
+                />
+              </div>
+
+              {/* Selección de Productos */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
+                  Asociar Productos (Opcional)
+                </label>
+                <div className="mb-2">
+                  <input
+                    type="text"
+                    placeholder="Filtrar productos..."
+                    value={productSearchQuery}
+                    onChange={(e) => setProductSearchQuery(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-blue-500 transition"
+                  />
                 </div>
-                {/* Etapas de Fabricación y Asignación */}
-                {/* {currentUser?.role !== 'vendedor' && (
+                {productos.length === 0 ? (
+                  <p className="text-slate-500 italic text-xs">No hay productos cargados en el catálogo.</p>
+                ) : (
+                  <div className="bg-slate-950 border border-slate-800 rounded-lg p-3 max-h-48 overflow-y-auto space-y-2">
+                    {productos
+                      .filter((prod) => {
+                        const query = productSearchQuery.toLowerCase()
+                        return (
+                          prod.nombre.toLowerCase().includes(query)
+                        )
+                      })
+                      .map((prod) => {
+                        const isSelected = formData.selectedProductIds.includes(prod.id)
+                        return (
+                          <div key={prod.id} className="flex items-center justify-between text-sm hover:text-white transition p-1 hover:bg-slate-900/60 rounded">
+                            <label className="flex items-center gap-2.5 cursor-pointer flex-grow text-left">
+                              <input
+                                type="checkbox"
+                                checked={isSelected}
+                                onChange={() => handleProductCheckboxChange(prod.id)}
+                                className="rounded border-slate-800 bg-slate-900 text-blue-600 focus:ring-blue-500/20"
+                              />
+                              <span className="font-semibold ml-1">{prod.nombre}</span>
+                            </label>
+                            {isSelected && (
+                              <div className="flex items-center gap-1">
+                                <span className="text-[10px] text-slate-500 uppercase font-semibold">Cant:</span>
+                                <input
+                                  type="number"
+                                  min="1"
+                                  value={formData.productQuantities[prod.id] || 1}
+                                  onChange={(e) => handleProductQuantityChange(prod.id, parseInt(e.target.value) || 1)}
+                                  className="w-16 bg-slate-950 border border-slate-800 rounded px-1.5 py-0.5 text-xs text-white focus:outline-none focus:border-blue-500 text-center"
+                                />
+                              </div>
+                            )}
+                          </div>
+                        )
+                      })}
+                  </div>
+                )}
+              </div>
+              {/* Etapas de Fabricación y Asignación */}
+              {/* {currentUser?.role !== 'vendedor' && (
                   <div className="border-t border-slate-800 pt-4 mt-4 space-y-3">
                     <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
                       Etapas de Fabricación y Asignación de Operarios
@@ -2712,22 +2712,22 @@ export default function PedidosPage() {
                   </div>
                 )} */}
 
-                <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-800">
-                  <button
-                    type="button"
-                    onClick={() => setIsEditModalOpen(false)}
-                    className="px-4 py-2 rounded-lg text-sm text-slate-400 hover:text-white hover:bg-slate-800 transition"
-                  >
-                    Cancelar
-                  </button>
-                  <button
-                    type="submit"
-                    className="px-4 py-2 rounded-lg text-sm bg-blue-600 hover:bg-blue-500 text-white font-medium shadow transition hover:scale-[1.02] active:scale-[0.98]"
-                  >
-                    Guardar Cambios
-                  </button>
-                </div>
-              </form>
+              <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setIsEditModalOpen(false)}
+                  className="px-4 py-2 rounded-lg text-sm text-slate-400 hover:text-white hover:bg-slate-800 transition"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 rounded-lg text-sm bg-blue-600 hover:bg-blue-500 text-white font-medium shadow transition hover:scale-[1.02] active:scale-[0.98]"
+                >
+                  Guardar Cambios
+                </button>
+              </div>
+            </form>
           </Modal>
         )}
 
@@ -2738,178 +2738,178 @@ export default function PedidosPage() {
             onClose={() => setIsCreateClienteModalOpen(false)}
             className="max-w-lg p-6 text-slate-300"
           >
-              <h2 className="text-xl font-bold text-white mb-4">Registrar Nuevo Cliente</h2>
-              <form onSubmit={handleCreateClienteSubmit} className="space-y-4 max-h-[70vh] overflow-y-auto pr-2 text-left">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
-                      Nombre del Cliente *
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      value={clienteFormData.nombre_cliente}
-                      onChange={(e) => setClienteFormData({ ...clienteFormData, nombre_cliente: e.target.value })}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition"
-                      placeholder="Ej. Juan Pérez"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
-                      Nombre de la Empresa *
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      value={clienteFormData.nombre_empresa}
-                      onChange={(e) => setClienteFormData({ ...clienteFormData, nombre_empresa: e.target.value })}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition"
-                      placeholder="Ej. Empresa S.A."
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
-                      Teléfono *
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      value={clienteFormData.telefono || ''}
-                      onChange={(e) => setClienteFormData({ ...clienteFormData, telefono: e.target.value })}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition"
-                      placeholder="Ej. +54 9 11 1234-5678"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
-                      Correo Electrónico
-                    </label>
-                    <input
-                      type="email"
-                      value={clienteFormData.email || ''}
-                      onChange={(e) => setClienteFormData({ ...clienteFormData, email: e.target.value })}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition"
-                      placeholder="ejemplo@correo.com"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
-                      DNI
-                    </label>
-                    <input
-                      type="text"
-                      value={clienteFormData.dni || ''}
-                      onChange={(e) => setClienteFormData({ ...clienteFormData, dni: e.target.value })}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition"
-                      placeholder="Ej. 12345678"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
-                      Localidad
-                    </label>
-                    <input
-                      type="text"
-                      value={clienteFormData.localidad || ''}
-                      onChange={(e) => setClienteFormData({ ...clienteFormData, localidad: e.target.value })}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition"
-                      placeholder="Ej. Lanús"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
-                      Provincia
-                    </label>
-                    <input
-                      type="text"
-                      value={clienteFormData.provincia || ''}
-                      onChange={(e) => setClienteFormData({ ...clienteFormData, provincia: e.target.value })}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition"
-                      placeholder="Ej. Buenos Aires"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
-                      Código Postal (CP)
-                    </label>
-                    <input
-                      type="text"
-                      value={clienteFormData.cp || ''}
-                      onChange={(e) => setClienteFormData({ ...clienteFormData, cp: e.target.value })}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition"
-                      placeholder="Ej. 1824"
-                    />
-                  </div>
-                </div>
-
+            <h2 className="text-xl font-bold text-white mb-4">Registrar Nuevo Cliente</h2>
+            <form onSubmit={handleCreateClienteSubmit} className="space-y-4 max-h-[70vh] overflow-y-auto pr-2 text-left">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
-                    Dirección
+                    Nombre del Cliente *
                   </label>
                   <input
                     type="text"
-                    value={clienteFormData.direccion || ''}
-                    onChange={(e) => setClienteFormData({ ...clienteFormData, direccion: e.target.value })}
+                    required
+                    value={clienteFormData.nombre_cliente}
+                    onChange={(e) => setClienteFormData({ ...clienteFormData, nombre_cliente: e.target.value })}
                     className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition"
-                    placeholder="Ej. Av. 9 de Julio 1234"
+                    placeholder="Ej. Juan Pérez"
                   />
                 </div>
-
                 <div>
                   <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
-                    Saldo ($)
+                    Nombre de la Empresa *
                   </label>
                   <input
-                    type="number"
-                    step="0.01"
-                    value={clienteFormData.saldo}
-                    onChange={(e) => setClienteFormData({ ...clienteFormData, saldo: Number(e.target.value) })}
+                    type="text"
+                    required
+                    value={clienteFormData.nombre_empresa}
+                    onChange={(e) => setClienteFormData({ ...clienteFormData, nombre_empresa: e.target.value })}
                     className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition"
-                    placeholder="0.00"
+                    placeholder="Ej. Empresa S.A."
                   />
-                  <span className="text-[11px] text-slate-500 mt-1 block">
-                    Si el saldo es negativo, la creación de pedidos estará deshabilitada para este cliente.
-                  </span>
                 </div>
+              </div>
 
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
-                    Observaciones
+                    Teléfono *
                   </label>
-                  <textarea
-                    rows={2}
-                    value={clienteFormData.observaciones || ''}
-                    onChange={(e) => setClienteFormData({ ...clienteFormData, observaciones: e.target.value })}
+                  <input
+                    type="text"
+                    required
+                    value={clienteFormData.telefono || ''}
+                    onChange={(e) => setClienteFormData({ ...clienteFormData, telefono: e.target.value })}
                     className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition"
-                    placeholder="Notas sobre el cliente..."
+                    placeholder="Ej. +54 9 11 1234-5678"
                   />
                 </div>
-
-                <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-800">
-                  <button
-                    type="button"
-                    onClick={() => setIsCreateClienteModalOpen(false)}
-                    className="px-4 py-2 rounded-lg text-sm text-slate-400 hover:text-white hover:bg-slate-800 transition"
-                  >
-                    Cancelar
-                  </button>
-                  <button
-                    type="submit"
-                    className="px-4 py-2 rounded-lg text-sm bg-blue-600 hover:bg-blue-500 text-white font-medium shadow transition hover:scale-[1.02] active:scale-[0.98]"
-                  >
-                    Registrar
-                  </button>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
+                    Correo Electrónico
+                  </label>
+                  <input
+                    type="email"
+                    value={clienteFormData.email || ''}
+                    onChange={(e) => setClienteFormData({ ...clienteFormData, email: e.target.value })}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition"
+                    placeholder="ejemplo@correo.com"
+                  />
                 </div>
-              </form>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
+                    DNI
+                  </label>
+                  <input
+                    type="text"
+                    value={clienteFormData.dni || ''}
+                    onChange={(e) => setClienteFormData({ ...clienteFormData, dni: e.target.value })}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition"
+                    placeholder="Ej. 12345678"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
+                    Localidad
+                  </label>
+                  <input
+                    type="text"
+                    value={clienteFormData.localidad || ''}
+                    onChange={(e) => setClienteFormData({ ...clienteFormData, localidad: e.target.value })}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition"
+                    placeholder="Ej. Lanús"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
+                    Provincia
+                  </label>
+                  <input
+                    type="text"
+                    value={clienteFormData.provincia || ''}
+                    onChange={(e) => setClienteFormData({ ...clienteFormData, provincia: e.target.value })}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition"
+                    placeholder="Ej. Buenos Aires"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
+                    Código Postal (CP)
+                  </label>
+                  <input
+                    type="text"
+                    value={clienteFormData.cp || ''}
+                    onChange={(e) => setClienteFormData({ ...clienteFormData, cp: e.target.value })}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition"
+                    placeholder="Ej. 1824"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
+                  Dirección
+                </label>
+                <input
+                  type="text"
+                  value={clienteFormData.direccion || ''}
+                  onChange={(e) => setClienteFormData({ ...clienteFormData, direccion: e.target.value })}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition"
+                  placeholder="Ej. Av. 9 de Julio 1234"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
+                  Saldo ($)
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={clienteFormData.saldo}
+                  onChange={(e) => setClienteFormData({ ...clienteFormData, saldo: Number(e.target.value) })}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition"
+                  placeholder="0.00"
+                />
+                <span className="text-[11px] text-slate-500 mt-1 block">
+                  Si el saldo es negativo, la creación de pedidos estará deshabilitada para este cliente.
+                </span>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
+                  Observaciones
+                </label>
+                <textarea
+                  rows={2}
+                  value={clienteFormData.observaciones || ''}
+                  onChange={(e) => setClienteFormData({ ...clienteFormData, observaciones: e.target.value })}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition"
+                  placeholder="Notas sobre el cliente..."
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setIsCreateClienteModalOpen(false)}
+                  className="px-4 py-2 rounded-lg text-sm text-slate-400 hover:text-white hover:bg-slate-800 transition"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 rounded-lg text-sm bg-blue-600 hover:bg-blue-500 text-white font-medium shadow transition hover:scale-[1.02] active:scale-[0.98]"
+                >
+                  Registrar
+                </button>
+              </div>
+            </form>
           </Modal>
         )}
 
@@ -2921,237 +2921,237 @@ export default function PedidosPage() {
             className="max-w-4xl p-6"
           >
 
-              <h2 className="text-xl font-bold text-white mb-1">
-                Gestión de Pagos: Pedido #{selectedPedidoForPayments.id}
-              </h2>
-              <p className="text-xs text-slate-400 mb-5">
-                Cliente: <span className="font-semibold text-slate-200">{selectedPedidoForPayments.cliente?.nombre_cliente} ({selectedPedidoForPayments.cliente?.nombre_empresa})</span>
-              </p>
+            <h2 className="text-xl font-bold text-white mb-1">
+              Gestión de Pagos: Pedido #{selectedPedidoForPayments.id}
+            </h2>
+            <p className="text-xs text-slate-400 mb-5">
+              Cliente: <span className="font-semibold text-slate-200">{selectedPedidoForPayments.cliente?.nombre_cliente} ({selectedPedidoForPayments.cliente?.nombre_empresa})</span>
+            </p>
 
-              {paymentError && (
-                <div className="mb-4 bg-rose-500/10 border border-rose-500/20 text-rose-300 p-3 rounded-lg text-xs font-semibold">
-                  ⚠️ {paymentError}
-                </div>
-              )}
-              {paymentSuccess && (
-                <div className="mb-4 bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 p-3 rounded-lg text-xs font-semibold">
-                  ✓ {paymentSuccess}
-                </div>
-              )}
+            {paymentError && (
+              <div className="mb-4 bg-rose-500/10 border border-rose-500/20 text-rose-300 p-3 rounded-lg text-xs font-semibold">
+                ⚠️ {paymentError}
+              </div>
+            )}
+            {paymentSuccess && (
+              <div className="mb-4 bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 p-3 rounded-lg text-xs font-semibold">
+                ✓ {paymentSuccess}
+              </div>
+            )}
 
-              {/* Grid Principal */}
-              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            {/* Grid Principal */}
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
 
-                {/* Lado Izquierdo: Resumen y Listado de Pagos */}
-                <div className="lg:col-span-7 space-y-5 text-left">
+              {/* Lado Izquierdo: Resumen y Listado de Pagos */}
+              <div className="lg:col-span-7 space-y-5 text-left">
 
-                  {/* Resumen Financiero */}
-                  <div className="bg-slate-950/60 p-4 rounded-xl border border-slate-800/60 space-y-3">
-                    <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Resumen de Cobros</h3>
-                    <div className="grid grid-cols-3 gap-2 text-center sm:text-left">
-                      <div>
-                        <span className="text-[10px] text-slate-500 uppercase block font-semibold">Total Pedido</span>
-                        <span className="text-sm font-bold text-white font-mono">
-                          $ {Number(selectedPedidoForPayments.precio || 0).toLocaleString('es-AR', { minimumFractionDigits: 2 })}
-                        </span>
-                      </div>
-                      <div>
-                        <span className="text-[10px] text-slate-500 uppercase block font-semibold">Cobrado</span>
-                        <span className="text-sm font-bold text-emerald-400 font-mono">
-                          $ {Number(selectedPedidoForPayments.monto_pagado || 0).toLocaleString('es-AR', { minimumFractionDigits: 2 })}
-                        </span>
-                      </div>
-                      <div>
-                        <span className="text-[10px] text-slate-500 uppercase block font-semibold">Saldo Pendiente</span>
-                        <span className="text-sm font-bold text-amber-500 font-mono">
-                          $ {Number(selectedPedidoForPayments.saldo_pendiente || 0).toLocaleString('es-AR', { minimumFractionDigits: 2 })}
-                        </span>
-                      </div>
+                {/* Resumen Financiero */}
+                <div className="bg-slate-950/60 p-4 rounded-xl border border-slate-800/60 space-y-3">
+                  <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Resumen de Cobros</h3>
+                  <div className="grid grid-cols-3 gap-2 text-center sm:text-left">
+                    <div>
+                      <span className="text-[10px] text-slate-500 uppercase block font-semibold">Total Pedido</span>
+                      <span className="text-sm font-bold text-white font-mono">
+                        $ {Number(selectedPedidoForPayments.precio || 0).toLocaleString('es-AR', { minimumFractionDigits: 2 })}
+                      </span>
                     </div>
-
-                    {/* Barra de progreso */}
-                    <div className="space-y-1.5">
-                      <div className="flex justify-between text-[10px] font-semibold text-slate-400">
-                        <span>Progreso de cobro</span>
-                        <span>{selectedPedidoForPayments.porcentaje_pagado || 0}%</span>
-                      </div>
-                      <div className="w-full bg-slate-800 rounded-full h-2">
-                        <div
-                          className={`h-2 rounded-full transition-all duration-350 ${(selectedPedidoForPayments.porcentaje_pagado || 0) <= 10
-                            ? 'bg-rose-500'
-                            : (selectedPedidoForPayments.porcentaje_pagado || 0) <= 50
-                              ? 'bg-amber-500'
-                              : 'bg-emerald-500'
-                            }`}
-                          style={{ width: `${Math.min(100, selectedPedidoForPayments.porcentaje_pagado || 0)}%` }}
-                        />
-                      </div>
+                    <div>
+                      <span className="text-[10px] text-slate-500 uppercase block font-semibold">Cobrado</span>
+                      <span className="text-sm font-bold text-emerald-400 font-mono">
+                        $ {Number(selectedPedidoForPayments.monto_pagado || 0).toLocaleString('es-AR', { minimumFractionDigits: 2 })}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-slate-500 uppercase block font-semibold">Saldo Pendiente</span>
+                      <span className="text-sm font-bold text-amber-500 font-mono">
+                        $ {Number(selectedPedidoForPayments.saldo_pendiente || 0).toLocaleString('es-AR', { minimumFractionDigits: 2 })}
+                      </span>
                     </div>
                   </div>
 
-                  {/* Listado / Historial de Pagos */}
-                  <div className="space-y-2">
-                    <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Historial de Transacciones</h3>
-                    {pedidoPayments.length === 0 ? (
-                      <p className="text-xs text-slate-500 italic py-4 text-center bg-slate-950/20 rounded-lg border border-slate-850">
-                        No hay cobros registrados para este pedido.
-                      </p>
-                    ) : (
-                      <div className="max-h-[220px] overflow-y-auto border border-slate-800/80 rounded-lg divide-y divide-slate-850">
-                        {pedidoPayments.map((pago) => (
-                          <div
-                            key={pago.id}
-                            className={`p-3 text-xs flex justify-between items-center transition ${pago.estado === 'anulado' ? 'bg-slate-950/20 opacity-50' : 'bg-slate-900/40 hover:bg-slate-950/20'
-                              }`}
-                          >
-                            <div className="space-y-0.5">
-                              <div className="flex items-center gap-2">
-                                <span className="font-mono font-bold text-white">
-                                  $ {Number(pago.monto).toLocaleString('es-AR', { minimumFractionDigits: 2 })}
-                                </span>
-                                <span className="text-[9px] px-1 rounded bg-slate-850 border border-slate-800 text-slate-300 font-semibold uppercase">
-                                  {pago.medio_pago || pago.medio}
-                                </span>
-                                {pago.estado === 'anulado' ? (
-                                  <span className="text-[8px] font-bold bg-rose-500/10 text-rose-400 border border-rose-500/20 px-1 rounded">ANULADO</span>
-                                ) : (
-                                  <span className="text-[8px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-1 rounded">{pago.tipo_cobro}</span>
-                                )}
-                              </div>
-                              <div className="text-[10px] text-slate-500 flex flex-wrap gap-x-2">
-                                <span>Fecha: {pago.fecha_pago ? new Date(pago.fecha_pago + 'T00:00:00').toLocaleDateString('es-AR') : new Date(pago.created_at).toLocaleDateString('es-AR')}</span>
-                                <span>•</span>
-                                <span>Por: {pago.vendedor?.name || 'Sistema'}</span>
-                              </div>
-                              {pago.observaciones && (
-                                <p className="text-[10px] text-slate-400 italic mt-0.5">Nota: &quot;{pago.observaciones}&quot;</p>
+                  {/* Barra de progreso */}
+                  <div className="space-y-1.5">
+                    <div className="flex justify-between text-[10px] font-semibold text-slate-400">
+                      <span>Progreso de cobro</span>
+                      <span>{selectedPedidoForPayments.porcentaje_pagado || 0}%</span>
+                    </div>
+                    <div className="w-full bg-slate-800 rounded-full h-2">
+                      <div
+                        className={`h-2 rounded-full transition-all duration-350 ${(selectedPedidoForPayments.porcentaje_pagado || 0) <= 10
+                          ? 'bg-rose-500'
+                          : (selectedPedidoForPayments.porcentaje_pagado || 0) <= 50
+                            ? 'bg-amber-500'
+                            : 'bg-emerald-500'
+                          }`}
+                        style={{ width: `${Math.min(100, selectedPedidoForPayments.porcentaje_pagado || 0)}%` }}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Listado / Historial de Pagos */}
+                <div className="space-y-2">
+                  <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Historial de Transacciones</h3>
+                  {pedidoPayments.length === 0 ? (
+                    <p className="text-xs text-slate-500 italic py-4 text-center bg-slate-950/20 rounded-lg border border-slate-850">
+                      No hay cobros registrados para este pedido.
+                    </p>
+                  ) : (
+                    <div className="max-h-[220px] overflow-y-auto border border-slate-800/80 rounded-lg divide-y divide-slate-850">
+                      {pedidoPayments.map((pago) => (
+                        <div
+                          key={pago.id}
+                          className={`p-3 text-xs flex justify-between items-center transition ${pago.estado === 'anulado' ? 'bg-slate-950/20 opacity-50' : 'bg-slate-900/40 hover:bg-slate-950/20'
+                            }`}
+                        >
+                          <div className="space-y-0.5">
+                            <div className="flex items-center gap-2">
+                              <span className="font-mono font-bold text-white">
+                                $ {Number(pago.monto).toLocaleString('es-AR', { minimumFractionDigits: 2 })}
+                              </span>
+                              <span className="text-[9px] px-1 rounded bg-slate-850 border border-slate-800 text-slate-300 font-semibold uppercase">
+                                {pago.medio_pago || pago.medio}
+                              </span>
+                              {pago.estado === 'anulado' ? (
+                                <span className="text-[8px] font-bold bg-rose-500/10 text-rose-400 border border-rose-500/20 px-1 rounded">ANULADO</span>
+                              ) : (
+                                <span className="text-[8px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-1 rounded">{pago.tipo_cobro}</span>
                               )}
                             </div>
-
-                            {/* Botón para anular pago */}
-                            {pago.estado !== 'anulado' && currentUser && ['admin', 'encargado', 'vendedor'].includes(currentUser.role) && (
-                              <button
-                                onClick={() => handleAnnulPayment(pago.id)}
-                                className="text-[10px] text-rose-455 hover:text-rose-300 font-bold hover:bg-rose-500/10 px-2 py-1 rounded transition"
-                                title="Anular Cobro"
-                              >
-                                Anular
-                              </button>
+                            <div className="text-[10px] text-slate-500 flex flex-wrap gap-x-2">
+                              <span>Fecha: {pago.fecha_pago ? new Date(pago.fecha_pago + 'T00:00:00').toLocaleDateString('es-AR') : new Date(pago.created_at).toLocaleDateString('es-AR')}</span>
+                              <span>•</span>
+                              <span>Por: {pago.vendedor?.name || 'Sistema'}</span>
+                            </div>
+                            {pago.observaciones && (
+                              <p className="text-[10px] text-slate-400 italic mt-0.5">Nota: &quot;{pago.observaciones}&quot;</p>
                             )}
                           </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
 
-                {/* Lado Derecho: Registrar Nuevo Pago */}
-                <div className="lg:col-span-5 bg-slate-950/40 p-4 rounded-xl border border-slate-800 text-left">
-                  <h3 className="text-xs font-bold text-slate-200 uppercase tracking-wider mb-3">Registrar Nuevo Cobro</h3>
-
-                  {(selectedPedidoForPayments.saldo_pendiente ?? 0) <= 0 ? (
-                    <div className="text-xs text-slate-500 italic py-8 text-center">
-                      🎉 Este pedido se encuentra **completamente cobrado**. Saldo pendiente: $0.00.
+                          {/* Botón para anular pago */}
+                          {pago.estado !== 'anulado' && currentUser && ['admin', 'encargado', 'vendedor'].includes(currentUser.role) && (
+                            <button
+                              onClick={() => handleAnnulPayment(pago.id)}
+                              className="text-[10px] text-rose-455 hover:text-rose-300 font-bold hover:bg-rose-500/10 px-2 py-1 rounded transition"
+                              title="Anular Cobro"
+                            >
+                              Anular
+                            </button>
+                          )}
+                        </div>
+                      ))}
                     </div>
-                  ) : (
-                    <form onSubmit={handleCreatePayment} className="space-y-3.5">
-                      <div>
-                        <label className="block text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">
-                          Monto a Cobrar ($) *
-                        </label>
-                        <input
-                          type="number"
-                          step="0.01"
-                          required
-                          max={selectedPedidoForPayments.saldo_pendiente ?? 0}
-                          value={paymentFormData.monto}
-                          onChange={(e) => setPaymentFormData({ ...paymentFormData, monto: e.target.value })}
-                          className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-blue-500 transition"
-                          placeholder="Ej. 500"
-                        />
-                        <span className="text-[9px] text-slate-500 block mt-0.5">Máximo disponible: ${selectedPedidoForPayments.saldo_pendiente ?? 0}</span>
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-2">
-                        <div>
-                          <label className="block text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">
-                            Medio de Pago *
-                          </label>
-                          <select
-                            value={paymentFormData.medio_pago}
-                            onChange={(e) => setPaymentFormData({ ...paymentFormData, medio_pago: e.target.value })}
-                            className="w-full bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-blue-500 transition"
-                          >
-                            <option value="efectivo">💵 Efectivo</option>
-                            <option value="transferencia">🏦 Transferencia</option>
-                            <option value="tarjeta">💳 Tarjeta</option>
-                            <option value="mercado_pago">📱 Mercado Pago</option>
-                            <option value="otro">⚙️ Otro</option>
-                          </select>
-                        </div>
-                        <div>
-                          <label className="block text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">
-                            Tipo de Cobro *
-                          </label>
-                          <select
-                            value={paymentFormData.tipo_cobro}
-                            onChange={(e) => setPaymentFormData({ ...paymentFormData, tipo_cobro: e.target.value as any })}
-                            className="w-full bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-blue-500 transition"
-                          >
-                            <option value="parcial">Abono Parcial</option>
-                            <option value="seña">Seña / Adelanto</option>
-                            <option value="saldo">Saldo Final</option>
-                          </select>
-                        </div>
-                      </div>
-
-                      <div>
-                        <label className="block text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">
-                          Fecha de Pago
-                        </label>
-                        <input
-                          type="date"
-                          value={paymentFormData.fecha_pago}
-                          onChange={(e) => setPaymentFormData({ ...paymentFormData, fecha_pago: e.target.value })}
-                          className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-blue-500 transition"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">
-                          Observaciones / Notas
-                        </label>
-                        <textarea
-                          rows={2}
-                          value={paymentFormData.observaciones}
-                          onChange={(e) => setPaymentFormData({ ...paymentFormData, observaciones: e.target.value })}
-                          className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-blue-500 transition resize-none"
-                          placeholder="Detalles de la transferencia, banco, etc."
-                        />
-                      </div>
-
-                      <button
-                        type="submit"
-                        disabled={isSubmittingPayment}
-                        className="w-full py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-semibold shadow transition active:scale-[0.98] disabled:opacity-50"
-                      >
-                        {isSubmittingPayment ? 'Registrando...' : 'Registrar Cobro'}
-                      </button>
-                    </form>
                   )}
                 </div>
-
               </div>
 
-              <div className="flex items-center justify-end pt-4 border-t border-slate-800 mt-5">
-                <button
-                  type="button"
-                  onClick={() => setIsPaymentsModalOpen(false)}
-                  className="px-4 py-2 rounded-lg text-xs text-slate-400 hover:text-white hover:bg-slate-800 transition"
-                >
-                  Cerrar
-                </button>
+              {/* Lado Derecho: Registrar Nuevo Pago */}
+              <div className="lg:col-span-5 bg-slate-950/40 p-4 rounded-xl border border-slate-800 text-left">
+                <h3 className="text-xs font-bold text-slate-200 uppercase tracking-wider mb-3">Registrar Nuevo Cobro</h3>
+
+                {(selectedPedidoForPayments.saldo_pendiente ?? 0) <= 0 ? (
+                  <div className="text-xs text-slate-500 italic py-8 text-center">
+                    🎉 Este pedido se encuentra **completamente cobrado**. Saldo pendiente: $0.00.
+                  </div>
+                ) : (
+                  <form onSubmit={handleCreatePayment} className="space-y-3.5">
+                    <div>
+                      <label className="block text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">
+                        Monto a Cobrar ($) *
+                      </label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        required
+                        max={selectedPedidoForPayments.saldo_pendiente ?? 0}
+                        value={paymentFormData.monto}
+                        onChange={(e) => setPaymentFormData({ ...paymentFormData, monto: e.target.value })}
+                        className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-blue-500 transition"
+                        placeholder="Ej. 500"
+                      />
+                      <span className="text-[9px] text-slate-500 block mt-0.5">Máximo disponible: ${selectedPedidoForPayments.saldo_pendiente ?? 0}</span>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="block text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">
+                          Medio de Pago *
+                        </label>
+                        <select
+                          value={paymentFormData.medio_pago}
+                          onChange={(e) => setPaymentFormData({ ...paymentFormData, medio_pago: e.target.value })}
+                          className="w-full bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-blue-500 transition"
+                        >
+                          <option value="efectivo">💵 Efectivo</option>
+                          <option value="transferencia">🏦 Transferencia</option>
+                          <option value="tarjeta">💳 Tarjeta</option>
+                          <option value="mercado_pago">📱 Mercado Pago</option>
+                          <option value="otro">⚙️ Otro</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">
+                          Tipo de Cobro *
+                        </label>
+                        <select
+                          value={paymentFormData.tipo_cobro}
+                          onChange={(e) => setPaymentFormData({ ...paymentFormData, tipo_cobro: e.target.value as any })}
+                          className="w-full bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-blue-500 transition"
+                        >
+                          <option value="parcial">Abono Parcial</option>
+                          <option value="seña">Seña / Adelanto</option>
+                          <option value="saldo">Saldo Final</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">
+                        Fecha de Pago
+                      </label>
+                      <input
+                        type="date"
+                        value={paymentFormData.fecha_pago}
+                        onChange={(e) => setPaymentFormData({ ...paymentFormData, fecha_pago: e.target.value })}
+                        className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-blue-500 transition"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">
+                        Observaciones / Notas
+                      </label>
+                      <textarea
+                        rows={2}
+                        value={paymentFormData.observaciones}
+                        onChange={(e) => setPaymentFormData({ ...paymentFormData, observaciones: e.target.value })}
+                        className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-blue-500 transition resize-none"
+                        placeholder="Detalles de la transferencia, banco, etc."
+                      />
+                    </div>
+
+                    <button
+                      type="submit"
+                      disabled={isSubmittingPayment}
+                      className="w-full py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-semibold shadow transition active:scale-[0.98] disabled:opacity-50"
+                    >
+                      {isSubmittingPayment ? 'Registrando...' : 'Registrar Cobro'}
+                    </button>
+                  </form>
+                )}
               </div>
+
+            </div>
+
+            <div className="flex items-center justify-end pt-4 border-t border-slate-800 mt-5">
+              <button
+                type="button"
+                onClick={() => setIsPaymentsModalOpen(false)}
+                className="px-4 py-2 rounded-lg text-xs text-slate-400 hover:text-white hover:bg-slate-800 transition"
+              >
+                Cerrar
+              </button>
+            </div>
           </Modal>
         )}
 
@@ -3183,22 +3183,22 @@ export default function PedidosPage() {
             }}
             className="max-w-4xl p-6 flex flex-col text-slate-300"
           >
-              <div className="flex justify-between items-center pb-4 border-b border-slate-800 mb-4">
-                <div>
-                  <h2 className="text-xl font-bold text-white flex items-center gap-2">
-                    <span>🖼️</span> Galería de Imágenes y Planos del Pedido
-                  </h2>
-                  <p className="text-xs text-slate-400">
-                    Administra la portada e imágenes secundarias del pedido: <span className="text-blue-400 font-semibold">{selectedPedidoForImages.cliente?.nombre_empresa || selectedPedidoForImages.cliente?.nombre_cliente || `#${selectedPedidoForImages.id}`}</span>
-                  </p>
-                </div>
+            <div className="flex justify-between items-center pb-4 border-b border-slate-800 mb-4">
+              <div>
+                <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                  <span>🖼️</span> Galería de Imágenes y Planos del Pedido
+                </h2>
+                <p className="text-xs text-slate-400">
+                  Administra la portada e imágenes secundarias del pedido: <span className="text-blue-400 font-semibold">{selectedPedidoForImages.cliente?.nombre_empresa || selectedPedidoForImages.cliente?.nombre_cliente || `#${selectedPedidoForImages.id}`}</span>
+                </p>
               </div>
+            </div>
 
-              <OrderImageGallery
-                orderId={selectedPedidoForImages.id}
-                orderCode={selectedPedidoForImages.codigo}
-                onImagesUpdated={() => loadData()}
-              />
+            <OrderImageGallery
+              orderId={selectedPedidoForImages.id}
+              orderCode={selectedPedidoForImages.codigo}
+              onImagesUpdated={() => loadData()}
+            />
           </Modal>
         )}
       </main>
