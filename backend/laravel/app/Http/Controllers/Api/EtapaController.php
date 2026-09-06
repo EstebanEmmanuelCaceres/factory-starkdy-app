@@ -19,9 +19,11 @@ class EtapaController extends Controller
 
         // Búsqueda opcional por nombre
         if ($request->has('search') && !empty($request->input('search'))) {
-            $query->where('nombre', 'like', '%' . $request->input('search') . '%');
+            $term = mb_strtolower(trim($request->input('search')));
+            $query->whereRaw('LOWER(nombre) LIKE ?', ['%' . $term . '%']);
         } elseif ($request->has('nombre') && !empty($request->input('nombre'))) {
-            $query->where('nombre', 'like', '%' . $request->input('nombre') . '%');
+            $term = mb_strtolower(trim($request->input('nombre')));
+            $query->whereRaw('LOWER(nombre) LIKE ?', ['%' . $term . '%']);
         }
 
         $etapas = $query->orderBy('nombre', 'asc')->get();

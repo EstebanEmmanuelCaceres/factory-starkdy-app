@@ -4,14 +4,6 @@ import { useState, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { login } from '@/lib/auth'
 
-// ── Demo credentials ───────────────────────────────────────────────
-const DEMO_USERS = {
-  admin: { email: 'admin@fabrica.com', label: 'Admin' },
-  supervisor: { email: 'supervisor@fabrica.com', label: 'Supervisor' },
-  operator: { email: 'operador@fabrica.com', label: 'Operador' },
-} as const
-
-// ─────────────────────────────────────────────────────────────────
 function LoginForm() {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -36,12 +28,6 @@ function LoginForm() {
     } finally {
       setLoading(false)
     }
-  }
-
-  const fillDemo = (role: keyof typeof DEMO_USERS) => {
-    setEmail(DEMO_USERS[role].email)
-    setPassword('password')
-    setError('')
   }
 
   return (
@@ -132,29 +118,6 @@ function LoginForm() {
               Regístrate aquí
             </a>
           </p>
-
-          {/* Credenciales de demo */}
-          <div className="demo-section">
-            <p className="demo-title">Acceso rápido — Demo</p>
-            <div className="demo-buttons">
-              {(Object.keys(DEMO_USERS) as Array<keyof typeof DEMO_USERS>).map(
-                (role) => (
-                  <button
-                    key={role}
-                    id={`demo-${role}-btn`}
-                    type="button"
-                    className={`demo-btn demo-${role}`}
-                    onClick={() => fillDemo(role)}
-                  >
-                    {DEMO_USERS[role].label}
-                  </button>
-                )
-              )}
-            </div>
-            <p className="demo-password">
-              Contraseña de demo: <code>password</code>
-            </p>
-          </div>
         </div>
 
         <p className="login-footer">

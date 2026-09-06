@@ -308,12 +308,16 @@ export default function ProductosPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  const filteredProducts = searchName.trim()
+    ? products.filter((prod) => (prod.nombre || '').toLowerCase().includes(searchName.toLowerCase().trim()))
+    : products
+
   useEffect(() => {
-    const maxPage = Math.max(1, Math.ceil(products.length / pageSize))
+    const maxPage = Math.max(1, Math.ceil(filteredProducts.length / pageSize))
     if (currentPage > maxPage) {
       setCurrentPage(maxPage)
     }
-  }, [products.length, pageSize, currentPage])
+  }, [filteredProducts.length, pageSize, currentPage])
 
   const showNotification = (message: string) => {
     setSuccessMessage(message)
@@ -463,7 +467,7 @@ export default function ProductosPage() {
             </div>
           ) : (
             <>
-              <div className="overflow-auto flex-1">
+              <div className="overflow-x-auto flex-1">
                 <table className="w-full text-left border-collapse">
                   <thead>
                     <tr className="border-b border-slate-800 bg-slate-950/40 text-slate-400 font-semibold text-xs uppercase tracking-wider">
@@ -475,7 +479,7 @@ export default function ProductosPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-800 text-sm">
-                    {products.slice((currentPage - 1) * pageSize, currentPage * pageSize).map((product) => {
+                    {filteredProducts.slice((currentPage - 1) * pageSize, currentPage * pageSize).map((product) => {
                       const logoUrl = product.imagen_principal?.url || product.imagenes?.[0]?.url
                       return (
                         <tr key={product.id} className="hover:bg-slate-800/40 text-slate-300 transition duration-100">
@@ -834,7 +838,7 @@ export default function ProductosPage() {
                           <div className="absolute z-20 w-full mt-1 bg-slate-950 border border-slate-800 rounded-lg shadow-xl max-h-48 overflow-y-auto">
                             {(() => {
                               const matches = catalogStages.filter(c =>
-                                c.nombre.toLowerCase().includes(stageFormData.nombre.trim().toLowerCase())
+                                (c.nombre || '').toLowerCase().includes(stageFormData.nombre.trim().toLowerCase())
                               );
 
                               return (

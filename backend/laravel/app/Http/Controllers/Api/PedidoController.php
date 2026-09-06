@@ -38,13 +38,16 @@ class PedidoController extends Controller
                 'comentarios.user:id,name'
             ]);
 
-        // Búsqueda opcional por nombre de empresa, nombre de cliente o correo del cliente relacionado
+        // Búsqueda opcional por código de pedido, nombre de empresa, nombre de cliente o correo del cliente relacionado
         if ($request->has('search') && !empty($request->input('search'))) {
-            $searchTerm = $request->input('search');
-            $query->whereHas('cliente', function ($q) use ($searchTerm) {
-                $q->where('nombre_empresa', 'like', '%' . $searchTerm . '%')
-                    ->orWhere('nombre_cliente', 'like', '%' . $searchTerm . '%')
-                    ->orWhere('email', 'like', '%' . $searchTerm . '%');
+            $searchTerm = mb_strtolower(trim($request->input('search')));
+            $query->where(function ($q) use ($searchTerm) {
+                $q->whereRaw('LOWER(codigo) LIKE ?', ['%' . $searchTerm . '%'])
+                    ->orWhereHas('cliente', function ($cq) use ($searchTerm) {
+                        $cq->whereRaw('LOWER(nombre_empresa) LIKE ?', ['%' . $searchTerm . '%'])
+                            ->orWhereRaw('LOWER(nombre_cliente) LIKE ?', ['%' . $searchTerm . '%'])
+                            ->orWhereRaw('LOWER(email) LIKE ?', ['%' . $searchTerm . '%']);
+                    });
             });
         }
 
