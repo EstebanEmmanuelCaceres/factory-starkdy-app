@@ -18,17 +18,19 @@ class ClienteController extends Controller
         $query = Cliente::query();
 
         // Búsqueda opcional por nombre de empresa, nombre de cliente, email o término general (search)
-        if ($request->has('search')) {
-            $searchTerm = $request->input('search');
+        if ($request->has('search') && !empty($request->input('search'))) {
+            $searchTerm = mb_strtolower(trim($request->input('search')));
             $query->where(function ($q) use ($searchTerm) {
-                $q->where('nombre_empresa', 'like', '%' . $searchTerm . '%')
-                    ->orWhere('nombre_cliente', 'like', '%' . $searchTerm . '%')
-                    ->orWhere('email', 'like', '%' . $searchTerm . '%');
+                $q->whereRaw('LOWER(nombre_empresa) LIKE ?', ['%' . $searchTerm . '%'])
+                    ->orWhereRaw('LOWER(nombre_cliente) LIKE ?', ['%' . $searchTerm . '%'])
+                    ->orWhereRaw('LOWER(email) LIKE ?', ['%' . $searchTerm . '%']);
             });
-        } elseif ($request->has('nombre_empresa')) {
-            $query->where('nombre_empresa', 'like', '%' . $request->input('nombre_empresa') . '%');
-        } elseif ($request->has('nombre_cliente')) {
-            $query->where('nombre_cliente', 'like', '%' . $request->input('nombre_cliente') . '%');
+        } elseif ($request->has('nombre_empresa') && !empty($request->input('nombre_empresa'))) {
+            $term = mb_strtolower(trim($request->input('nombre_empresa')));
+            $query->whereRaw('LOWER(nombre_empresa) LIKE ?', ['%' . $term . '%']);
+        } elseif ($request->has('nombre_cliente') && !empty($request->input('nombre_cliente'))) {
+            $term = mb_strtolower(trim($request->input('nombre_cliente')));
+            $query->whereRaw('LOWER(nombre_cliente) LIKE ?', ['%' . $term . '%']);
         }
 
         if ($request->has('with_pedidos') && ($request->input('with_pedidos') === 'true' || $request->input('with_pedidos') == 1 || $request->input('with_pedidos') === true)) {

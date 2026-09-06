@@ -86,11 +86,11 @@ function SaldosContent() {
   }
 
   const filteredClientes = clientes.filter(c => {
-    const search = searchQuery.toLowerCase()
+    const search = searchQuery.toLowerCase().trim()
     return (
-      c.nombre_cliente.toLowerCase().includes(search) ||
-      c.nombre_empresa.toLowerCase().includes(search) ||
-      (c.email && c.email.toLowerCase().includes(search))
+      (c.nombre_cliente || '').toLowerCase().includes(search) ||
+      (c.nombre_empresa || '').toLowerCase().includes(search) ||
+      (c.email || '').toLowerCase().includes(search)
     )
   })
 

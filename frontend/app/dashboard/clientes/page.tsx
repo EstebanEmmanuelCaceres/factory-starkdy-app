@@ -62,7 +62,6 @@ export default function ClientesPage() {
       const [clientesData] = await Promise.all([
         clientesWithPedidos()
       ])
-      console.log(clientesData);
       setClientes(clientesData)
       // setPedidos(clientesData.flatMap(c => c.pedidos))
 
@@ -278,6 +277,19 @@ export default function ClientesPage() {
     }
   }
 
+  const filteredClientes = searchQuery.trim()
+    ? clientes.filter((c) => {
+        const q = searchQuery.toLowerCase().trim()
+        return (
+          (c.nombre_cliente || '').toLowerCase().includes(q) ||
+          (c.nombre_empresa || '').toLowerCase().includes(q) ||
+          (c.email || '').toLowerCase().includes(q) ||
+          (c.telefono || '').toLowerCase().includes(q) ||
+          (c.dni || '').toLowerCase().includes(q)
+        )
+      })
+    : clientes
+
   return (
     <RoleGuard allowedRoles={['admin', 'encargado', 'vendedor', 'disenador']}>
       <main className="page-content p-6 max-w-7xl mx-auto text-white">
@@ -350,7 +362,7 @@ export default function ClientesPage() {
                 <div className="animate-spin rounded-full h-8 w-8 border-2 border-blue-500 border-t-transparent"></div>
                 <span className="text-sm">Cargando clientes...</span>
               </div>
-            ) : clientes.length === 0 ? (
+            ) : filteredClientes.length === 0 ? (
               <div className="py-20 flex flex-col items-center justify-center text-slate-400 gap-3">
                 <span className="text-4xl">👥</span>
                 <span className="text-sm font-medium">No se encontraron clientes</span>
@@ -366,7 +378,7 @@ export default function ClientesPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-800 text-sm">
-                    {clientes.map((cliente) => (
+                    {filteredClientes.map((cliente) => (
                       <tr
                         key={cliente.id}
                         onClick={() => setSelectedCliente(cliente)}

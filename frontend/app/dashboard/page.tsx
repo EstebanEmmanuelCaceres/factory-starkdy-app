@@ -46,6 +46,7 @@ export default function DashboardPage() {
 
   const [selectedCommissionMonth, setSelectedCommissionMonth] = useState<number>(currentMonth)
   const [selectedCommissionYear, setSelectedCommissionYear] = useState<number>(currentYear)
+  const [selectedVendedorId, setSelectedVendedorId] = useState<string>('')
 
   const yearsList = Array.from({ length: 7 }, (_, i) => currentYear - 5 + i)
 
@@ -154,7 +155,18 @@ export default function DashboardPage() {
       ? pedidos.filter(p => p.estado !== 'pendiente')
       : pedidos
 
-  const sortedPedidos = [...scopedPedidos].sort((a, b) => {
+  const searchFilteredPedidos = filters.search?.trim()
+    ? scopedPedidos.filter((p) => {
+        const q = filters.search!.toLowerCase().trim()
+        const matchCode = (p.codigo || '').toLowerCase().includes(q)
+        const matchClientName = (p.cliente?.nombre_cliente || '').toLowerCase().includes(q)
+        const matchEmpresa = (p.cliente?.nombre_empresa || '').toLowerCase().includes(q)
+        const matchEmail = (p.cliente?.email || '').toLowerCase().includes(q)
+        return matchCode || matchClientName || matchEmpresa || matchEmail
+      })
+    : scopedPedidos
+
+  const sortedPedidos = [...searchFilteredPedidos].sort((a, b) => {
     let valA: any = (a as any)[sortField]
     let valB: any = (b as any)[sortField]
 
@@ -201,10 +213,21 @@ export default function DashboardPage() {
     return sum + pending
   }, 0)
 
+  // Usuarios con rol de Vendedor
+  const vendedores = users.filter((u) => u.role === 'vendedor')
+
+  // Filtro de fecha de comisión visible si es vendedor o si Admin/Supervisor ha seleccionado un vendedor
+  const showDateFilter = isVendedor || !!selectedVendedorId
+
+  // Pedidos a considerar para la comisión del vendedor seleccionado
+  const commissionPedidos = isVendedor
+    ? scopedPedidos
+    : (selectedVendedorId ? pedidos.filter((p) => p.user_id === Number(selectedVendedorId)) : [])
+
   // Cálculo de Cobros en el Mes/Año seleccionado y Comisión (2%)
   const selectedMonthKey = `${selectedCommissionYear}-${String(selectedCommissionMonth).padStart(2, '0')}`
 
-  const totalCobradoMes = scopedPedidos.reduce((sum, p) => {
+  const totalCobradoMes = commissionPedidos.reduce((sum, p) => {
     const payments = p.pagos || (p.pago ? [p.pago] : [])
     const monthPayments = payments.filter((pago) => {
       if (pago.estado !== 'pagado') return false
@@ -219,7 +242,7 @@ export default function DashboardPage() {
     return sum + monthPayments.reduce((s, pago) => s + Number(pago.monto), 0)
   }, 0)
 
-  const comisionMes = totalCobradoMes * 0.02
+  const comisionMes = showDateFilter ? totalCobradoMes * 0.02 : 0
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('es-AR', {
@@ -358,50 +381,75 @@ export default function DashboardPage() {
             {/* Caja de Comisión (2% del mes) */}
             <div className="relative overflow-hidden bg-gradient-to-br from-blue-950/40 to-slate-900 border border-blue-500/20 rounded-2xl p-6 shadow-xl flex flex-col justify-between hover:border-blue-500/40 transition duration-300">
               <div className="absolute top-0 right-0 -mt-4 -mr-4 w-24 h-24 bg-blue-500/10 rounded-full blur-xl pointer-events-none"></div>
-              <div className="flex items-center justify-between gap-2 mb-2">
-                <div className="flex items-center gap-2">
-                  <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-blue-500/10 border border-blue-500/20 text-blue-400 text-xl shadow-inner select-none">
-                    💼
+              <div>
+                <div className="flex items-center justify-between gap-2 mb-3">
+                  <div className="flex items-center gap-2">
+                    <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-blue-500/10 border border-blue-500/20 text-blue-400 text-xl shadow-inner select-none">
+                      💼
+                    </div>
+                    <div>
+                      <span className="block text-xs font-semibold text-blue-400 uppercase tracking-wider">Comisión (2%)</span>
+                      <span className="block text-[10px] text-slate-400">Sobre cobrado del mes</span>
+                    </div>
                   </div>
-                  <div>
-                    <span className="block text-xs font-semibold text-blue-400 uppercase tracking-wider">Comisión (2%)</span>
-                    <span className="block text-[10px] text-slate-400">Sobre cobrado del mes</span>
-                  </div>
+
+                  {/* Selectores de Mes y Año: Solo si hay vendedor elegido o si el usuario es vendedor */}
+                  {showDateFilter && (
+                    <div className="flex items-center gap-1.5">
+                      <select
+                        value={selectedCommissionMonth}
+                        onChange={(e) => setSelectedCommissionMonth(Number(e.target.value))}
+                        className="bg-slate-950 border border-slate-800 focus:border-blue-500 rounded-lg px-2 py-1 text-xs text-slate-200 focus:outline-none transition cursor-pointer capitalize"
+                      >
+                        {monthsList.map((m) => (
+                          <option key={m.value} value={m.value}>
+                            {m.label}
+                          </option>
+                        ))}
+                      </select>
+
+                      <select
+                        value={selectedCommissionYear}
+                        onChange={(e) => setSelectedCommissionYear(Number(e.target.value))}
+                        className="bg-slate-950 border border-slate-800 focus:border-blue-500 rounded-lg px-2 py-1 text-xs text-slate-200 focus:outline-none transition cursor-pointer"
+                      >
+                        {yearsList.map((yr) => (
+                          <option key={yr} value={yr}>
+                            {yr}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
                 </div>
 
-                {/* Selectores de Mes y Año */}
-                <div className="flex items-center gap-1.5">
-                  <select
-                    value={selectedCommissionMonth}
-                    onChange={(e) => setSelectedCommissionMonth(Number(e.target.value))}
-                    className="bg-slate-950 border border-slate-800 focus:border-blue-500 rounded-lg px-2 py-1 text-xs text-slate-200 focus:outline-none transition cursor-pointer capitalize"
-                  >
-                    {monthsList.map((m) => (
-                      <option key={m.value} value={m.value}>
-                        {m.label}
-                      </option>
-                    ))}
-                  </select>
-
-                  <select
-                    value={selectedCommissionYear}
-                    onChange={(e) => setSelectedCommissionYear(Number(e.target.value))}
-                    className="bg-slate-950 border border-slate-800 focus:border-blue-500 rounded-lg px-2 py-1 text-xs text-slate-200 focus:outline-none transition cursor-pointer"
-                  >
-                    {yearsList.map((yr) => (
-                      <option key={yr} value={yr}>
-                        {yr}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                {/* Selector de Vendedor para Admin / Supervisor */}
+                {!isVendedor && (
+                  <div className="mb-3">
+                    <select
+                      value={selectedVendedorId}
+                      onChange={(e) => setSelectedVendedorId(e.target.value)}
+                      className="w-full bg-slate-950 border border-slate-800 focus:border-blue-500 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none transition cursor-pointer font-medium"
+                    >
+                      <option value="">-- Seleccionar Vendedor --</option>
+                      {vendedores.map((v) => (
+                        <option key={v.id} value={v.id}>
+                          👤 {v.name} ({v.email})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
               </div>
+
               <div>
                 <span className="block text-2xl md:text-3xl font-black text-white mt-1 font-mono">
                   {loadingPedidos ? 'Cargando...' : formatCurrency(comisionMes)}
                 </span>
                 <span className="block text-[11px] text-slate-400 mt-1.5 truncate">
-                  2% de {formatCurrency(totalCobradoMes)} cobrados en {monthsList.find(m => m.value === selectedCommissionMonth)?.label} {selectedCommissionYear}
+                  {showDateFilter
+                    ? `2% de ${formatCurrency(totalCobradoMes)} cobrados en ${monthsList.find(m => m.value === selectedCommissionMonth)?.label} ${selectedCommissionYear}`
+                    : 'Seleccione un vendedor para calcular su comisión'}
                 </span>
               </div>
             </div>

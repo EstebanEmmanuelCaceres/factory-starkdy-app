@@ -17,9 +17,13 @@ class ProductoController extends Controller
     {
         $query = Producto::with(['imagenes', 'imagenPrincipal']);
 
-        // Búsqueda opcional por nombre
-        if ($request->has('nombre')) {
-            $query->where('nombre', 'like', '%' . $request->input('nombre') . '%');
+        // Búsqueda opcional por nombre o término general
+        if ($request->has('nombre') && !empty($request->input('nombre'))) {
+            $term = mb_strtolower(trim($request->input('nombre')));
+            $query->whereRaw('LOWER(nombre) LIKE ?', ['%' . $term . '%']);
+        } elseif ($request->has('search') && !empty($request->input('search'))) {
+            $term = mb_strtolower(trim($request->input('search')));
+            $query->whereRaw('LOWER(nombre) LIKE ?', ['%' . $term . '%']);
         }
 
         $productos = $query->get();

@@ -104,7 +104,7 @@ export default function PedidosPage() {
     comentario: '',
     tipo_pago: 'parcial' as 'unico' | 'parcial',
     monto_pago_inicial: '',
-    medio_pago_inicial: 'efectivo',
+    medio_pago_inicial: 'transferencia',
     observaciones_pago_inicial: ''
   })
 
@@ -285,7 +285,7 @@ export default function PedidosPage() {
       comentario: '',
       tipo_pago: 'parcial',
       monto_pago_inicial: '',
-      medio_pago_inicial: 'efectivo',
+      medio_pago_inicial: 'transferencia',
       observaciones_pago_inicial: ''
     })
     setClientSearchText('')
@@ -339,7 +339,7 @@ export default function PedidosPage() {
       comentario: pedido.comentario || '',
       tipo_pago: pedido.tipo_pago || 'parcial',
       monto_pago_inicial: '',
-      medio_pago_inicial: 'efectivo',
+      medio_pago_inicial: 'transferencia',
       observaciones_pago_inicial: ''
     })
     const assignedClient = clientes.find((c) => c.id === pedido.cliente_id)
@@ -919,10 +919,20 @@ export default function PedidosPage() {
     .filter((p) => {
       if (!currentUser) return false
       if (currentUser.role === 'vendedor' || currentUser.role === 'disenador') {
-        return p.user_id === currentUser.id
+        if (p.user_id !== currentUser.id) return false
       }
       if (['operario', 'operator'].includes(currentUser.role)) {
-        return p.estado !== 'pendiente'
+        if (p.estado === 'pendiente') return false
+      }
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase().trim()
+        const matchCode = (p.codigo || '').toLowerCase().includes(q)
+        const matchClientName = (p.cliente?.nombre_cliente || '').toLowerCase().includes(q)
+        const matchEmpresa = (p.cliente?.nombre_empresa || '').toLowerCase().includes(q)
+        const matchEmail = (p.cliente?.email || '').toLowerCase().includes(q)
+        if (!matchCode && !matchClientName && !matchEmpresa && !matchEmail) {
+          return false
+        }
       }
       return true
     })
@@ -1611,10 +1621,10 @@ export default function PedidosPage() {
                         <div className="absolute z-50 left-0 right-0 mt-1 max-h-48 overflow-y-auto bg-slate-950 border border-slate-800 rounded-lg shadow-xl divide-y divide-slate-900 text-left">
                           {clientes
                             .filter((c) => {
-                              const query = clientSearchText.toLowerCase()
+                              const query = clientSearchText.toLowerCase().trim()
                               return (
-                                c.nombre_cliente.toLowerCase().includes(query) ||
-                                c.nombre_empresa.toLowerCase().includes(query) ||
+                                (c.nombre_cliente || '').toLowerCase().includes(query) ||
+                                (c.nombre_empresa || '').toLowerCase().includes(query) ||
                                 (c.email || '').toLowerCase().includes(query)
                               )
                             })
@@ -1647,10 +1657,10 @@ export default function PedidosPage() {
                               )
                             })}
                           {clientes.filter((c) => {
-                            const query = clientSearchText.toLowerCase()
+                            const query = clientSearchText.toLowerCase().trim()
                             return (
-                              c.nombre_cliente.toLowerCase().includes(query) ||
-                              c.nombre_empresa.toLowerCase().includes(query) ||
+                              (c.nombre_cliente || '').toLowerCase().includes(query) ||
+                              (c.nombre_empresa || '').toLowerCase().includes(query) ||
                               (c.email || '').toLowerCase().includes(query)
                             )
                           }).length === 0 && (
@@ -2108,9 +2118,9 @@ export default function PedidosPage() {
                         onChange={(e) => setFormData({ ...formData, medio_pago_inicial: e.target.value })}
                         className="w-full bg-slate-900 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-emerald-500 transition"
                       >
-                        <option value="efectivo">💵 Efectivo</option>
                         <option value="transferencia">🏦 Transferencia Bancaria</option>
                         <option value="tarjeta_credito">💳 Tarjeta de Crédito</option>
+                        <option value="efectivo">💵 Efectivo</option>
                         <option value="tarjeta_debito">💳 Tarjeta de Débito</option>
                         <option value="mercado_pago">📱 Mercado Pago</option>
                         <option value="cheque">📄 Cheque</option>
@@ -2163,9 +2173,9 @@ export default function PedidosPage() {
                     <div className="bg-slate-950 border border-slate-800 rounded-lg p-3 max-h-48 overflow-y-auto space-y-2">
                       {productos
                         .filter((prod) => {
-                          const query = productSearchQuery.toLowerCase()
+                          const query = productSearchQuery.toLowerCase().trim()
                           return (
-                            prod.nombre.toLowerCase().includes(query)
+                            (prod.nombre || '').toLowerCase().includes(query)
                           )
                         })
                         .map((prod) => {
@@ -2442,10 +2452,10 @@ export default function PedidosPage() {
                     <div className="absolute z-50 left-0 right-0 mt-1 max-h-60 overflow-y-auto bg-slate-950 border border-slate-800 rounded-lg shadow-xl divide-y divide-slate-900 text-left">
                       {clientes
                         .filter((c) => {
-                          const query = clientSearchText.toLowerCase()
+                          const query = clientSearchText.toLowerCase().trim()
                           return (
-                            c.nombre_cliente.toLowerCase().includes(query) ||
-                            c.nombre_empresa.toLowerCase().includes(query) ||
+                            (c.nombre_cliente || '').toLowerCase().includes(query) ||
+                            (c.nombre_empresa || '').toLowerCase().includes(query) ||
                             (c.email || '').toLowerCase().includes(query)
                           )
                         })
@@ -2467,10 +2477,10 @@ export default function PedidosPage() {
                           </div>
                         ))}
                       {clientes.filter((c) => {
-                        const query = clientSearchText.toLowerCase()
+                        const query = clientSearchText.toLowerCase().trim()
                         return (
-                          c.nombre_cliente.toLowerCase().includes(query) ||
-                          c.nombre_empresa.toLowerCase().includes(query) ||
+                          (c.nombre_cliente || '').toLowerCase().includes(query) ||
+                          (c.nombre_empresa || '').toLowerCase().includes(query) ||
                           (c.email || '').toLowerCase().includes(query)
                         )
                       }).length === 0 && (
@@ -2588,9 +2598,9 @@ export default function PedidosPage() {
                   <div className="bg-slate-950 border border-slate-800 rounded-lg p-3 max-h-48 overflow-y-auto space-y-2">
                     {productos
                       .filter((prod) => {
-                        const query = productSearchQuery.toLowerCase()
+                        const query = productSearchQuery.toLowerCase().trim()
                         return (
-                          prod.nombre.toLowerCase().includes(query)
+                          (prod.nombre || '').toLowerCase().includes(query)
                         )
                       })
                       .map((prod) => {
