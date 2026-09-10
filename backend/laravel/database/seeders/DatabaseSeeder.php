@@ -75,5 +75,8 @@ class DatabaseSeeder extends Seeder
         }
 
         $this->command->info('✅ Usuarios de demostración creados.');
+
+        // Sincronizar secuencias de autoincremento en PostgreSQL
+        $this->call(FixSequencesSeeder::class);
     }
 }
