@@ -78,7 +78,7 @@ class PagoController extends Controller
             'medio_pago' => $validated['medio_pago'],
             'medio' => $validated['medio_pago'], // por compatibilidad
             'tipo_cobro' => $validated['tipo_cobro'],
-            'observaciones' => $validated['observaciones'],
+            'observaciones' => $validated['observaciones'] ?? null,
             'fecha_pago' => $validated['fecha_pago'] ?? now(),
             'pagado_at' => $validated['fecha_pago'] ?? now(), // por compatibilidad
             'estado' => 'pagado', // por defecto cobrado exitosamente

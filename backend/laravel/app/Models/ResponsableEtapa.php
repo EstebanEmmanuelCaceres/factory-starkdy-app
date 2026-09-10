@@ -92,8 +92,11 @@ class ResponsableEtapa extends Model
         });
 
         static::updated(function ($task) {
-            if ($task->wasChanged('estado') && $task->estado === 'completado') {
-                self::unblockDependentTasks($task);
+            if ($task->wasChanged('estado')) {
+                if ($task->estado === 'completado') {
+                    self::unblockDependentTasks($task);
+                }
+                self::checkAndCompletePedidoIfAllTasksDone($task->pedido_id);
             }
         });
     }
@@ -153,5 +156,42 @@ class ResponsableEtapa extends Model
                 ]);
             }
         }
+
+        self::checkAndCompletePedidoIfAllTasksDone($pedidoId);
+    }
+
+    /**
+     * Verifica si todas las etapas/tareas de todos los productos del pedido están completadas.
+     * Si es así, cambia automáticamente el estado del pedido a 'completado'.
+     */
+    public static function checkAndCompletePedidoIfAllTasksDone($pedidoId): bool
+    {
+        if (!$pedidoId) return false;
+
+        $totalTasks = self::where('pedido_id', $pedidoId)->count();
+        if ($totalTasks === 0) return false;
+
+        $incompleteTasks = self::where('pedido_id', $pedidoId)
+            ->where('estado', '!=', 'completado')
+            ->count();
+
+        $pedido = Pedido::find($pedidoId);
+        if (!$pedido) return false;
+
+        if ($incompleteTasks === 0) {
+            if (!in_array($pedido->estado, ['completado', 'completado_pd', 'enviado', 'enviado_faltante', 'cancelado'])) {
+                $pedido->estado = 'completado';
+                $pedido->save();
+                return true;
+            }
+        } else {
+            if ($pedido->estado === 'completado') {
+                $pedido->estado = 'en_produccion';
+                $pedido->save();
+                return true;
+            }
+        }
+
+        return false;
     }
 }

@@ -15,6 +15,7 @@ export interface ResponsableEtapa {
   updated_at: string
   pedido?: Pedido
   etapa?: Etapa
+  etapaProducto?: any
   user?: User
   dependencias_info?: { id: number; nombre: string; estado: string }[]
 }
@@ -44,4 +45,15 @@ export async function assignTask(input: AssignTaskInput): Promise<ResponsableEta
 
 export async function removeTaskAssignment(id: number): Promise<void> {
   await api.delete(`/responsables-etapas/${id}`)
+}
+
+export async function fetchDisenosPendientes(filters?: { vendedor_id?: string }): Promise<ResponsableEtapa[]> {
+  const { data } = await api.get<{ status: string; data: ResponsableEtapa[] }>('/disenos-pendientes', { params: filters })
+  return data.data
+}
+
+export async function completarDisenosPedido(pedidoId: number, taskIdsCompletadas: number[]): Promise<void> {
+  await api.post(`/pedidos/${pedidoId}/completar-disenos`, {
+    task_ids_completadas: taskIdsCompletadas
+  })
 }

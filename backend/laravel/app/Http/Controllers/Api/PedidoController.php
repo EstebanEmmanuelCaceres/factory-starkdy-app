@@ -24,7 +24,7 @@ class PedidoController extends Controller
      */
     public function index(Request $request): JsonResponse
     {
-        $query = Pedido::select('id', 'cliente_id', 'user_id', 'codigo', 'prioridad', 'precio', 'created_at', 'updated_at')
+        $query = Pedido::select('id', 'cliente_id', 'user_id', 'codigo', 'estado', 'prioridad', 'precio', 'created_at', 'updated_at')
             ->with([
                 'cliente:id,nombre_empresa,nombre_cliente,telefono',
                 'user:id,name',
@@ -82,13 +82,14 @@ class PedidoController extends Controller
         }
 
         // Restricción por rol:
-        // - Si el usuario autenticado es Vendedor o Diseñador, solo ve sus pedidos.
-        // - Si el usuario pertenece a la parte de taller (Operario), NO ve los pedidos en estado 'pendiente'.
-        // - Encargados, Supervisores y Administradores ven todos los pedidos (incluyendo los pendientes de todos los vendedores).
+        // - Vendedor: solo ve sus pedidos creados.
+        // - Diseñador/a: ve todos los pedidos y tiene permisos de edición.
+        // - Operarios: ven únicamente los pedidos fuera del estado 'pendiente'.
+        // - Encargado / Supervisor / Admin: ven todos los pedidos.
         $currentUser = auth()->user();
         if ($currentUser) {
             $userRole = $currentUser->role?->slug;
-            if ($userRole === 'vendedor' || $userRole === 'disenador') {
+            if ($userRole === 'vendedor') {
                 $query->where('user_id', $currentUser->id);
             } elseif (in_array($userRole, ['operario', 'operator'])) {
                 $query->whereHas('ultimoEstado', function ($q) {
@@ -240,7 +241,7 @@ class PedidoController extends Controller
         $data = $request->only(['codigo', 'prioridad', 'fecha_entrega', 'precio', 'comentario', 'tipo_pago']);
         $data['tipo_pago'] = $data['tipo_pago'] ?? ($montoInicial >= $precioPedido && $precioPedido > 0 ? 'unico' : 'parcial');
         $data['cliente_id'] = $clienteId;
-        $data['user_id'] = Auth::id() ?? 1; // Asocia el usuario autenticado
+        $data['user_id'] = $request->input('user_id') ?? $request->input('vendedor_id') ?? Auth::id() ?? 1; // Asocia el vendedor/usuario del pedido
         $data['estado'] = 'pendiente';      // Por defecto al crear
 
         if (empty($data['fecha_entrega'])) {
@@ -393,7 +394,12 @@ class PedidoController extends Controller
             ], 422);
         }
 
-        $pedido->update($request->only(['cliente_id', 'codigo', 'estado', 'prioridad', 'fecha_entrega', 'precio', 'comentario', 'tipo_pago']));
+        $updateData = $request->only(['cliente_id', 'codigo', 'estado', 'prioridad', 'fecha_entrega', 'precio', 'comentario', 'tipo_pago', 'user_id', 'vendedor_id']);
+        if (isset($updateData['vendedor_id']) && !isset($updateData['user_id'])) {
+            $updateData['user_id'] = $updateData['vendedor_id'];
+            unset($updateData['vendedor_id']);
+        }
+        $pedido->update($updateData);
 
         // Sincronizar productos si se enviaron
         if ($request->has('productos')) {
@@ -408,8 +414,10 @@ class PedidoController extends Controller
             $pedido->productos()->sync($syncData);
         }
         $this->syncEtapasYAsignaciones($pedido, $request);
+        ResponsableEtapa::unblockAllSatisfiedTasksForPedido($pedido->id);
 
-        $pedido->load(['cliente', 'user', 'productos', 'pago', 'pagos']);
+        $pedido->refresh();
+        $pedido->load(['cliente', 'user', 'productos', 'pago', 'pagos', 'ultimoEstado']);
 
         return response()->json([
             'status' => 'success',
@@ -543,8 +551,16 @@ class PedidoController extends Controller
                             ->where('etapa_producto_id', $etapaProductoId)
                             ->first();
 
-                        if ($task && !empty($userId)) {
-                            $task->update(['user_id' => $userId]);
+                        if ($task) {
+                            $ep = $task->etapaProducto;
+                            $etapaNombre = mb_strtolower($ep->etapa->nombre ?? '');
+                            $isDiseno = ($ep && (int) $ep->etapa_id === 5) || str_contains($etapaNombre, 'diseño') || str_contains($etapaNombre, 'diseno');
+
+                            if ($isDiseno && !empty($pedido->user_id)) {
+                                $task->update(['user_id' => $pedido->user_id]);
+                            } elseif (!empty($userId)) {
+                                $task->update(['user_id' => $userId]);
+                            }
                         }
                     }
                 }

@@ -194,4 +194,126 @@ class ResponsableEtapaController extends Controller
             'message' => 'Tarea desasignada/eliminada correctamente'
         ]);
     }
+
+    /**
+     * Listar tareas de diseño pendientes/en_progreso para vendedores/diseñadores (o supervisor/admin).
+     * Muestra tareas de diseño pendientes de pedidos habilitados para producción.
+     */
+    public function disenosPendientes(Request $request): JsonResponse
+    {
+        $currentUser = auth()->user();
+
+        $query = ResponsableEtapa::with([
+            'pedido.cliente',
+            'pedido.user:id,name',
+            'etapaProducto.producto',
+            'etapaProducto.etapa',
+            'user'
+        ])
+            ->whereIn('estado', ['pendiente', 'en_progreso'])
+            ->whereHas('etapaProducto.etapa', function ($q) {
+                $q->where('id', 5)
+                  ->orWhereRaw('LOWER(nombre) LIKE ? OR LOWER(nombre) LIKE ?', ['%diseño%', '%diseno%']);
+            })
+            ->whereHas('pedido.ultimoEstado', function ($q) {
+                $q->whereNotIn('estado', ['pendiente', 'cancelado']);
+            });
+
+        // Filtrado por usuario si es vendedor únicamente (diseñadores/as ven todas las tareas de diseño)
+        if ($currentUser) {
+            $userRole = $currentUser->role?->slug;
+            if ($userRole === 'vendedor') {
+                $query->where(function ($q) use ($currentUser) {
+                    $q->where('user_id', $currentUser->id)
+                      ->orWhereHas('pedido', function ($pq) use ($currentUser) {
+                          $pq->where('user_id', $currentUser->id);
+                      });
+                });
+            }
+        }
+
+        // Filtro opcional por vendedor especifico (para admins/supervisores)
+        if ($request->has('vendedor_id') && !empty($request->input('vendedor_id'))) {
+            $vendedorId = $request->input('vendedor_id');
+            $query->where(function ($q) use ($vendedorId) {
+                $q->where('user_id', $vendedorId)
+                  ->orWhereHas('pedido', function ($pq) use ($vendedorId) {
+                      $pq->where('user_id', $vendedorId);
+                  });
+            });
+        }
+
+        $disenos = $query->latest()->get();
+
+        foreach ($disenos as $item) {
+            $ep = $item->etapaProducto;
+            if ($ep) {
+                $item->setAttribute('etapa', [
+                    'id' => $ep->id,
+                    'nombre' => $ep->etapa->nombre ?? '',
+                    'orden' => $ep->orden,
+                    'producto_id' => $ep->producto_id,
+                    'producto' => $ep->producto,
+                ]);
+            }
+        }
+
+        return response()->json([
+            'status' => 'success',
+            'data' => $disenos
+        ]);
+    }
+
+    /**
+     * Completar en lote los diseños seleccionados de un pedido.
+     */
+    public function completarDisenosPedido(Request $request, $pedidoId): JsonResponse
+    {
+        $validator = Validator::make($request->all(), [
+            'task_ids_completadas' => 'nullable|array',
+            'task_ids_completadas.*' => 'integer|exists:responsables_etapas,id',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Error de validación',
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        $pedido = Pedido::find($pedidoId);
+        if (!$pedido) {
+            return response()->json(['status' => 'error', 'message' => 'Pedido no encontrado'], 404);
+        }
+
+        $completedTaskIds = $request->input('task_ids_completadas', []);
+
+        // Tareas de diseño pertenecientes a este pedido
+        $disenoTasks = ResponsableEtapa::where('pedido_id', $pedidoId)
+            ->whereHas('etapaProducto.etapa', function ($q) {
+                $q->whereRaw('LOWER(nombre) LIKE ? OR LOWER(nombre) LIKE ?', ['%diseño%', '%diseno%']);
+            })
+            ->get();
+
+        foreach ($disenoTasks as $task) {
+            if (in_array($task->id, $completedTaskIds)) {
+                if ($task->estado !== 'completado') {
+                    $task->update([
+                        'estado' => 'completado',
+                        'fecha_inicio' => $task->fecha_inicio ?? now(),
+                        'fecha_fin' => now(),
+                    ]);
+                }
+            }
+        }
+
+        // Desbloquear etapas dependientes del pedido
+        ResponsableEtapa::unblockAllSatisfiedTasksForPedido($pedidoId);
+
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Diseños del pedido actualizados correctamente'
+        ]);
+    }
 }

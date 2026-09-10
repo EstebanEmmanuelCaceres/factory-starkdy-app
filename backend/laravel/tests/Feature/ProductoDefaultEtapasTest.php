@@ -119,5 +119,10 @@ class ProductoDefaultEtapasTest extends TestCase
 
         $tareaFinalizado->refresh();
         $this->assertEquals('pendiente', $tareaFinalizado->estado, 'Finalizado debe desbloquearse (pendiente).');
+
+        // 4. Marcar la última tarea (finalizado) como completada y verificar que el pedido pasa a "completado"
+        $tareaFinalizado->update(['estado' => 'completado']);
+        $pedido->refresh();
+        $this->assertEquals('completado', $pedido->estado, 'El pedido debe marcarse como completado cuando todas las tareas de sus productos finalizaron.');
     }
 }

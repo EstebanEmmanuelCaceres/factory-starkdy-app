@@ -84,6 +84,11 @@ class User extends Authenticatable
         return in_array($this->role?->slug, ['operario', 'operator']);
     }
 
+    public function isDisenador(): bool
+    {
+        return in_array($this->role?->slug, ['disenador', 'disenadora']);
+    }
+
     public function hasRole(string $roleSlug): bool
     {
         return $this->role?->slug === $roleSlug;

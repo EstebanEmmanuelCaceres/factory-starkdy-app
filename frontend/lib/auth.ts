@@ -5,7 +5,7 @@ export interface User {
   id: number
   name: string
   email: string
-  role: 'admin' | 'supervisor' | 'operator' | 'user' | 'vendedor' | 'disenador' | 'encargado' | 'operario'
+  role: 'admin' | 'supervisor' | 'operator' | 'user' | 'vendedor' | 'disenador' | 'disenadora' | 'encargado' | 'operario'
   role_label: string
   created_at: string
 }
@@ -106,6 +106,7 @@ export const ROLE_COLORS: Record<string, string> = {
   user: '#475569',
   vendedor: '#3B82F6',   // Azul
   disenador: '#EC4899',  // Rosa
+  disenadora: '#EC4899', // Rosa
   encargado: '#8B5CF6',  // Violeta
   operario: '#10B981',   // Esmeralda
 }

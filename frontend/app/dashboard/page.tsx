@@ -7,6 +7,8 @@ import PedidoDetailModal from '@/components/PedidoDetailModal'
 import OrderImageGallery from '@/components/OrderImageGallery'
 import { fetchUsers, getStoredUser, type User } from '@/lib/auth'
 import { fetchPedidos, updatePedido, createPedidoComentario, type Pedido, type PedidoFilters } from '@/lib/pedidos'
+import PendingDesignsCard from '@/components/PendingDesignsCard'
+import PaymentModal from '@/components/PaymentModal'
 
 export default function DashboardPage() {
   const [users, setUsers] = useState<User[]>([])
@@ -17,10 +19,12 @@ export default function DashboardPage() {
   const [error, setError] = useState('')
   const [currentUser, setCurrentUser] = useState<User | null>(null)
 
-  // Modal de Detalle Completo del Pedido y Galería de Imágenes
+  // Modal de Detalle Completo del Pedido, Galería de Imágenes y Cobros
   const [selectedPedidoForCommentModal, setSelectedPedidoForCommentModal] = useState<Pedido | null>(null)
   const [isImagesModalOpen, setIsImagesModalOpen] = useState(false)
   const [selectedPedidoForImages, setSelectedPedidoForImages] = useState<Pedido | null>(null)
+  const [selectedPedidoForPayments, setSelectedPedidoForPayments] = useState<Pedido | null>(null)
+  const [isPaymentsModalOpen, setIsPaymentsModalOpen] = useState(false)
   const [nuevoComentario, setNuevoComentario] = useState('')
   const [isSubmittingComment, setIsSubmittingComment] = useState(false)
 
@@ -145,9 +149,11 @@ export default function DashboardPage() {
   // - Vendedor / Diseñador: solo ven sus pedidos.
   // - Operarios: ven únicamente los pedidos fuera del estado 'pendiente'.
   // - Encargado / Supervisor / Admin: ven todos los pedidos (incluyendo los pendientes de todos los vendedores).
-  const isVendedor = currentUser?.role === 'vendedor' || currentUser?.role === 'disenador'
+  const isVendedor = ['vendedor', 'disenador', 'disenadora'].includes(currentUser?.role || '')
   const isEncargado = currentUser?.role === 'encargado'
   const isOperativo = ['operario', 'operator'].includes(currentUser?.role || '')
+  const showPendingDesigns = ['vendedor', 'disenador', 'disenadora'].includes(currentUser?.role || '')
+  const hasRightColumnContent = showPendingDesigns || !isEncargado
 
   const scopedPedidos = isVendedor && currentUser
     ? pedidos.filter(p => p.user_id === currentUser.id)
@@ -315,7 +321,7 @@ export default function DashboardPage() {
   }
 
   return (
-    <RoleGuard allowedRoles={['admin', 'supervisor', 'encargado', 'vendedor', 'disenador']} fallbackHref="/dashboard/tareas">
+    <RoleGuard allowedRoles={['admin', 'supervisor', 'encargado', 'vendedor', 'disenador', 'disenadora']} fallbackHref="/dashboard/tareas">
       <main className="page-content p-6 max-w-7xl mx-auto text-white space-y-8">
         {/* Cabecera */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -459,7 +465,7 @@ export default function DashboardPage() {
         {/* Grid de Tablas: Pedidos Actuales + Completados por Cobrar */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           {/* Tabla de Pedidos Actuales con Filtros integrados */}
-          <div className={`${isEncargado ? 'lg:col-span-12' : 'lg:col-span-7'} bg-slate-900 border border-slate-800 rounded-2xl shadow-xl overflow-hidden flex flex-col justify-between`}>
+          <div className={`${hasRightColumnContent ? 'lg:col-span-7' : 'lg:col-span-12'} bg-slate-900 border border-slate-800 rounded-2xl shadow-xl overflow-hidden flex flex-col justify-between`}>
             {/* Cabecera y Filtros Integrados */}
             <div className="border-b border-slate-800 p-5 space-y-4 bg-slate-950/40">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -832,170 +838,183 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {/* Tabla Adyacente: Completados por Cobrar (Solo visible para roles con módulo financiero) */}
-          {!isEncargado && (
-            <div className="lg:col-span-5 bg-slate-900 border border-slate-800 rounded-2xl shadow-xl overflow-hidden flex flex-col">
-              <div className="border-b border-slate-800 p-5 bg-slate-950/40">
-                <h2 className="text-base font-bold text-white flex items-center gap-2">
-                  <span>⚠️</span> Completados por Cobrar
-                </h2>
-                <p className="text-xs text-slate-400 mt-0.5">
-                  Clientes con fabricación terminada y saldo pendiente
-                </p>
-              </div>
+          {/* Columna Derecha: Diseños Pendientes + Completados por Cobrar */}
+          {hasRightColumnContent && (
+            <div className="lg:col-span-5 flex flex-col gap-6">
+              {/* Caja de Diseños Pendientes */}
+              {showPendingDesigns && (
+                <PendingDesignsCard
+                  currentUserId={currentUser?.id}
+                  onDesignCompleted={() => loadData(true)}
+                />
+              )}
 
-              <div className="p-0 flex-grow">
-                {loadingPedidos ? (
-                  <div className="py-20 flex flex-col items-center justify-center text-slate-400 gap-3">
-                    <div className="animate-spin rounded-full h-8 w-8 border-2 border-blue-500 border-t-transparent"></div>
-                    <span className="text-sm">Cargando...</span>
-                  </div>
-                ) : completedUnpaidPedidos.length === 0 ? (
-                  <div className="py-20 flex flex-col items-center justify-center text-slate-500 gap-3 px-4 text-center">
-                    <span className="text-4xl">🎉</span>
-                    <span className="text-xs font-medium text-slate-400">
-                      No hay clientes con pedidos completados pendientes de cobro
-                    </span>
-                  </div>
-                ) : (
-                  <div>
-                    {/* VISTA EN TARJETAS PARA MOBILE (< md) CON LÍMITE DE 5 POR PÁGINA */}
-                    <div className="md:hidden space-y-3 p-3">
-                      <div className="max-h-[380px] overflow-y-auto space-y-2.5 pr-1">
-                        {completedUnpaidPedidos
-                          .slice((mobileUnpaidPage - 1) * 5, mobileUnpaidPage * 5)
-                          .map((pedido) => {
-                            const precio = Number(pedido.precio) || 0
-                            const paidAmount = pedido.pagos
-                              ? pedido.pagos.filter((pay: any) => pay.estado === 'pagado').reduce((s: number, pay: any) => s + Number(pay.monto), 0)
-                              : (pedido.pago && pedido.pago.estado === 'pagado' ? Number(pedido.pago.monto) : 0)
-                            const pending = Math.max(0, precio - paidAmount)
+            {/* Tabla Adyacente: Completados por Cobrar (Solo visible para roles con módulo financiero) */}
+            {!isEncargado && (
+              <div className="bg-slate-900 border border-slate-800 rounded-2xl shadow-xl overflow-hidden flex flex-col">
+                <div className="border-b border-slate-800 p-5 bg-slate-950/40">
+                  <h2 className="text-base font-bold text-white flex items-center gap-2">
+                    <span>⚠️</span> Completados por Cobrar
+                  </h2>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    Clientes con fabricación terminada y saldo pendiente
+                  </p>
+                </div>
 
-                            return (
-                              <div
-                                key={pedido.id}
-                                className="bg-slate-950/60 border border-slate-800/90 rounded-xl p-3.5 space-y-2 shadow-md text-left cursor-pointer hover:border-slate-700 transition"
-                                onClick={() => setSelectedPedidoForCommentModal(pedido)}
+                <div className="p-0 flex-grow">
+                  {loadingPedidos ? (
+                    <div className="py-20 flex flex-col items-center justify-center text-slate-400 gap-3">
+                      <div className="animate-spin rounded-full h-8 w-8 border-2 border-blue-500 border-t-transparent"></div>
+                      <span className="text-sm">Cargando...</span>
+                    </div>
+                  ) : completedUnpaidPedidos.length === 0 ? (
+                    <div className="py-20 flex flex-col items-center justify-center text-slate-500 gap-3 px-4 text-center">
+                      <span className="text-4xl">🎉</span>
+                      <span className="text-xs font-medium text-slate-400">
+                        No hay clientes con pedidos completados pendientes de cobro
+                      </span>
+                    </div>
+                  ) : (
+                    <div>
+                      {/* VISTA EN TARJETAS PARA MOBILE (< md) CON LÍMITE DE 5 POR PÁGINA */}
+                      <div className="md:hidden space-y-3 p-3">
+                        <div className="max-h-[380px] overflow-y-auto space-y-2.5 pr-1">
+                          {completedUnpaidPedidos
+                            .slice((mobileUnpaidPage - 1) * 5, mobileUnpaidPage * 5)
+                            .map((pedido) => {
+                              const precio = Number(pedido.precio) || 0
+                              const paidAmount = pedido.pagos
+                                ? pedido.pagos.filter((pay: any) => pay.estado === 'pagado').reduce((s: number, pay: any) => s + Number(pay.monto), 0)
+                                : (pedido.pago && pedido.pago.estado === 'pagado' ? Number(pedido.pago.monto) : 0)
+                              const pending = Math.max(0, precio - paidAmount)
+
+                              return (
+                                <div
+                                  key={pedido.id}
+                                  className="bg-slate-950/60 border border-slate-800/90 rounded-xl p-3.5 space-y-2 shadow-md text-left cursor-pointer hover:border-slate-700 transition"
+                                  onClick={() => setSelectedPedidoForCommentModal(pedido)}
+                                >
+                                  <div className="flex items-start justify-between gap-2">
+                                    <div>
+                                      <h3 className="font-bold text-white text-sm leading-tight mt-0.5">
+                                        {pedido.cliente?.nombre_cliente || 'Sin cliente'}
+                                      </h3>
+                                      <span className="text-xs text-slate-400 block">{pedido.cliente?.nombre_empresa || 'Empresa'}</span>
+                                    </div>
+                                    <div className="text-right">
+                                      <span className="text-[10px] text-slate-400 block">Saldo Pendiente</span>
+                                      <span className="font-bold text-amber-400 font-mono text-sm block">
+                                        {formatCurrency(pending)}
+                                      </span>
+                                    </div>
+                                  </div>
+
+                                  <div className="pt-2 border-t border-slate-800/80 flex justify-end">
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation()
+                                        setSelectedPedidoForCommentModal(pedido)
+                                      }}
+                                      className="inline-flex items-center gap-1 bg-blue-600/20 hover:bg-blue-600/40 text-blue-300 border border-blue-500/30 px-3 py-1 rounded text-xs font-semibold transition w-full justify-center"
+                                    >
+                                      💬 Ver / Comentar
+                                    </button>
+                                  </div>
+                                </div>
+                              )
+                            })}
+                        </div>
+
+                        {/* Controles de Paginación Mobile */}
+                        {completedUnpaidPedidos.length > 5 && (
+                          <div className="flex items-center justify-between border-t border-slate-800/80 pt-3 text-xs">
+                            <span className="text-slate-400 font-medium text-[11px]">
+                              {((mobileUnpaidPage - 1) * 5) + 1} - {Math.min(mobileUnpaidPage * 5, completedUnpaidPedidos.length)} de {completedUnpaidPedidos.length}
+                            </span>
+                            <div className="flex items-center gap-1.5">
+                              <button
+                                disabled={mobileUnpaidPage === 1}
+                                onClick={() => setMobileUnpaidPage(prev => Math.max(1, prev - 1))}
+                                className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 disabled:opacity-30 rounded text-slate-200 font-bold transition"
                               >
-                                <div className="flex items-start justify-between gap-2">
-                                  <div>
-                                    <h3 className="font-bold text-white text-sm leading-tight mt-0.5">
-                                      {pedido.cliente?.nombre_cliente || 'Sin cliente'}
-                                    </h3>
-                                    <span className="text-xs text-slate-400 block">{pedido.cliente?.nombre_empresa || 'Empresa'}</span>
-                                  </div>
-                                  <div className="text-right">
-                                    <span className="text-[10px] text-slate-400 block">Saldo Pendiente</span>
-                                    <span className="font-bold text-amber-400 font-mono text-sm block">
-                                      {formatCurrency(pending)}
-                                    </span>
-                                  </div>
-                                </div>
-
-                                <div className="pt-2 border-t border-slate-800/80 flex justify-end">
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation()
-                                      setSelectedPedidoForCommentModal(pedido)
-                                    }}
-                                    className="inline-flex items-center gap-1 bg-blue-600/20 hover:bg-blue-600/40 text-blue-300 border border-blue-500/30 px-3 py-1 rounded text-xs font-semibold transition w-full justify-center"
-                                  >
-                                    💬 Ver / Comentar
-                                  </button>
-                                </div>
-                              </div>
-                            )
-                          })}
+                                Anterior
+                              </button>
+                              <span className="text-slate-300 font-bold font-mono text-[11px] px-1">
+                                {mobileUnpaidPage} / {Math.ceil(completedUnpaidPedidos.length / 5)}
+                              </span>
+                              <button
+                                disabled={mobileUnpaidPage >= Math.ceil(completedUnpaidPedidos.length / 5)}
+                                onClick={() => setMobileUnpaidPage(prev => Math.min(Math.ceil(completedUnpaidPedidos.length / 5), prev + 1))}
+                                className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 disabled:opacity-30 rounded text-slate-200 font-bold transition"
+                              >
+                                Siguiente
+                              </button>
+                            </div>
+                          </div>
+                        )}
                       </div>
 
-                      {/* Controles de Paginación Mobile */}
-                      {completedUnpaidPedidos.length > 5 && (
-                        <div className="flex items-center justify-between border-t border-slate-800/80 pt-3 text-xs">
-                          <span className="text-slate-400 font-medium text-[11px]">
-                            {((mobileUnpaidPage - 1) * 5) + 1} - {Math.min(mobileUnpaidPage * 5, completedUnpaidPedidos.length)} de {completedUnpaidPedidos.length}
-                          </span>
-                          <div className="flex items-center gap-1.5">
-                            <button
-                              disabled={mobileUnpaidPage === 1}
-                              onClick={() => setMobileUnpaidPage(prev => Math.max(1, prev - 1))}
-                              className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 disabled:opacity-30 rounded text-slate-200 font-bold transition"
-                            >
-                              Anterior
-                            </button>
-                            <span className="text-slate-300 font-bold font-mono text-[11px] px-1">
-                              {mobileUnpaidPage} / {Math.ceil(completedUnpaidPedidos.length / 5)}
-                            </span>
-                            <button
-                              disabled={mobileUnpaidPage >= Math.ceil(completedUnpaidPedidos.length / 5)}
-                              onClick={() => setMobileUnpaidPage(prev => Math.min(Math.ceil(completedUnpaidPedidos.length / 5), prev + 1))}
-                              className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 disabled:opacity-30 rounded text-slate-200 font-bold transition"
-                            >
-                              Siguiente
-                            </button>
-                          </div>
-                        </div>
-                      )}
-                    </div>
+                      {/* VISTA EN TABLA PARA ESCRITORIO (hidden md:block) */}
+                      <div className="hidden md:block overflow-x-auto">
+                        <table className="w-full text-left border-collapse">
+                          <thead>
+                            <tr className="border-b border-slate-800 bg-slate-950/40 text-slate-400 font-semibold text-xs uppercase tracking-wider">
+                              <th className="px-4 py-3">Cliente / Empresa</th>
+                              <th className="px-4 py-3 text-right">Saldo Pendiente</th>
+                              <th className="px-4 py-3 text-center">Acción</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-800 text-sm">
+                            {completedUnpaidPedidos.map((pedido) => {
+                              const precio = Number(pedido.precio) || 0
+                              const paidAmount = pedido.pagos
+                                ? pedido.pagos.filter((pay: any) => pay.estado === 'pagado').reduce((s: number, pay: any) => s + Number(pay.monto), 0)
+                                : (pedido.pago && pedido.pago.estado === 'pagado' ? Number(pedido.pago.monto) : 0)
+                              const pending = Math.max(0, precio - paidAmount)
 
-                    {/* VISTA EN TABLA PARA ESCRITORIO (hidden md:block) */}
-                    <div className="hidden md:block overflow-x-auto">
-                      <table className="w-full text-left border-collapse">
-                        <thead>
-                          <tr className="border-b border-slate-800 bg-slate-950/40 text-slate-400 font-semibold text-xs uppercase tracking-wider">
-                            <th className="px-4 py-3">Cliente / Empresa</th>
-                            <th className="px-4 py-3 text-right">Saldo Pendiente</th>
-                            <th className="px-4 py-3 text-center">Acción</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-800 text-sm">
-                          {completedUnpaidPedidos.map((pedido) => {
-                            const precio = Number(pedido.precio) || 0
-                            const paidAmount = pedido.pagos
-                              ? pedido.pagos.filter((pay: any) => pay.estado === 'pagado').reduce((s: number, pay: any) => s + Number(pay.monto), 0)
-                              : (pedido.pago && pedido.pago.estado === 'pagado' ? Number(pedido.pago.monto) : 0)
-                            const pending = Math.max(0, precio - paidAmount)
-
-                            return (
-                              <tr
-                                key={pedido.id}
-                                className="hover:bg-slate-800/40 text-slate-300 transition duration-150 cursor-pointer"
-                                onClick={() => setSelectedPedidoForCommentModal(pedido)}
-                              >
-                                <td className="px-4 py-3">
-                                  <div className="flex flex-col">
-                                    <span className="font-semibold text-white text-xs">{pedido.cliente?.nombre_cliente || 'Sin cliente'}</span>
-                                    <span className="text-[11px] text-slate-400">{pedido.cliente?.nombre_empresa || 'Empresa'}</span>
-                                  </div>
-                                </td>
-                                <td className="px-4 py-3 text-right">
-                                  <span className="font-bold text-amber-400 font-mono text-xs">
-                                    {formatCurrency(pending)}
-                                  </span>
-                                </td>
-                                <td className="px-4 py-3 text-center">
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation()
-                                      setSelectedPedidoForCommentModal(pedido)
-                                    }}
-                                    className="inline-flex items-center gap-1 bg-blue-600/20 hover:bg-blue-600/40 text-blue-300 border border-blue-500/30 px-2.5 py-1 rounded text-xs font-semibold transition"
-                                    title="Ver pedido y comentar"
-                                  >
-                                    💬 Ver / Comentar
-                                  </button>
-                                </td>
-                              </tr>
-                            )
-                          })}
-                        </tbody>
-                      </table>
+                              return (
+                                <tr
+                                  key={pedido.id}
+                                  className="hover:bg-slate-800/40 text-slate-300 transition duration-150 cursor-pointer"
+                                  onClick={() => setSelectedPedidoForCommentModal(pedido)}
+                                >
+                                  <td className="px-4 py-3">
+                                    <div className="flex flex-col">
+                                      <span className="font-semibold text-white text-xs">{pedido.cliente?.nombre_cliente || 'Sin cliente'}</span>
+                                      <span className="text-[11px] text-slate-400">{pedido.cliente?.nombre_empresa || 'Empresa'}</span>
+                                    </div>
+                                  </td>
+                                  <td className="px-4 py-3 text-right">
+                                    <span className="font-bold text-amber-400 font-mono text-xs">
+                                      {formatCurrency(pending)}
+                                    </span>
+                                  </td>
+                                  <td className="px-4 py-3 text-center">
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation()
+                                        setSelectedPedidoForCommentModal(pedido)
+                                      }}
+                                      className="inline-flex items-center gap-1 bg-blue-600/20 hover:bg-blue-600/40 text-blue-300 border border-blue-500/30 px-2.5 py-1 rounded text-xs font-semibold transition"
+                                      title="Ver pedido y comentar"
+                                    >
+                                      💬 Ver / Comentar
+                                    </button>
+                                  </td>
+                                </tr>
+                              )
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
                     </div>
-                  </div>
-                )}
+                  )}
+                </div>
               </div>
-            </div>
-          )}
-        </div>
+            )}
+          </div>
+        )}
+      </div>
 
         {/* Modal de Detalle Completo del Pedido */}
         <PedidoDetailModal
@@ -1010,8 +1029,26 @@ export default function DashboardPage() {
             setSelectedPedidoForImages(p)
             setIsImagesModalOpen(true)
           }}
-          onOpenPayments={() => {
-            window.location.href = '/dashboard/pedidos'
+          onOpenPayments={(pedidoToPay) => {
+            setSelectedPedidoForPayments(pedidoToPay)
+            setIsPaymentsModalOpen(true)
+          }}
+        />
+
+        {/* Modal de Gestión de Pagos/Cobros del Pedido */}
+        <PaymentModal
+          isOpen={isPaymentsModalOpen}
+          pedido={selectedPedidoForPayments}
+          currentUser={currentUser}
+          onClose={() => {
+            setIsPaymentsModalOpen(false)
+            setSelectedPedidoForPayments(null)
+          }}
+          onPaymentUpdated={(updatedPedido) => {
+            fetchPedidos().then(setPedidos).catch(console.error)
+            if (updatedPedido && selectedPedidoForCommentModal?.id === updatedPedido.id) {
+              setSelectedPedidoForCommentModal(updatedPedido)
+            }
           }}
         />
 

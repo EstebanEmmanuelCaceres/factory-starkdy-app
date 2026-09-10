@@ -6,7 +6,7 @@ import { getStoredUser } from '@/lib/auth'
 
 interface RoleGuardProps {
   children: React.ReactNode
-  allowedRoles: ('admin' | 'supervisor' | 'operator' | 'user' | 'vendedor' | 'disenador' | 'encargado' | 'operario')[]
+  allowedRoles: ('admin' | 'supervisor' | 'operator' | 'user' | 'vendedor' | 'disenador' | 'disenadora' | 'encargado' | 'operario')[]
   fallbackHref?: string
 }
 

@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import RoleGuard from '@/components/RoleGuard'
 import Modal from '@/components/Modal'
+import Pagination from '@/components/Pagination'
 import {
   clientesWithPedidos,
   createCliente,
@@ -23,6 +24,10 @@ export default function ClientesPage() {
 
   // Filtros y búsqueda
   const [searchQuery, setSearchQuery] = useState('')
+
+  // Paginación
+  const [currentPage, setCurrentPage] = useState(1)
+  const pageSize = 30
 
   // Cliente seleccionado para el "Panel de Vista General"
   const [selectedCliente, setSelectedCliente] = useState<Cliente | null>(null)
@@ -60,10 +65,10 @@ export default function ClientesPage() {
       }
 
       const [clientesData] = await Promise.all([
-        clientesWithPedidos()
+        clientesWithPedidos(filters)
       ])
       setClientes(clientesData)
-      // setPedidos(clientesData.flatMap(c => c.pedidos))
+      setPedidos(clientesData.flatMap(c => c.pedidos || []))
 
       // Seleccionar el primer cliente de la lista por defecto si hay clientes cargados
       if (clientesData.length > 0) {
@@ -88,6 +93,10 @@ export default function ClientesPage() {
     loadData()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [searchQuery])
 
   const showNotification = (message: string) => {
     setSuccessMessage(message)
@@ -155,6 +164,19 @@ export default function ClientesPage() {
       }
       await createCliente(payload)
       setIsCreateModalOpen(false)
+      setFormData({
+        nombre_cliente: '',
+        nombre_empresa: '',
+        email: '',
+        telefono: '',
+        dni: '',
+        direccion: '',
+        provincia: '',
+        cp: '',
+        localidad: '',
+        saldo: 0,
+        observaciones: ''
+      })
       showNotification('Cliente registrado correctamente')
       loadData()
     } catch (err: unknown) {
@@ -253,13 +275,15 @@ export default function ClientesPage() {
 
   // Obtener pedidos del cliente seleccionado
   const clientPedidos = selectedCliente
-    ? pedidos.filter((p) => p.cliente_id === selectedCliente.id)
+    ? (selectedCliente.pedidos && selectedCliente.pedidos.length > 0
+        ? selectedCliente.pedidos
+        : pedidos.filter((p) => p.cliente_id === selectedCliente.id))
     : []
 
   const stats = {
     total: clientPedidos.length,
     pendiente: clientPedidos.filter(p => p.estado === 'pendiente').length,
-    enProgreso: clientPedidos.filter(p => p.estado === 'en_progreso').length,
+    enProgreso: clientPedidos.filter(p => p.estado === 'en_progreso' || p.estado === 'listo_para_produccion' || p.estado === 'en_produccion').length,
     completado: clientPedidos.filter(p => p.estado === 'completado').length,
   }
 
@@ -268,6 +292,8 @@ export default function ClientesPage() {
       case 'completado':
         return 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
       case 'en_progreso':
+      case 'listo_para_produccion':
+      case 'en_produccion':
         return 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
       case 'cancelado':
         return 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
@@ -289,6 +315,11 @@ export default function ClientesPage() {
         )
       })
     : clientes
+
+  const paginatedClientes = filteredClientes.slice(
+    (currentPage - 1) * pageSize,
+    currentPage * pageSize
+  )
 
   return (
     <RoleGuard allowedRoles={['admin', 'encargado', 'vendedor', 'disenador']}>
@@ -368,67 +399,75 @@ export default function ClientesPage() {
                 <span className="text-sm font-medium">No se encontraron clientes</span>
               </div>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse">
-                  <thead>
-                    <tr className="border-b border-slate-800 bg-slate-950/40 text-slate-400 font-semibold text-xs uppercase tracking-wider">
-                      <th className="px-6 py-4">Nombre / Razón Social</th>
-                      <th className="px-6 py-4">Correo</th>
-                      <th className="px-6 py-4 text-right">Acciones</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-800 text-sm">
-                    {filteredClientes.map((cliente) => (
-                      <tr
-                        key={cliente.id}
-                        onClick={() => setSelectedCliente(cliente)}
-                        className={`cursor-pointer transition duration-100 ${selectedCliente?.id === cliente.id
-                          ? 'bg-blue-600/10 text-white border-l-2 border-l-blue-500'
-                          : 'hover:bg-slate-800/40 text-slate-300'
-                          }`}
-                      >
-                        <td className="px-6 py-4">
-                          <div className="font-semibold text-white">{cliente.nombre_cliente}</div>
-                          <div className="text-xs text-slate-500">{cliente.nombre_empresa}</div>
-                        </td>
-                        <td className="px-6 py-4 text-xs text-slate-400">
-                          {cliente.email || <span className="text-slate-600 italic">No especificado</span>}
-                        </td>
-                        <td className="px-6 py-4 text-right">
-                          <div className="flex justify-end gap-2">
-                            <button
-                              onClick={(e) => handleOpenViewModal(cliente, e)}
-                              className="text-slate-400 hover:text-white p-1 hover:bg-slate-800 rounded transition text-xs"
-                              title="Ver detalles completos"
-                            >
-                              👁️
-                            </button>
-                            <button
-                              onClick={(e) => handleOpenEditModal(cliente, e)}
-                              className="text-slate-400 hover:text-white p-1 hover:bg-slate-800 rounded transition text-xs"
-                              title="Editar cliente"
-                            >
-                              ✏️
-                            </button>
-                            <button
-                              onClick={(e) => handleDelete(cliente.id, e)}
-                              className="text-rose-400 hover:text-rose-300 p-1 hover:bg-rose-500/10 rounded transition text-xs"
-                              title="Dar de baja cliente"
-                            >
-                              🗑️
-                            </button>
-                          </div>
-                        </td>
+              <>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse">
+                    <thead>
+                      <tr className="border-b border-slate-800 bg-slate-950/40 text-slate-400 font-semibold text-xs uppercase tracking-wider">
+                        <th className="px-6 py-4">Nombre / Razón Social</th>
+                        <th className="px-6 py-4">Correo</th>
+                        <th className="px-6 py-4 text-right">Acciones</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                    </thead>
+                    <tbody className="divide-y divide-slate-800 text-sm">
+                      {paginatedClientes.map((cliente) => (
+                        <tr
+                          key={cliente.id}
+                          onClick={() => setSelectedCliente(cliente)}
+                          className={`cursor-pointer transition duration-100 ${selectedCliente?.id === cliente.id
+                            ? 'bg-blue-600/10 text-white border-l-2 border-l-blue-500'
+                            : 'hover:bg-slate-800/40 text-slate-300'
+                            }`}
+                        >
+                          <td className="px-6 py-4">
+                            <div className="font-semibold text-white">{cliente.nombre_cliente}</div>
+                            <div className="text-xs text-slate-500">{cliente.nombre_empresa}</div>
+                          </td>
+                          <td className="px-6 py-4 text-xs text-slate-400">
+                            {cliente.email || <span className="text-slate-600 italic">No especificado</span>}
+                          </td>
+                          <td className="px-6 py-4 text-right">
+                            <div className="flex justify-end gap-2">
+                              <button
+                                onClick={(e) => handleOpenViewModal(cliente, e)}
+                                className="text-slate-400 hover:text-white p-1 hover:bg-slate-800 rounded transition text-xs"
+                                title="Ver detalles completos"
+                              >
+                                👁️
+                              </button>
+                              <button
+                                onClick={(e) => handleOpenEditModal(cliente, e)}
+                                className="text-slate-400 hover:text-white p-1 hover:bg-slate-800 rounded transition text-xs"
+                                title="Editar cliente"
+                              >
+                                ✏️
+                              </button>
+                              <button
+                                onClick={(e) => handleDelete(cliente.id, e)}
+                                className="text-rose-400 hover:text-rose-300 p-1 hover:bg-rose-500/10 rounded transition text-xs"
+                                title="Dar de baja cliente"
+                              >
+                                🗑️
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <Pagination
+                  currentPage={currentPage}
+                  totalItems={filteredClientes.length}
+                  pageSize={pageSize}
+                  onPageChange={(page) => setCurrentPage(page)}
+                />
+              </>
             )}
           </div>
 
           {/* Panel de Vista General del Cliente (Columna Derecha) */}
-          <div className="lg:col-span-5">
+          <div className="lg:col-span-5 sticky top-20 self-start">
             {selectedCliente ? (
               <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 shadow-xl space-y-6">
                 {/* Cabecera del Perfil */}

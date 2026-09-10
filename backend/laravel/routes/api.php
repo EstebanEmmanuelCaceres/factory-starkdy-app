@@ -108,6 +108,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('responsables-etapas', [ResponsableEtapaController::class, 'index']);
     Route::post('responsables-etapas', [ResponsableEtapaController::class, 'store']);
     Route::delete('responsables-etapas/{id}', [ResponsableEtapaController::class, 'destroy']);
+    Route::get('disenos-pendientes', [ResponsableEtapaController::class, 'disenosPendientes']);
+    Route::post('pedidos/{id}/completar-disenos', [ResponsableEtapaController::class, 'completarDisenosPedido']);
 
     // ── Panel del Operario ─────────────────────────────────────────
     Route::prefix('operario')->group(function () {
