@@ -24,7 +24,7 @@ class PedidoController extends Controller
      */
     public function index(Request $request): JsonResponse
     {
-        $query = Pedido::select('id', 'cliente_id', 'user_id', 'codigo', 'estado', 'prioridad', 'precio', 'created_at', 'updated_at')
+        $query = Pedido::select('id', 'cliente_id', 'user_id', 'codigo', 'prioridad', 'precio', 'created_at', 'updated_at')
             ->with([
                 'cliente:id,nombre_empresa,nombre_cliente,telefono',
                 'user:id,name',
