@@ -282,10 +282,10 @@ export default function PedidoDetailModal({
             src={coverUrl}
             alt={`Portada Pedido #${currentPedido.id}`}
             className="relative z-10 max-h-full max-w-full object-contain p-4 transition duration-200"
-            onError={(e) => {
-              ; (e.target as HTMLImageElement).src =
-                "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200' viewBox='0 0 200 200'><rect width='200' height='200' fill='%230f172a'/><text x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' fill='%2364748b' font-family='sans-serif' font-size='13'>Imagen no disponible</text></svg>"
-            }}
+          // onError={(e) => {
+          //   ; (e.target as HTMLImageElement).src =
+          //     "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200' viewBox='0 0 200 200'><rect width='200' height='200' fill='%230f172a'/><text x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' fill='%2364748b' font-family='sans-serif' font-size='13'>Imagen no disponible</text></svg>"
+          // }}
           />
 
           {onOpenGallery && (
@@ -319,342 +319,259 @@ export default function PedidoDetailModal({
 
         {/* Header del Modal */}
         <div className="border-b border-slate-800 pb-4 space-y-4">
-        {/* Fila Superior: Título + Estado a la izquierda, Acciones a la derecha */}
-        <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 pr-8">
-          <div className="text-left space-y-1.5 min-w-0">
-            <div className="flex flex-wrap items-center gap-3">
-              <h2 className="text-2xl font-bold text-white tracking-tight">
-                📋 Pedido #{currentPedido.id}
-              </h2>
-              {/* Estado del Pedido Selector */}
-              <div className="flex items-center gap-1.5 bg-slate-950 border border-slate-800 rounded-xl px-3 py-1 shadow-inner">
-                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                  Estado:
-                </span>
-                <select
-                  value={currentPedido.estado}
-                  onChange={(e) => handleStatusChange(e.target.value)}
-                  className="bg-transparent text-xs font-bold text-blue-400 focus:outline-none cursor-pointer pr-1"
-                >
-                  <option value="pendiente" className="bg-slate-900 text-white">
-                    Pendiente
-                  </option>
-                  <option value="listo_para_produccion" className="bg-slate-900 text-white">
-                    Listo para producción
-                  </option>
-                  <option value="en_progreso" className="bg-slate-900 text-white">
-                    En Progreso
-                  </option>
-                  <option value="completado" className="bg-slate-900 text-white">
-                    Completado
-                  </option>
-                  <option value="completado_pd" className="bg-slate-900 text-white">
-                    Completado - pendiente de pago (PD)
-                  </option>
-                  <option value="enviado" className="bg-slate-900 text-white">
-                    Enviado
-                  </option>
-                  <option value="enviado_faltante" className="bg-slate-900 text-white">
-                    Enviado con faltante
-                  </option>
-                  <option value="cancelado" className="bg-slate-900 text-white">
-                    Cancelado
-                  </option>
-                </select>
-              </div>
-            </div>
-
-            <p className="text-xs text-slate-400">
-              Cliente:{' '}
-              <span className="text-slate-200 font-bold">
-                {currentPedido.cliente?.nombre_cliente}
-              </span>{' '}
-              {currentPedido.cliente?.nombre_empresa
-                ? `(${currentPedido.cliente.nombre_empresa})`
-                : ''}
-            </p>
-          </div>
-
-          {/* Botones de acción derecha: Editar Pedido, Galería */}
-          <div className="flex flex-wrap items-center gap-2.5 shrink-0 self-end sm:self-start">
-            {onOpenEdit && isAuthorizedRole && (
-              <button
-                type="button"
-                onClick={() => onOpenEdit(currentPedido)}
-                className="bg-slate-900 hover:bg-slate-850 border border-slate-750 hover:border-blue-500/50 text-blue-300 text-xs font-bold px-3.5 py-2 rounded-xl flex items-center gap-1.5 transition shadow-md hover:scale-[1.02] active:scale-[0.98]"
-                title="Editar datos y asignaciones del pedido"
-              >
-                <span>✏️</span>
-                <span>Editar Pedido</span>
-              </button>
-            )}
-            {onOpenGallery && isAuthorizedRole && (
-              <button
-                type="button"
-                onClick={() => onOpenGallery(currentPedido)}
-                className="bg-slate-900 hover:bg-slate-850 border border-slate-750 hover:border-amber-500/50 text-amber-300 text-xs font-bold px-3.5 py-2 rounded-xl flex items-center gap-2 transition shadow-md hover:scale-[1.02] active:scale-[0.98]"
-                title="Gestionar Galería de Imágenes / Planos"
-              >
-                <span>🖼️</span>
-                <span>Galería / Planos</span>
-                {currentPedido.imagenes && currentPedido.imagenes.length > 0 && (
-                  <span className="bg-amber-500/20 text-amber-300 text-[10px] font-extrabold px-1.5 py-0.5 rounded-full border border-amber-500/30">
-                    {currentPedido.imagenes.length}
+          {/* Fila Superior: Título + Estado a la izquierda, Acciones a la derecha */}
+          <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 pr-8">
+            <div className="text-left space-y-1.5 min-w-0">
+              <div className="flex flex-wrap items-center gap-3">
+                <h2 className="text-2xl font-bold text-white tracking-tight">
+                  📋 Pedido #{currentPedido.id}
+                </h2>
+                {/* Estado del Pedido Selector */}
+                <div className="flex items-center gap-1.5 bg-slate-950 border border-slate-800 rounded-xl px-3 py-1 shadow-inner">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                    Estado:
                   </span>
-                )}
-              </button>
-            )}
-          </div>
-        </div>
-
-        {/* Resumen Financiero y Botón de Cobro */}
-        {currentPedido.precio !== null && currentPedido.precio !== undefined && (
-          <div className="bg-slate-950/60 border border-slate-800/80 p-3.5 rounded-xl flex flex-wrap items-center justify-between gap-3 text-xs shadow-inner">
-            <div className="flex flex-wrap items-center gap-4 sm:gap-6">
-              <div>
-                <span className="text-slate-500 block text-[10px] uppercase font-bold tracking-wider mb-0.5">Precio Total</span>
-                <span className="font-extrabold text-white text-sm">
-                  $ {parseFloat(currentPedido.precio.toString()).toLocaleString('es-AR', { minimumFractionDigits: 2 })}
-                </span>
-              </div>
-              <div>
-                <span className="text-slate-500 block text-[10px] uppercase font-bold tracking-wider mb-0.5">Monto Pagado</span>
-                <span className="font-extrabold text-emerald-400 text-sm">
-                  $ {(currentPedido.monto_pagado || 0).toLocaleString('es-AR', { minimumFractionDigits: 2 })}
-                </span>
-              </div>
-              <div>
-                <span className="text-slate-500 block text-[10px] uppercase font-bold tracking-wider mb-0.5">Saldo Pendiente</span>
-                <span className="font-extrabold text-amber-400 text-sm">
-                  $ {(currentPedido.saldo_pendiente ?? Math.max(0, (currentPedido.precio || 0) - (currentPedido.monto_pagado || 0))).toLocaleString('es-AR', { minimumFractionDigits: 2 })}
-                </span>
-              </div>
-            </div>
-
-            {onOpenPayments && isAuthorizedRole && (
-              <button
-                type="button"
-                onClick={() => onOpenPayments(currentPedido)}
-                className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition shadow hover:scale-[1.02] active:scale-[0.98]"
-              >
-                <span>💵</span>
-                <span>Cargar Cobro</span>
-              </button>
-            )}
-          </div>
-        )}
-
-        {/* Fila Banner: Alerta de Pedido Pendiente (en su propia fila dedicada) */}
-        {currentPedido.estado === 'pendiente' && (
-          <div className="bg-gradient-to-r from-amber-500/15 via-amber-500/10 to-amber-500/5 border border-amber-500/30 text-amber-300 px-4 py-3 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-lg">
-            <div className="text-xs space-y-0.5 text-left">
-              <span className="font-bold flex items-center gap-1.5 text-sm text-amber-400">
-                <span>⚠️</span> Pedido en Estado Pendiente
-              </span>
-              <p className="text-slate-300 text-xs">
-                Este pedido no es visible para los operarios hasta que lo pases a{' '}
-                <strong>&quot;Listo para producción&quot;</strong>.
-              </p>
-            </div>
-            <button
-              onClick={() => handleStatusChange('listo_para_produccion')}
-              className="bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white font-extrabold text-xs px-4 py-2.5 rounded-xl transition shadow-lg shadow-cyan-600/20 hover:scale-[1.02] active:scale-[0.98] whitespace-nowrap shrink-0 flex items-center justify-center gap-1.5"
-            >
-              <span>🚀</span>
-              <span>Pasar a Listo para Producción</span>
-            </button>
-          </div>
-        )}
-      </div>
-
-      {/* Cuerpo Principal: Dos Columnas */}
-      <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
-        {/* Columna Izquierda (8 cols) */}
-        <div className="md:col-span-8 space-y-6 text-left">
-          {/* Sección: Descripción */}
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                <span>📝</span> Descripción
-              </h3>
-              <button
-                type="button"
-                onClick={() => setIsEditCommentActive(!isEditCommentActive)}
-                className="text-xs bg-slate-800 hover:bg-slate-700 hover:text-white text-slate-300 px-2 py-1 rounded transition font-semibold"
-              >
-                {isEditCommentActive ? 'Cancelar' : 'Editar'}
-              </button>
-            </div>
-
-            {isEditCommentActive ? (
-              <div className="space-y-2">
-                <textarea
-                  value={tempComentario}
-                  onChange={(e) => setTempComentario(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-sm text-white focus:outline-none focus:border-blue-500 transition h-24"
-                  placeholder="Agregar una descripción más detallada..."
-                />
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={handleSaveDescription}
-                    className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded text-xs font-semibold"
+                  <select
+                    value={currentPedido.estado}
+                    onChange={(e) => handleStatusChange(e.target.value)}
+                    className="bg-transparent text-xs font-bold text-blue-400 focus:outline-none cursor-pointer pr-1"
                   >
-                    Guardar
-                  </button>
+                    <option value="pendiente" className="bg-slate-900 text-white">
+                      Pendiente
+                    </option>
+                    <option value="listo_para_produccion" className="bg-slate-900 text-white">
+                      Listo para producción
+                    </option>
+                    <option value="en_progreso" className="bg-slate-900 text-white">
+                      En Progreso
+                    </option>
+                    <option value="completado" className="bg-slate-900 text-white">
+                      Completado
+                    </option>
+                    <option value="completado_pd" className="bg-slate-900 text-white">
+                      Completado - pendiente de pago (PD)
+                    </option>
+                    <option value="enviado" className="bg-slate-900 text-white">
+                      Enviado
+                    </option>
+                    <option value="enviado_faltante" className="bg-slate-900 text-white">
+                      Enviado con faltante
+                    </option>
+                    <option value="cancelado" className="bg-slate-900 text-white">
+                      Cancelado
+                    </option>
+                  </select>
                 </div>
               </div>
-            ) : (
-              <div className="bg-slate-950/40 border border-slate-850 p-4 rounded-xl">
-                {currentPedido.comentario ? (
-                  <p className="text-sm text-slate-300 whitespace-pre-wrap">
-                    {currentPedido.comentario}
-                  </p>
-                ) : (
-                  <p className="text-sm text-slate-500 italic">
-                    No hay descripción añadida. Haz clic en Editar para agregar una.
-                  </p>
-                )}
-              </div>
-            )}
+
+              <p className="text-xs text-slate-400">
+                Cliente:{' '}
+                <span className="text-slate-200 font-bold">
+                  {currentPedido.cliente?.nombre_cliente}
+                </span>{' '}
+                {currentPedido.cliente?.nombre_empresa
+                  ? `(${currentPedido.cliente.nombre_empresa})`
+                  : ''}
+              </p>
+            </div>
+
+            {/* Botones de acción derecha: Editar Pedido, Galería */}
+            <div className="flex flex-wrap items-center gap-2.5 shrink-0 self-end sm:self-start">
+              {onOpenEdit && isAuthorizedRole && (
+                <button
+                  type="button"
+                  onClick={() => onOpenEdit(currentPedido)}
+                  className="bg-slate-900 hover:bg-slate-850 border border-slate-750 hover:border-blue-500/50 text-blue-300 text-xs font-bold px-3.5 py-2 rounded-xl flex items-center gap-1.5 transition shadow-md hover:scale-[1.02] active:scale-[0.98]"
+                  title="Editar datos y asignaciones del pedido"
+                >
+                  <span>✏️</span>
+                  <span>Editar Pedido</span>
+                </button>
+              )}
+              {onOpenGallery && isAuthorizedRole && (
+                <button
+                  type="button"
+                  onClick={() => onOpenGallery(currentPedido)}
+                  className="bg-slate-900 hover:bg-slate-850 border border-slate-750 hover:border-amber-500/50 text-amber-300 text-xs font-bold px-3.5 py-2 rounded-xl flex items-center gap-2 transition shadow-md hover:scale-[1.02] active:scale-[0.98]"
+                  title="Gestionar Galería de Imágenes / Planos"
+                >
+                  <span>🖼️</span>
+                  <span>Galería / Planos</span>
+                  {currentPedido.imagenes && currentPedido.imagenes.length > 0 && (
+                    <span className="bg-amber-500/20 text-amber-300 text-[10px] font-extrabold px-1.5 py-0.5 rounded-full border border-amber-500/30">
+                      {currentPedido.imagenes.length}
+                    </span>
+                  )}
+                </button>
+              )}
+            </div>
           </div>
 
-          {/* Sección: Productos y sus Etapas */}
-          <div className="space-y-3">
-            <h3 className="text-sm font-bold text-white flex items-center gap-2">
-              <span>📦</span> Productos y Etapas de Fabricación
-            </h3>
+          {/* Resumen Financiero y Botón de Cobro */}
+          {currentPedido.precio !== null && currentPedido.precio !== undefined && (
+            <div className="bg-slate-950/60 border border-slate-800/80 p-3.5 rounded-xl flex flex-wrap items-center justify-between gap-3 text-xs shadow-inner">
+              <div className="flex flex-wrap items-center gap-4 sm:gap-6">
+                <div>
+                  <span className="text-slate-500 block text-[10px] uppercase font-bold tracking-wider mb-0.5">Precio Total</span>
+                  <span className="font-extrabold text-white text-sm">
+                    $ {parseFloat(currentPedido.precio.toString()).toLocaleString('es-AR', { minimumFractionDigits: 2 })}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-slate-500 block text-[10px] uppercase font-bold tracking-wider mb-0.5">Monto Pagado</span>
+                  <span className="font-extrabold text-emerald-400 text-sm">
+                    $ {(currentPedido.monto_pagado || 0).toLocaleString('es-AR', { minimumFractionDigits: 2 })}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-slate-500 block text-[10px] uppercase font-bold tracking-wider mb-0.5">Saldo Pendiente</span>
+                  <span className="font-extrabold text-amber-400 text-sm">
+                    $ {(currentPedido.saldo_pendiente ?? Math.max(0, (currentPedido.precio || 0) - (currentPedido.monto_pagado || 0))).toLocaleString('es-AR', { minimumFractionDigits: 2 })}
+                  </span>
+                </div>
+              </div>
 
-            {pds.length === 0 ? (
-              <p className="text-xs text-slate-500 italic">
-                No hay productos asociados a este pedido.
-              </p>
-            ) : (
-              <div className="space-y-3">
-                {displayedProducts.map((prod) => {
-                  const prodStages = stages
-                    .filter((s) => s.producto_id === prod.id)
-                    .sort((a, b) => a.orden - b.orden)
-                  const qty = prod.pivot?.cantidad || 1
-                  const currentInfo = getProductCurrentStage(prodStages, assignments)
-                  const isAccordionOpen = openAccordions[prod.id] || false
+              {onOpenPayments && isAuthorizedRole && (
+                <button
+                  type="button"
+                  onClick={() => onOpenPayments(currentPedido)}
+                  className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition shadow hover:scale-[1.02] active:scale-[0.98]"
+                >
+                  <span>💵</span>
+                  <span>Cargar Cobro</span>
+                </button>
+              )}
+            </div>
+          )}
 
-                  return (
-                    <div
-                      key={prod.id}
-                      className="bg-slate-950/40 border border-slate-800 rounded-xl p-4 space-y-3 transition hover:border-slate-750"
+          {/* Fila Banner: Alerta de Pedido Pendiente (en su propia fila dedicada) */}
+          {currentPedido.estado === 'pendiente' && (
+            <div className="bg-gradient-to-r from-amber-500/15 via-amber-500/10 to-amber-500/5 border border-amber-500/30 text-amber-300 px-4 py-3 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-lg">
+              <div className="text-xs space-y-0.5 text-left">
+                <span className="font-bold flex items-center gap-1.5 text-sm text-amber-400">
+                  <span>⚠️</span> Pedido en Estado Pendiente
+                </span>
+                <p className="text-slate-300 text-xs">
+                  Este pedido no es visible para los operarios hasta que lo pases a{' '}
+                  <strong>&quot;Listo para producción&quot;</strong>.
+                </p>
+              </div>
+              <button
+                onClick={() => handleStatusChange('listo_para_produccion')}
+                className="bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white font-extrabold text-xs px-4 py-2.5 rounded-xl transition shadow-lg shadow-cyan-600/20 hover:scale-[1.02] active:scale-[0.98] whitespace-nowrap shrink-0 flex items-center justify-center gap-1.5"
+              >
+                <span>🚀</span>
+                <span>Pasar a Listo para Producción</span>
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Cuerpo Principal: Dos Columnas */}
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
+          {/* Columna Izquierda (8 cols) */}
+          <div className="md:col-span-8 space-y-6 text-left">
+            {/* Sección: Descripción */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                  <span>📝</span> Descripción
+                </h3>
+                <button
+                  type="button"
+                  onClick={() => setIsEditCommentActive(!isEditCommentActive)}
+                  className="text-xs bg-slate-800 hover:bg-slate-700 hover:text-white text-slate-300 px-2 py-1 rounded transition font-semibold"
+                >
+                  {isEditCommentActive ? 'Cancelar' : 'Editar'}
+                </button>
+              </div>
+
+              {isEditCommentActive ? (
+                <div className="space-y-2">
+                  <textarea
+                    value={tempComentario}
+                    onChange={(e) => setTempComentario(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-sm text-white focus:outline-none focus:border-blue-500 transition h-24"
+                    placeholder="Agregar una descripción más detallada..."
+                  />
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={handleSaveDescription}
+                      className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded text-xs font-semibold"
                     >
-                      {/* Cabecera del producto */}
-                      <div className="flex items-center justify-between">
-                        <div className="text-left">
-                          <span className="text-sm font-bold text-white block">
-                            {prod.nombre}
-                          </span>
-                          <span className="text-[10px] text-slate-500 font-bold uppercase">
-                            Cantidad: {qty}
-                          </span>
-                        </div>
+                      Guardar
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="bg-slate-950/40 border border-slate-850 p-4 rounded-xl">
+                  {currentPedido.comentario ? (
+                    <p className="text-sm text-slate-300 whitespace-pre-wrap">
+                      {currentPedido.comentario}
+                    </p>
+                  ) : (
+                    <p className="text-sm text-slate-500 italic">
+                      No hay descripción añadida. Haz clic en Editar para agregar una.
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
 
-                        {/* Etapa actual a la vista */}
-                        {currentInfo ? (
-                          <div className="text-right flex flex-col items-end gap-1">
-                            <span className="text-[10px] uppercase font-extrabold tracking-wider text-slate-400 block">
-                              Etapa Actual
+            {/* Sección: Productos y sus Etapas */}
+            <div className="space-y-3">
+              <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                <span>📦</span> Productos y Etapas de Fabricación
+              </h3>
+
+              {pds.length === 0 ? (
+                <p className="text-xs text-slate-500 italic">
+                  No hay productos asociados a este pedido.
+                </p>
+              ) : (
+                <div className="space-y-3">
+                  {displayedProducts.map((prod) => {
+                    const prodStages = stages
+                      .filter((s) => s.producto_id === prod.id)
+                      .sort((a, b) => a.orden - b.orden)
+                    const qty = prod.pivot?.cantidad || 1
+                    const currentInfo = getProductCurrentStage(prodStages, assignments)
+                    const isAccordionOpen = openAccordions[prod.id] || false
+
+                    return (
+                      <div
+                        key={prod.id}
+                        className="bg-slate-950/40 border border-slate-800 rounded-xl p-4 space-y-3 transition hover:border-slate-750"
+                      >
+                        {/* Cabecera del producto */}
+                        <div className="flex items-center justify-between">
+                          <div className="text-left">
+                            <span className="text-sm font-bold text-white block">
+                              {prod.nombre}
                             </span>
-                            <div className="flex flex-wrap items-center justify-end gap-1.5">
-                              <span className="text-base sm:text-lg font-black text-blue-400 capitalize tracking-tight">
-                                {currentInfo.stage.nombre}
-                              </span>
-                              <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-md bg-blue-500/10 text-blue-300 border border-blue-500/20">
-                                {currentInfo.task?.estado || 'pendiente'}
-                              </span>
-                            </div>
-                            {currentInfo.task?.estado !== 'completado' && currentPedido.estado !== 'pendiente' && (
-                              (() => {
-                                const explicitDepIds = (currentInfo.stage as any).dependencias?.map((d: any) => d.id) || []
-                                const isBlockedByExplicitDeps = explicitDepIds.some((depId: number) => {
-                                  const depTask = assignments.find(
-                                    (t) =>
-                                      t.pedido_id === currentPedido.id &&
-                                      ((t as any).etapa_producto_id === depId ||
-                                        t.etapa_id === depId ||
-                                        t.etapa?.id === depId)
-                                  )
-                                  return (depTask?.estado || 'pendiente') !== 'completado'
-                                })
-
-                                const isCurrentBlocked = currentInfo.task?.estado === 'bloqueada' || isBlockedByExplicitDeps
-
-                                if (isCurrentBlocked) {
-                                  return (
-                                    <span className="mt-1 text-[10px] font-bold text-rose-400 bg-rose-500/10 border border-rose-500/20 px-2.5 py-1 rounded-lg flex items-center gap-1 shadow-sm">
-                                      🔒 Requiere etapa previa
-                                    </span>
-                                  )
-                                }
-
-                                return (
-                                  <button
-                                    type="button"
-                                    disabled={completingTaskId === (currentInfo.task?.id || currentInfo.stage.id)}
-                                    onClick={() => handleCompleteTask(currentInfo.task || null, currentInfo.stage)}
-                                    className="mt-1 bg-emerald-600 hover:bg-emerald-500 active:scale-95 disabled:opacity-50 text-white text-xs font-extrabold px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition shadow cursor-pointer"
-                                    title="Marcar etapa como completada"
-                                  >
-                                    <span>✓</span>
-                                    <span>{completingTaskId === (currentInfo.task?.id || currentInfo.stage.id) ? 'Guardando...' : 'Completar Etapa'}</span>
-                                  </button>
-                                )
-                              })()
-                            )}
+                            <span className="text-[10px] text-slate-500 font-bold uppercase">
+                              Cantidad: {qty}
+                            </span>
                           </div>
-                        ) : (
-                          <span className="text-xs text-slate-500 italic">Sin etapas</span>
-                        )}
-                      </div>
 
-                      {/* Botón del acordeón */}
-                      {prodStages.length > 0 && (
-                        <div className="border-t border-slate-850 pt-2.5">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setOpenAccordions((prev) => ({
-                                ...prev,
-                                [prod.id]: !isAccordionOpen
-                              }))
-                            }}
-                            className="w-full flex items-center justify-between text-xs text-blue-400 hover:text-blue-300 font-semibold"
-                          >
-                            <span>
-                              {isAccordionOpen
-                                ? '🔼 Ocultar flujo de etapas'
-                                : '🔽 Ver flujo de etapas completo (Grafo)'}
-                            </span>
-                            <span className="text-[10px] bg-slate-800 text-slate-350 px-2 py-0.5 rounded-full">
-                              {prodStages.length} etapas
-                            </span>
-                          </button>
-
-                          {/* Contenedor del Grafo dentro del Acordeón */}
-                          {isAccordionOpen && (
-                            <div className="mt-3 p-4 bg-slate-950/80 rounded-xl border border-slate-850 space-y-4 animate-in fade-in slide-in-from-top-1 duration-200">
-                              <span className="text-[10px] uppercase font-bold text-slate-500 tracking-wider block">
-                                Grafo de Progreso de Fabricación
+                          {/* Etapa actual a la vista */}
+                          {currentInfo ? (
+                            <div className="text-right flex flex-col items-end gap-1">
+                              <span className="text-[10px] uppercase font-extrabold tracking-wider text-slate-400 block">
+                                Etapa Actual
                               </span>
-
-                              <div className="flex flex-col md:flex-row md:items-center gap-4 md:gap-2 overflow-x-auto py-2">
-                                {prodStages.map((stage, idx) => {
-                                  const task = assignments.find(
-                                    (t) =>
-                                      t.pedido_id === currentPedido.id &&
-                                      ((t as any).etapa_producto_id === stage.id ||
-                                        t.etapa_id === stage.id ||
-                                        t.etapa?.id === stage.id)
-                                  )
-                                  const state = task?.estado || 'pendiente'
-
-                                  const explicitDepIds = (stage as any).dependencias?.map((d: any) => d.id) || []
+                              <div className="flex flex-wrap items-center justify-end gap-1.5">
+                                <span className="text-base sm:text-lg font-black text-blue-400 capitalize tracking-tight">
+                                  {currentInfo.stage.nombre}
+                                </span>
+                                <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-md bg-blue-500/10 text-blue-300 border border-blue-500/20">
+                                  {currentInfo.task?.estado || 'pendiente'}
+                                </span>
+                              </div>
+                              {currentInfo.task?.estado !== 'completado' && currentPedido.estado !== 'pendiente' && (
+                                (() => {
+                                  const explicitDepIds = (currentInfo.stage as any).dependencias?.map((d: any) => d.id) || []
                                   const isBlockedByExplicitDeps = explicitDepIds.some((depId: number) => {
                                     const depTask = assignments.find(
                                       (t) =>
@@ -666,176 +583,259 @@ export default function PedidoDetailModal({
                                     return (depTask?.estado || 'pendiente') !== 'completado'
                                   })
 
-                                  const isBlockedNode = state === 'bloqueada' || isBlockedByExplicitDeps
+                                  const isCurrentBlocked = currentInfo.task?.estado === 'bloqueada' || isBlockedByExplicitDeps
 
-                                  let nodeBg = 'bg-slate-900 border-slate-800 text-slate-400'
-                                  let stateLabel = 'Pendiente'
-                                  if (state === 'completado') {
-                                    nodeBg =
-                                      'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
-                                    stateLabel = 'Completado'
-                                  } else if (isBlockedNode) {
-                                    nodeBg = 'bg-rose-500/10 border-rose-500/30 text-rose-400'
-                                    stateLabel = 'Bloqueada'
-                                  } else if (state === 'en_progreso') {
-                                    nodeBg =
-                                      'bg-blue-500/10 border-blue-500/30 text-blue-400 shadow-[0_0_8px_rgba(59,130,246,0.15)] animate-pulse'
-                                    stateLabel = 'En Progreso'
+                                  if (isCurrentBlocked) {
+                                    return (
+                                      <span className="mt-1 text-[10px] font-bold text-rose-400 bg-rose-500/10 border border-rose-500/20 px-2.5 py-1 rounded-lg flex items-center gap-1 shadow-sm">
+                                        🔒 Requiere etapa previa
+                                      </span>
+                                    )
                                   }
 
-                                  const completionDate =
-                                    state === 'completado' && (task?.fecha_fin || task?.updated_at)
-                                      ? new Date(
-                                        task.fecha_fin || task.updated_at
-                                      ).toLocaleDateString('es-ES', {
-                                        day: 'numeric',
-                                        month: 'short',
-                                        year: 'numeric'
-                                      })
-                                      : null
-
                                   return (
-                                    <div
-                                      key={stage.id}
-                                      className="flex flex-col md:flex-row md:items-center flex-shrink-0"
+                                    <button
+                                      type="button"
+                                      disabled={completingTaskId === (currentInfo.task?.id || currentInfo.stage.id)}
+                                      onClick={() => handleCompleteTask(currentInfo.task || null, currentInfo.stage)}
+                                      className="mt-1 bg-emerald-600 hover:bg-emerald-500 active:scale-95 disabled:opacity-50 text-white text-xs font-extrabold px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition shadow cursor-pointer"
+                                      title="Marcar etapa como completada"
                                     >
-                                      <div
-                                        className={`border p-2.5 rounded-xl text-center min-w-[130px] ${nodeBg}`}
-                                      >
-                                        <span className="text-[9px] font-bold uppercase tracking-wider text-slate-500 block mb-0.5">
-                                          Etapa {stage.orden}
-                                        </span>
-                                        <span
-                                          className="text-xs font-bold block truncate max-w-[120px]"
-                                          title={stage.nombre}
-                                        >
-                                          {stage.nombre}
-                                        </span>
-                                        <span className="text-[9px] font-medium block mt-1 uppercase">
-                                          {stateLabel}
-                                        </span>
-                                        {completionDate && (
-                                          <span
-                                            className="text-[9px] font-medium block mt-1 text-emerald-300/90 font-mono"
-                                            title={`Fecha de terminación: ${completionDate}`}
-                                          >
-                                            {completionDate}
-                                          </span>
-                                        )}
-                                        {state !== 'completado' && currentPedido.estado !== 'pendiente' && (
-                                          !isBlockedNode ? (
-                                            <button
-                                              type="button"
-                                              disabled={completingTaskId === (task?.id || stage.id)}
-                                              onClick={() => handleCompleteTask(task || null, stage)}
-                                              className="mt-2 w-full text-[10px] font-extrabold px-2 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 active:scale-95 disabled:opacity-50 text-white transition shadow flex items-center justify-center gap-1 cursor-pointer"
-                                              title="Completar esta etapa"
-                                            >
-                                              <span>✓</span>
-                                              <span>{completingTaskId === (task?.id || stage.id) ? 'Completo...' : 'Completar'}</span>
-                                            </button>
-                                          ) : (
-                                            <div
-                                              className="mt-2 w-full text-[10px] font-semibold px-2 py-1 rounded-lg bg-slate-900/90 text-rose-400/80 border border-rose-500/20 flex items-center justify-center gap-1 opacity-80"
-                                              title="Esta etapa requiere que se completen las etapas de las que depende"
-                                            >
-                                              <span>🔒</span>
-                                              <span>Bloqueada</span>
-                                            </div>
-                                          )
-                                        )}
-                                      </div>
-
-                                      {idx < prodStages.length - 1 && (
-                                        <div className="flex items-center justify-center py-1 md:py-0 md:px-2">
-                                          <span className="text-slate-600 font-bold hidden md:inline">
-                                            ➔
-                                          </span>
-                                          <span className="text-slate-600 font-bold md:hidden">
-                                            ↓
-                                          </span>
-                                        </div>
-                                      )}
-                                    </div>
+                                      <span>✓</span>
+                                      <span>{completingTaskId === (currentInfo.task?.id || currentInfo.stage.id) ? 'Guardando...' : 'Completar Etapa'}</span>
+                                    </button>
                                   )
-                                })}
-                              </div>
+                                })()
+                              )}
                             </div>
+                          ) : (
+                            <span className="text-xs text-slate-500 italic">Sin etapas</span>
                           )}
                         </div>
-                      )}
+
+                        {/* Botón del acordeón */}
+                        {prodStages.length > 0 && (
+                          <div className="border-t border-slate-850 pt-2.5">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setOpenAccordions((prev) => ({
+                                  ...prev,
+                                  [prod.id]: !isAccordionOpen
+                                }))
+                              }}
+                              className="w-full flex items-center justify-between text-xs text-blue-400 hover:text-blue-300 font-semibold"
+                            >
+                              <span>
+                                {isAccordionOpen
+                                  ? '🔼 Ocultar flujo de etapas'
+                                  : '🔽 Ver flujo de etapas completo (Grafo)'}
+                              </span>
+                              <span className="text-[10px] bg-slate-800 text-slate-350 px-2 py-0.5 rounded-full">
+                                {prodStages.length} etapas
+                              </span>
+                            </button>
+
+                            {/* Contenedor del Grafo dentro del Acordeón */}
+                            {isAccordionOpen && (
+                              <div className="mt-3 p-4 bg-slate-950/80 rounded-xl border border-slate-850 space-y-4 animate-in fade-in slide-in-from-top-1 duration-200">
+                                <span className="text-[10px] uppercase font-bold text-slate-500 tracking-wider block">
+                                  Grafo de Progreso de Fabricación
+                                </span>
+
+                                <div className="flex flex-col md:flex-row md:items-center gap-4 md:gap-2 overflow-x-auto py-2">
+                                  {prodStages.map((stage, idx) => {
+                                    const task = assignments.find(
+                                      (t) =>
+                                        t.pedido_id === currentPedido.id &&
+                                        ((t as any).etapa_producto_id === stage.id ||
+                                          t.etapa_id === stage.id ||
+                                          t.etapa?.id === stage.id)
+                                    )
+                                    const state = task?.estado || 'pendiente'
+
+                                    const explicitDepIds = (stage as any).dependencias?.map((d: any) => d.id) || []
+                                    const isBlockedByExplicitDeps = explicitDepIds.some((depId: number) => {
+                                      const depTask = assignments.find(
+                                        (t) =>
+                                          t.pedido_id === currentPedido.id &&
+                                          ((t as any).etapa_producto_id === depId ||
+                                            t.etapa_id === depId ||
+                                            t.etapa?.id === depId)
+                                      )
+                                      return (depTask?.estado || 'pendiente') !== 'completado'
+                                    })
+
+                                    const isBlockedNode = state === 'bloqueada' || isBlockedByExplicitDeps
+
+                                    let nodeBg = 'bg-slate-900 border-slate-800 text-slate-400'
+                                    let stateLabel = 'Pendiente'
+                                    if (state === 'completado') {
+                                      nodeBg =
+                                        'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
+                                      stateLabel = 'Completado'
+                                    } else if (isBlockedNode) {
+                                      nodeBg = 'bg-rose-500/10 border-rose-500/30 text-rose-400'
+                                      stateLabel = 'Bloqueada'
+                                    } else if (state === 'en_progreso') {
+                                      nodeBg =
+                                        'bg-blue-500/10 border-blue-500/30 text-blue-400 shadow-[0_0_8px_rgba(59,130,246,0.15)] animate-pulse'
+                                      stateLabel = 'En Progreso'
+                                    }
+
+                                    const completionDate =
+                                      state === 'completado' && (task?.fecha_fin || task?.updated_at)
+                                        ? new Date(
+                                          task.fecha_fin || task.updated_at
+                                        ).toLocaleDateString('es-ES', {
+                                          day: 'numeric',
+                                          month: 'short',
+                                          year: 'numeric'
+                                        })
+                                        : null
+
+                                    return (
+                                      <div
+                                        key={stage.id}
+                                        className="flex flex-col md:flex-row md:items-center flex-shrink-0"
+                                      >
+                                        <div
+                                          className={`border p-2.5 rounded-xl text-center min-w-[130px] ${nodeBg}`}
+                                        >
+                                          <span className="text-[9px] font-bold uppercase tracking-wider text-slate-500 block mb-0.5">
+                                            Etapa {stage.orden}
+                                          </span>
+                                          <span
+                                            className="text-xs font-bold block truncate max-w-[120px]"
+                                            title={stage.nombre}
+                                          >
+                                            {stage.nombre}
+                                          </span>
+                                          <span className="text-[9px] font-medium block mt-1 uppercase">
+                                            {stateLabel}
+                                          </span>
+                                          {completionDate && (
+                                            <span
+                                              className="text-[9px] font-medium block mt-1 text-emerald-300/90 font-mono"
+                                              title={`Fecha de terminación: ${completionDate}`}
+                                            >
+                                              {completionDate}
+                                            </span>
+                                          )}
+                                          {state !== 'completado' && currentPedido.estado !== 'pendiente' && (
+                                            !isBlockedNode ? (
+                                              <button
+                                                type="button"
+                                                disabled={completingTaskId === (task?.id || stage.id)}
+                                                onClick={() => handleCompleteTask(task || null, stage)}
+                                                className="mt-2 w-full text-[10px] font-extrabold px-2 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 active:scale-95 disabled:opacity-50 text-white transition shadow flex items-center justify-center gap-1 cursor-pointer"
+                                                title="Completar esta etapa"
+                                              >
+                                                <span>✓</span>
+                                                <span>{completingTaskId === (task?.id || stage.id) ? 'Completo...' : 'Completar'}</span>
+                                              </button>
+                                            ) : (
+                                              <div
+                                                className="mt-2 w-full text-[10px] font-semibold px-2 py-1 rounded-lg bg-slate-900/90 text-rose-400/80 border border-rose-500/20 flex items-center justify-center gap-1 opacity-80"
+                                                title="Esta etapa requiere que se completen las etapas de las que depende"
+                                              >
+                                                <span>🔒</span>
+                                                <span>Bloqueada</span>
+                                              </div>
+                                            )
+                                          )}
+                                        </div>
+
+                                        {idx < prodStages.length - 1 && (
+                                          <div className="flex items-center justify-center py-1 md:py-0 md:px-2">
+                                            <span className="text-slate-600 font-bold hidden md:inline">
+                                              ➔
+                                            </span>
+                                            <span className="text-slate-600 font-bold md:hidden">
+                                              ↓
+                                            </span>
+                                          </div>
+                                        )}
+                                      </div>
+                                    )
+                                  })}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+
+                  {pds.length > 2 && (
+                    <div className="flex justify-center pt-2">
+                      <button
+                        type="button"
+                        onClick={() => setVerTodosProductos(!verTodosProductos)}
+                        className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-blue-400 hover:text-blue-300 text-xs font-bold rounded-lg transition"
+                      >
+                        {verTodosProductos ? 'Mostrar menos 🔼' : 'Ver todos los productos 🔽'}
+                      </button>
                     </div>
-                  )
-                })}
-
-                {pds.length > 2 && (
-                  <div className="flex justify-center pt-2">
-                    <button
-                      type="button"
-                      onClick={() => setVerTodosProductos(!verTodosProductos)}
-                      className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-blue-400 hover:text-blue-300 text-xs font-bold rounded-lg transition"
-                    >
-                      {verTodosProductos ? 'Mostrar menos 🔼' : 'Ver todos los productos 🔽'}
-                    </button>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Columna Derecha - Comentarios y Actividad */}
-        <div className="md:col-span-4 border-t md:border-t-0 md:border-l border-slate-800 pt-6 md:pt-0 md:pl-6 flex flex-col">
-          <h3 className="text-sm font-bold text-white flex items-center gap-2 mb-3 text-left">
-            <span>💬</span> Comentarios y Actividad
-          </h3>
-
-          <div className="space-y-2 mb-4 text-left">
-            <textarea
-              value={nuevoComentario}
-              onChange={(e) => setNuevoComentario(e.target.value)}
-              placeholder="Escribe un comentario..."
-              className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-xs text-white placeholder-slate-550 focus:outline-none focus:border-blue-500 transition resize-none h-16"
-            />
-            <button
-              type="button"
-              disabled={!nuevoComentario.trim() || isSubmittingComment}
-              onClick={handleAddComment}
-              className="px-3 py-1 bg-blue-600 hover:bg-blue-500 disabled:bg-slate-850 disabled:text-slate-650 text-white rounded text-xs font-semibold transition"
-            >
-              {isSubmittingComment ? 'Publicando...' : 'Comentar'}
-            </button>
-          </div>
-
-          <div className="space-y-3 flex-grow">
-            {!currentPedido.comentarios || currentPedido.comentarios.length === 0 ? (
-              <p className="text-xs text-slate-500 italic text-center py-4">
-                No hay comentarios en este pedido todavía.
-              </p>
-            ) : (
-              currentPedido.comentarios.map((c) => (
-                <div
-                  key={c.id}
-                  className="bg-slate-950/30 border border-slate-850/50 p-2.5 rounded-lg text-left space-y-1.5"
-                >
-                  <div className="flex items-center justify-between text-[10px]">
-                    <span className="font-bold text-slate-350">{c.user?.name || 'Usuario'}</span>
-                    <span className="text-slate-500 font-mono">
-                      {new Date(c.created_at).toLocaleDateString('es-AR')}{' '}
-                      {new Date(c.created_at).toLocaleTimeString('es-AR', {
-                        hour: '2-digit',
-                        minute: '2-digit'
-                      })}
-                    </span>
-                  </div>
-                  <p className="text-xs text-slate-200 leading-relaxed break-words">{c.cuerpo}</p>
+                  )}
                 </div>
-              ))
-            )}
+              )}
+            </div>
+          </div>
+
+          {/* Columna Derecha - Comentarios y Actividad */}
+          <div className="md:col-span-4 border-t md:border-t-0 md:border-l border-slate-800 pt-6 md:pt-0 md:pl-6 flex flex-col">
+            <h3 className="text-sm font-bold text-white flex items-center gap-2 mb-3 text-left">
+              <span>💬</span> Comentarios y Actividad
+            </h3>
+
+            <div className="space-y-2 mb-4 text-left">
+              <textarea
+                value={nuevoComentario}
+                onChange={(e) => setNuevoComentario(e.target.value)}
+                placeholder="Escribe un comentario..."
+                className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-xs text-white placeholder-slate-550 focus:outline-none focus:border-blue-500 transition resize-none h-16"
+              />
+              <button
+                type="button"
+                disabled={!nuevoComentario.trim() || isSubmittingComment}
+                onClick={handleAddComment}
+                className="px-3 py-1 bg-blue-600 hover:bg-blue-500 disabled:bg-slate-850 disabled:text-slate-650 text-white rounded text-xs font-semibold transition"
+              >
+                {isSubmittingComment ? 'Publicando...' : 'Comentar'}
+              </button>
+            </div>
+
+            <div className="space-y-3 flex-grow">
+              {!currentPedido.comentarios || currentPedido.comentarios.length === 0 ? (
+                <p className="text-xs text-slate-500 italic text-center py-4">
+                  No hay comentarios en este pedido todavía.
+                </p>
+              ) : (
+                currentPedido.comentarios.map((c) => (
+                  <div
+                    key={c.id}
+                    className="bg-slate-950/30 border border-slate-850/50 p-2.5 rounded-lg text-left space-y-1.5"
+                  >
+                    <div className="flex items-center justify-between text-[10px]">
+                      <span className="font-bold text-slate-350">{c.user?.name || 'Usuario'}</span>
+                      <span className="text-slate-500 font-mono">
+                        {new Date(c.created_at).toLocaleDateString('es-AR')}{' '}
+                        {new Date(c.created_at).toLocaleTimeString('es-AR', {
+                          hour: '2-digit',
+                          minute: '2-digit'
+                        })}
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-200 leading-relaxed break-words">{c.cuerpo}</p>
+                  </div>
+                ))
+              )}
+            </div>
           </div>
         </div>
       </div>
-    </div>
-  </Modal>
+    </Modal>
   )
 }
