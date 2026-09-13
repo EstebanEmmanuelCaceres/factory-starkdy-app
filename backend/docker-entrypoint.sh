@@ -197,6 +197,9 @@ setup_laravel() {
     # Caché de configuración y rutas
     php artisan config:clear --quiet
     php artisan route:clear --quiet
+
+    # Enlace simbólico para el almacenamiento público
+    php artisan storage:link --force --quiet || true
 }
 
 # ─────────────────────────────────────────────────────────────────

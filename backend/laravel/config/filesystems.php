@@ -13,7 +13,7 @@ return [
     |
     */
 
-    'default' => env('FILESYSTEM_DISK', 'local'),
+    'default' => env('FILESYSTEM_DISK', 'public'),
 
     /*
     |--------------------------------------------------------------------------
@@ -33,7 +33,7 @@ return [
         'local' => [
             'driver' => 'local',
             'root' => storage_path('app/private'),
-            'serve' => true,
+            'serve' => false,
             'throw' => false,
             'report' => false,
         ],
@@ -43,6 +43,7 @@ return [
             'root' => storage_path('app/public'),
             'url' => rtrim(env('APP_URL', 'http://localhost'), '/').'/storage',
             'visibility' => 'public',
+            'serve' => true,
             'throw' => false,
             'report' => false,
         ],

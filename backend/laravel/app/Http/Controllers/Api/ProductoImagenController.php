@@ -5,18 +5,18 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Producto;
 use App\Models\ProductoImagen;
-use App\Services\CloudinaryService;
+use App\Services\LocalStorageService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 
 class ProductoImagenController extends Controller
 {
-    protected CloudinaryService $cloudinaryService;
+    protected LocalStorageService $storageService;
 
-    public function __construct(CloudinaryService $cloudinaryService)
+    public function __construct(LocalStorageService $storageService)
     {
-        $this->cloudinaryService = $cloudinaryService;
+        $this->storageService = $storageService;
     }
 
     /**
@@ -78,10 +78,10 @@ class ProductoImagenController extends Controller
 
         $createdImages = [];
 
-        // 1. Procesar archivo individual "imagen" con CloudinaryService
+        // 1. Procesar archivo individual "imagen" con LocalStorageService
         if ($request->hasFile('imagen')) {
             $file = $request->file('imagen');
-            $uploadResult = $this->cloudinaryService->uploadImage($file);
+            $uploadResult = $this->storageService->uploadImage($file, "productos");
 
             $maxOrden++;
             $isPrincipal = !$hasPrincipal && count($createdImages) === 0;
@@ -99,10 +99,10 @@ class ProductoImagenController extends Controller
             }
         }
 
-        // 2. Procesar array de archivos "imagenes" con CloudinaryService
+        // 2. Procesar array de archivos "imagenes" con LocalStorageService
         if ($request->hasFile('imagenes')) {
             foreach ($request->file('imagenes') as $file) {
-                $uploadResult = $this->cloudinaryService->uploadImage($file);
+                $uploadResult = $this->storageService->uploadImage($file, "productos");
 
                 $maxOrden++;
                 $isPrincipal = !$hasPrincipal && count($createdImages) === 0;
@@ -240,9 +240,9 @@ class ProductoImagenController extends Controller
 
         $wasPrincipal = $imagen->es_principal;
 
-        // Eliminar archivo de Cloudinary o storage local mediante CloudinaryService
+        // Eliminar archivo de storage local mediante LocalStorageService
         if ($imagen->path_almacenamiento) {
-            $this->cloudinaryService->deleteImage($imagen->path_almacenamiento);
+            $this->storageService->deleteImage($imagen->path_almacenamiento);
         }
 
         $imagen->delete();
