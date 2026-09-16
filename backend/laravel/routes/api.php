@@ -13,6 +13,7 @@ use App\Http\Controllers\Api\EtapaDependenciaController;
 use App\Http\Controllers\Api\PagoController;
 use App\Http\Controllers\Api\ProductoImagenController;
 use App\Http\Controllers\Api\PedidoImagenController;
+use App\Http\Controllers\Api\UserController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -35,6 +36,18 @@ Route::middleware('auth:sanctum')->group(function () {
     });
 
     Route::get('/users', [AuthController::class, 'users'])->name('api.users.index');
+
+    // ── Módulo de Administración de Usuarios (Solo Admin) ───────────
+    Route::middleware('admin')->prefix('admin')->group(function () {
+        Route::get('users', [UserController::class, 'index']);
+        Route::post('users', [UserController::class, 'store']);
+        Route::get('users/{id}', [UserController::class, 'show']);
+        Route::patch('users/{id}', [UserController::class, 'update']);
+        Route::patch('users/{id}/role', [UserController::class, 'changeRole']);
+        Route::patch('users/{id}/password', [UserController::class, 'changePassword']);
+        Route::delete('users/{id}', [UserController::class, 'destroy']);
+        Route::get('roles', [UserController::class, 'roles']);
+    });
 
     // ── Módulos de fábrica ──────────────────────────────
     Route::get('productos', [ProductoController::class, 'index']);

@@ -49,6 +49,14 @@ const Icons = {
       <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
     </svg>
   ),
+  users: () => (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+      <circle cx="9" cy="7" r="4" />
+      <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+      <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+    </svg>
+  ),
 }
 
 // ── Estructura de navegación ───────────────────────────────────────
@@ -60,6 +68,7 @@ const NAV_SECTIONS = [
       { id: 'productos', label: 'Productos', href: '/dashboard/productos', Icon: Icons.products, available: true, roles: ['admin'] },
       { id: 'clientes', label: 'Clientes', href: '/dashboard/clientes', Icon: Icons.customers, available: true, roles: ['admin', 'encargado', 'vendedor', 'disenador', 'disenadora'] },
       { id: 'pedidos', label: 'Pedidos', href: '/dashboard/pedidos', Icon: Icons.orders, available: true, roles: ['admin', 'supervisor', 'encargado', 'vendedor', 'disenador', 'disenadora'] },
+      { id: 'usuarios', label: 'Usuarios', href: '/dashboard/usuarios', Icon: Icons.users, available: true, roles: ['admin'] },
       { id: 'saldos', label: 'Saldos Pendientes', href: '/dashboard/saldos', Icon: Icons.saldos, available: true, roles: ['vendedor', 'disenador', 'disenadora'] },
       { id: 'tareas', label: 'Mis Tareas', href: '/dashboard/tareas', Icon: Icons.orders, available: true, roles: ['operario', 'admin', 'supervisor', 'encargado'] },
       { id: 'historial', label: 'Historial de Producción', href: '/dashboard/historial', Icon: Icons.orders, available: true, roles: ['operario', 'admin', 'supervisor', 'encargado'] }
