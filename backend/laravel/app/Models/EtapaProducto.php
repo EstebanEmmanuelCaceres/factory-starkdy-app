@@ -70,4 +70,79 @@ class EtapaProducto extends Model
     {
         return $this->hasMany(ResponsableEtapa::class, 'etapa_producto_id');
     }
+
+    /**
+     * Reordena topológicamente (según dependencias) las etapas de un producto y actualiza la columna 'orden'.
+     */
+    public static function reordenarTopologicamentePorProducto(int $productoId): void
+    {
+        $etapas = static::where('producto_id', $productoId)
+            ->with('dependencias')
+            ->orderBy('orden', 'asc')
+            ->get();
+
+        if ($etapas->isEmpty()) {
+            return;
+        }
+
+        $etapaMap = [];
+        $inDegree = [];
+        $adj = [];
+        $originalOrdenMap = [];
+
+        foreach ($etapas as $etapa) {
+            $id = $etapa->id;
+            $etapaMap[$id] = $etapa;
+            $inDegree[$id] = 0;
+            $adj[$id] = [];
+            $originalOrdenMap[$id] = $etapa->orden;
+        }
+
+        foreach ($etapas as $etapa) {
+            $id = $etapa->id;
+            foreach ($etapa->dependencias as $dep) {
+                $depId = $dep->id;
+                if (isset($inDegree[$id]) && isset($adj[$depId])) {
+                    $adj[$depId][] = $id;
+                    $inDegree[$id]++;
+                }
+            }
+        }
+
+        $queue = [];
+        foreach ($etapas as $etapa) {
+            if ($inDegree[$etapa->id] === 0) {
+                $queue[] = $etapa->id;
+            }
+        }
+
+        usort($queue, function ($a, $b) use ($originalOrdenMap) {
+            return $originalOrdenMap[$a] <=> $originalOrdenMap[$b];
+        });
+
+        $sortedIds = [];
+
+        while (!empty($queue)) {
+            $currentId = array_shift($queue);
+            $sortedIds[] = $currentId;
+
+            foreach ($adj[$currentId] as $neighborId) {
+                $inDegree[$neighborId]--;
+                if ($inDegree[$neighborId] === 0) {
+                    $queue[] = $neighborId;
+                    usort($queue, function ($a, $b) use ($originalOrdenMap) {
+                        return $originalOrdenMap[$a] <=> $originalOrdenMap[$b];
+                    });
+                }
+            }
+        }
+
+        if (count($sortedIds) === count($etapas)) {
+            $nuevoOrden = 1;
+            foreach ($sortedIds as $stageId) {
+                static::where('id', $stageId)->update(['orden' => $nuevoOrden]);
+                $nuevoOrden++;
+            }
+        }
+    }
 }

@@ -4,6 +4,7 @@ import { useEffect, useState, useRef } from 'react'
 import RoleGuard from '@/components/RoleGuard'
 import Modal from '@/components/Modal'
 import PedidoDetailModal from '@/components/PedidoDetailModal'
+import EditPedidoModal from '@/components/EditPedidoModal'
 import OrderImageGallery from '@/components/OrderImageGallery'
 import { fetchUsers, getStoredUser, type User } from '@/lib/auth'
 import { fetchPedidos, updatePedido, createPedidoComentario, type Pedido, type PedidoFilters } from '@/lib/pedidos'
@@ -21,6 +22,7 @@ export default function DashboardPage() {
 
   // Modal de Detalle Completo del Pedido, Galería de Imágenes y Cobros
   const [selectedPedidoForCommentModal, setSelectedPedidoForCommentModal] = useState<Pedido | null>(null)
+  const [selectedPedidoForEdit, setSelectedPedidoForEdit] = useState<Pedido | null>(null)
   const [isImagesModalOpen, setIsImagesModalOpen] = useState(false)
   const [selectedPedidoForImages, setSelectedPedidoForImages] = useState<Pedido | null>(null)
   const [selectedPedidoForPayments, setSelectedPedidoForPayments] = useState<Pedido | null>(null)
@@ -30,6 +32,7 @@ export default function DashboardPage() {
 
   // Meses y Años para el filtro de comisiones
   const monthsList = [
+    { value: 0, label: 'Todos los meses' },
     { value: 1, label: 'Enero' },
     { value: 2, label: 'Febrero' },
     { value: 3, label: 'Marzo' },
@@ -221,6 +224,17 @@ export default function DashboardPage() {
 
   // Usuarios con rol de Vendedor
   const vendedores = users.filter((u) => u.role === 'vendedor')
+  const isAdmin = currentUser?.role === 'admin'
+
+  // Helper para obtener YYYY-MM de un pedido
+  const getPedidoMonthKey = (p: Pedido) => {
+    const rawDate = p.created_at || p.fecha_entrega
+    if (!rawDate) return ''
+    const dateStr = rawDate.includes(' ') && !rawDate.includes('T') ? rawDate.replace(' ', 'T') : rawDate
+    const d = new Date(dateStr)
+    if (isNaN(d.getTime())) return ''
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+  }
 
   // Filtro de fecha de comisión visible si es vendedor o si Admin/Supervisor ha seleccionado un vendedor
   const showDateFilter = isVendedor || !!selectedVendedorId
@@ -233,10 +247,36 @@ export default function DashboardPage() {
   // Cálculo de Cobros en el Mes/Año seleccionado y Comisión (2%)
   const selectedMonthKey = `${selectedCommissionYear}-${String(selectedCommissionMonth).padStart(2, '0')}`
 
+  // Pedidos del periodo y vendedor filtrado para métricas de Admin
+  const adminFilteredPedidos = scopedPedidos.filter((p) => {
+    const matchesMonth = selectedCommissionMonth === 0 || getPedidoMonthKey(p) === selectedMonthKey
+    const matchesVendedor = !selectedVendedorId || p.user_id === Number(selectedVendedorId)
+    return matchesMonth && matchesVendedor
+  })
+
+  const adminTotalValorPedidos = adminFilteredPedidos.reduce((sum, p) => sum + (Number(p.precio) || 0), 0)
+
+  const adminTotalCobrado = adminFilteredPedidos.reduce((sum, p) => {
+    const paidAmount = p.pagos
+      ? p.pagos.filter(pago => pago.estado === 'pagado').reduce((s, pago) => s + Number(pago.monto), 0)
+      : (p.pago && p.pago.estado === 'pagado' ? Number(p.pago.monto) : 0)
+    return sum + paidAmount
+  }, 0)
+
+  const adminTotalPorCobrar = adminFilteredPedidos.reduce((sum, p) => {
+    const precio = Number(p.precio) || 0
+    const paidAmount = p.pagos
+      ? p.pagos.filter(pago => pago.estado === 'pagado').reduce((s, pago) => s + Number(pago.monto), 0)
+      : (p.pago && p.pago.estado === 'pagado' ? Number(p.pago.monto) : 0)
+    const pending = Math.max(0, precio - paidAmount)
+    return sum + pending
+  }, 0)
+
   const totalCobradoMes = commissionPedidos.reduce((sum, p) => {
     const payments = p.pagos || (p.pago ? [p.pago] : [])
     const monthPayments = payments.filter((pago) => {
       if (pago.estado !== 'pagado') return false
+      if (selectedCommissionMonth === 0) return true
       const rawDate = pago.fecha_pago || pago.created_at || pago.pagado_at
       if (!rawDate) return false
       const dateStr = rawDate.includes(' ') && !rawDate.includes('T') ? rawDate.replace(' ', 'T') : rawDate
@@ -248,7 +288,17 @@ export default function DashboardPage() {
     return sum + monthPayments.reduce((s, pago) => s + Number(pago.monto), 0)
   }, 0)
 
-  const comisionMes = showDateFilter ? totalCobradoMes * 0.02 : 0
+  const getCommissionRate = (totalCobrado: number): number => {
+    if (totalCobrado >= 51_000_000) return 0.04
+    if (totalCobrado >= 40_000_000) return 0.03
+    return 0.02
+  }
+
+  const commissionRate = getCommissionRate(totalCobradoMes)
+  const comisionPercentageText = `${(commissionRate * 100).toFixed(0)}%`
+  const comisionMes = showDateFilter ? totalCobradoMes * commissionRate : 0
+
+  const selectedVendedorName = selectedVendedorId ? vendedores.find(v => v.id === Number(selectedVendedorId))?.name : null
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('es-AR', {
@@ -351,57 +401,28 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* Tarjetas de Métricas de Cobros y Comisiones (Solo para roles con métricas financieras) */}
+        {/* Tarjetas de Métricas de Cobros y Comisiones */}
         {!isEncargado && (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {/* Plata Cobrada */}
-            <div className="relative overflow-hidden bg-gradient-to-br from-emerald-950/40 to-slate-900 border border-emerald-500/20 rounded-2xl p-6 shadow-xl flex items-center gap-5 hover:border-emerald-500/40 transition duration-300">
-              <div className="absolute top-0 right-0 -mt-4 -mr-4 w-24 h-24 bg-emerald-500/10 rounded-full blur-xl pointer-events-none"></div>
-              <div className="flex items-center justify-center w-14 h-14 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-3xl shadow-inner select-none">
-                💵
-              </div>
-              <div>
-                <span className="block text-xs font-semibold text-emerald-400 uppercase tracking-widest">Plata Cobrada</span>
-                <span className="block text-2xl md:text-3xl font-black text-white mt-1 font-mono">
-                  {loadingPedidos ? 'Cargando...' : formatCurrency(totalCobrado)}
-                </span>
-                <span className="block text-xs text-slate-500 mt-1.5">Pagos exitosos acumulados</span>
-              </div>
-            </div>
-
-            {/* Plata por Cobrar */}
-            <div className="relative overflow-hidden bg-gradient-to-br from-amber-950/30 to-slate-900 border border-amber-500/20 rounded-2xl p-6 shadow-xl flex items-center gap-5 hover:border-amber-500/40 transition duration-300">
-              <div className="absolute top-0 right-0 -mt-4 -mr-4 w-24 h-24 bg-amber-500/10 rounded-full blur-xl pointer-events-none"></div>
-              <div className="flex items-center justify-center w-14 h-14 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400 text-3xl shadow-inner select-none">
-                ⏳
-              </div>
-              <div>
-                <span className="block text-xs font-semibold text-amber-400 uppercase tracking-widest">Plata por Cobrar</span>
-                <span className="block text-2xl md:text-3xl font-black text-white mt-1 font-mono">
-                  {loadingPedidos ? 'Cargando...' : formatCurrency(totalPorCobrar)}
-                </span>
-                <span className="block text-xs text-slate-500 mt-1.5">Saldos pendientes de cobro</span>
-              </div>
-            </div>
-
-            {/* Caja de Comisión (2% del mes) */}
-            <div className="relative overflow-hidden bg-gradient-to-br from-blue-950/40 to-slate-900 border border-blue-500/20 rounded-2xl p-6 shadow-xl flex flex-col justify-between hover:border-blue-500/40 transition duration-300">
-              <div className="absolute top-0 right-0 -mt-4 -mr-4 w-24 h-24 bg-blue-500/10 rounded-full blur-xl pointer-events-none"></div>
-              <div>
-                <div className="flex items-center justify-between gap-2 mb-3">
-                  <div className="flex items-center gap-2">
-                    <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-blue-500/10 border border-blue-500/20 text-blue-400 text-xl shadow-inner select-none">
-                      💼
+          isAdmin ? (
+            /* VISTA DE 3 CAJAS REDISEÑADAS PARA EL ROL ADMIN CON GRID ADAPTATIVO POR RESOLUCIÓN */
+            <div className="grid grid-cols-1 min-[718px]:grid-cols-2 min-[1501px]:grid-cols-3 gap-6">
+              {/* CAJA 1: Valor Total de Pedidos (Fila 1 Col 1 en 718px-1500px, Col 1 en >1500px) */}
+              <div className="relative overflow-hidden bg-gradient-to-br from-blue-950/40 to-slate-900 border border-blue-500/20 rounded-2xl p-6 shadow-xl flex flex-col justify-between hover:border-blue-500/40 transition duration-300 min-[718px]:col-span-1 min-[718px]:order-1 min-[1501px]:col-span-1 min-[1501px]:order-1">
+                <div className="absolute top-0 right-0 -mt-4 -mr-4 w-24 h-24 bg-blue-500/10 rounded-full blur-xl pointer-events-none"></div>
+                <div>
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
+                    <div className="flex items-center gap-2">
+                      <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-blue-500/10 border border-blue-500/20 text-blue-400 text-xl shadow-inner select-none shrink-0">
+                        📊
+                      </div>
+                      <div>
+                        <span className="block text-xs font-semibold text-blue-400 uppercase tracking-wider">Valor Total Pedidos</span>
+                        <span className="block text-[10px] text-slate-400">Total acumulado del periodo</span>
+                      </div>
                     </div>
-                    <div>
-                      <span className="block text-xs font-semibold text-blue-400 uppercase tracking-wider">Comisión (2%)</span>
-                      <span className="block text-[10px] text-slate-400">Sobre cobrado del mes</span>
-                    </div>
-                  </div>
 
-                  {/* Selectores de Mes y Año: Solo si hay vendedor elegido o si el usuario es vendedor */}
-                  {showDateFilter && (
-                    <div className="flex items-center gap-1.5">
+                    {/* Selectores de Mes y Año */}
+                    <div className="flex items-center gap-1.5 shrink-0">
                       <select
                         value={selectedCommissionMonth}
                         onChange={(e) => setSelectedCommissionMonth(Number(e.target.value))}
@@ -426,11 +447,44 @@ export default function DashboardPage() {
                         ))}
                       </select>
                     </div>
-                  )}
+                  </div>
                 </div>
 
-                {/* Selector de Vendedor para Admin / Supervisor */}
-                {!isVendedor && (
+                <div>
+                  <span className="block text-2xl md:text-3xl font-black text-white mt-1 font-mono">
+                    {loadingPedidos ? 'Cargando...' : formatCurrency(adminTotalValorPedidos)}
+                  </span>
+                  <span className="block text-[11px] text-slate-400 mt-1.5 truncate">
+                    {selectedVendedorName
+                      ? `Pedidos de ${selectedVendedorName} ${selectedCommissionMonth === 0 ? '(Todos los meses)' : `en ${monthsList.find(m => m.value === selectedCommissionMonth)?.label} ${selectedCommissionYear}`}`
+                      : (selectedCommissionMonth === 0
+                          ? `Suma total de ${adminFilteredPedidos.length} pedidos registrados`
+                          : `Suma total de pedidos en ${monthsList.find(m => m.value === selectedCommissionMonth)?.label} ${selectedCommissionYear}`)}
+                  </span>
+                </div>
+              </div>
+
+              {/* CAJA 3: Comisión Variable (Fila 1 Col 2 en 718px-1500px, Col 3 en >1500px) */}
+              <div className="relative overflow-hidden bg-gradient-to-br from-blue-950/40 to-slate-900 border border-blue-500/20 rounded-2xl p-6 shadow-xl flex flex-col justify-between hover:border-blue-500/40 transition duration-300 min-[718px]:col-span-1 min-[718px]:order-2 min-[1501px]:col-span-1 min-[1501px]:order-3">
+                <div className="absolute top-0 right-0 -mt-4 -mr-4 w-24 h-24 bg-blue-500/10 rounded-full blur-xl pointer-events-none"></div>
+                <div>
+                  <div className="flex items-center justify-between gap-2 mb-3">
+                    <div className="flex items-center gap-2">
+                      <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-blue-500/10 border border-blue-500/20 text-blue-400 text-xl shadow-inner select-none">
+                        💼
+                      </div>
+                      <div>
+                        <span className="block text-xs font-semibold text-blue-400 uppercase tracking-wider">
+                          Comisión ({comisionPercentageText})
+                        </span>
+                        <span className="block text-[10px] text-slate-400">
+                          Escala: 0-39M (2%) • 40-50M (3%) • 51M+ (4%)
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Selector de Vendedor para Admin / Supervisor */}
                   <div className="mb-3">
                     <select
                       value={selectedVendedorId}
@@ -445,21 +499,171 @@ export default function DashboardPage() {
                       ))}
                     </select>
                   </div>
-                )}
+                </div>
+
+                <div>
+                  <span className="block text-2xl md:text-3xl font-black text-white mt-1 font-mono">
+                    {loadingPedidos ? 'Cargando...' : formatCurrency(comisionMes)}
+                  </span>
+                  <span className="block text-[11px] text-slate-400 mt-1.5 truncate">
+                    {selectedVendedorId
+                      ? `${comisionPercentageText} de ${formatCurrency(totalCobradoMes)} cobrados ${selectedCommissionMonth === 0 ? '(Todos los meses)' : `en ${monthsList.find(m => m.value === selectedCommissionMonth)?.label || 'el mes'} ${selectedCommissionYear}`}`
+                      : 'Seleccione un vendedor para calcular su comisión'}
+                  </span>
+                </div>
               </div>
 
-              <div>
-                <span className="block text-2xl md:text-3xl font-black text-white mt-1 font-mono">
-                  {loadingPedidos ? 'Cargando...' : formatCurrency(comisionMes)}
-                </span>
-                <span className="block text-[11px] text-slate-400 mt-1.5 truncate">
-                  {showDateFilter
-                    ? `2% de ${formatCurrency(totalCobradoMes)} cobrados en ${monthsList.find(m => m.value === selectedCommissionMonth)?.label} ${selectedCommissionYear}`
-                    : 'Seleccione un vendedor para calcular su comisión'}
-                </span>
+              {/* CAJA 2: Plata Cobrada y Plata por Cobrar (Fila 2 Spans 2 Cols en 718px-1500px, Col 2 en >1500px) */}
+              <div className="relative overflow-hidden bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl flex flex-col justify-between gap-3 hover:border-slate-700 transition duration-300 min-[718px]:col-span-2 min-[718px]:order-3 min-[1501px]:col-span-1 min-[1501px]:order-2">
+                <div className="grid grid-cols-1 min-[718px]:grid-cols-2 min-[1501px]:grid-cols-1 gap-3 h-full">
+                  {/* Fila/Columna 1: Plata Cobrada (Verde Esmeralda) */}
+                  <div className="bg-gradient-to-r from-emerald-950/50 to-slate-950/60 border border-emerald-500/25 rounded-xl p-3.5 flex items-center justify-between gap-3 shadow-inner">
+                    <div className="flex items-center gap-3">
+                      <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xl shadow-inner select-none shrink-0">
+                        💵
+                      </div>
+                      <div>
+                        <span className="block text-[10px] font-bold text-emerald-400 uppercase tracking-wider">Plata Cobrada</span>
+                        <span className="block text-xl font-black text-white font-mono leading-tight">
+                          {loadingPedidos ? 'Cargando...' : formatCurrency(adminTotalCobrado)}
+                        </span>
+                      </div>
+                    </div>
+                    <span className="text-[10px] text-emerald-500/80 font-medium hidden sm:inline-block">Pagos acumulados</span>
+                  </div>
+
+                  {/* Fila/Columna 2: Plata por Cobrar (Amarillo / Ámbar) */}
+                  <div className="bg-gradient-to-r from-amber-950/40 to-slate-950/60 border border-amber-500/25 rounded-xl p-3.5 flex items-center justify-between gap-3 shadow-inner">
+                    <div className="flex items-center gap-3">
+                      <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-400 text-xl shadow-inner select-none shrink-0">
+                        ⏳
+                      </div>
+                      <div>
+                        <span className="block text-[10px] font-bold text-amber-400 uppercase tracking-wider">Plata por Cobrar</span>
+                        <span className="block text-xl font-black text-white font-mono leading-tight">
+                          {loadingPedidos ? 'Cargando...' : formatCurrency(adminTotalPorCobrar)}
+                        </span>
+                      </div>
+                    </div>
+                    <span className="text-[10px] text-amber-500/80 font-medium hidden sm:inline-block">Saldos pendientes</span>
+                  </div>
+                </div>
               </div>
             </div>
-          </div>
+          ) : (
+            /* VISTA ORIGINAL PARA VENDEDORES Y OTROS ROLES */
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {/* Plata Cobrada */}
+              <div className="relative overflow-hidden bg-gradient-to-br from-emerald-950/40 to-slate-900 border border-emerald-500/20 rounded-2xl p-6 shadow-xl flex items-center gap-5 hover:border-emerald-500/40 transition duration-300">
+                <div className="absolute top-0 right-0 -mt-4 -mr-4 w-24 h-24 bg-emerald-500/10 rounded-full blur-xl pointer-events-none"></div>
+                <div className="flex items-center justify-center w-14 h-14 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-3xl shadow-inner select-none">
+                  💵
+                </div>
+                <div>
+                  <span className="block text-xs font-semibold text-emerald-400 uppercase tracking-widest">Plata Cobrada</span>
+                  <span className="block text-2xl md:text-3xl font-black text-white mt-1 font-mono">
+                    {loadingPedidos ? 'Cargando...' : formatCurrency(totalCobrado)}
+                  </span>
+                  <span className="block text-xs text-slate-500 mt-1.5">Pagos exitosos acumulados</span>
+                </div>
+              </div>
+
+              {/* Plata por Cobrar */}
+              <div className="relative overflow-hidden bg-gradient-to-br from-amber-950/30 to-slate-900 border border-amber-500/20 rounded-2xl p-6 shadow-xl flex items-center gap-5 hover:border-amber-500/40 transition duration-300">
+                <div className="absolute top-0 right-0 -mt-4 -mr-4 w-24 h-24 bg-amber-500/10 rounded-full blur-xl pointer-events-none"></div>
+                <div className="flex items-center justify-center w-14 h-14 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400 text-3xl shadow-inner select-none">
+                  ⏳
+                </div>
+                <div>
+                  <span className="block text-xs font-semibold text-amber-400 uppercase tracking-widest">Plata por Cobrar</span>
+                  <span className="block text-2xl md:text-3xl font-black text-white mt-1 font-mono">
+                    {loadingPedidos ? 'Cargando...' : formatCurrency(totalPorCobrar)}
+                  </span>
+                  <span className="block text-xs text-slate-500 mt-1.5">Saldos pendientes de cobro</span>
+                </div>
+              </div>
+
+              {/* Caja de Comisión (2% del mes) */}
+              <div className="relative overflow-hidden bg-gradient-to-br from-blue-950/40 to-slate-900 border border-blue-500/20 rounded-2xl p-6 shadow-xl flex flex-col justify-between hover:border-blue-500/40 transition duration-300">
+                <div className="absolute top-0 right-0 -mt-4 -mr-4 w-24 h-24 bg-blue-500/10 rounded-full blur-xl pointer-events-none"></div>
+                <div>
+                  <div className="flex items-center justify-between gap-2 mb-3">
+                    <div className="flex items-center gap-2">
+                      <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-blue-500/10 border border-blue-500/20 text-blue-400 text-xl shadow-inner select-none">
+                        💼
+                      </div>
+                      <div>
+                        <span className="block text-xs font-semibold text-blue-400 uppercase tracking-wider">
+                          Comisión ({comisionPercentageText})
+                        </span>
+                        <span className="block text-[10px] text-slate-400">
+                          Escala: 0-39M (2%) • 40-50M (3%) • 51M+ (4%)
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Selectores de Mes y Año */}
+                    {showDateFilter && (
+                      <div className="flex items-center gap-1.5">
+                        <select
+                          value={selectedCommissionMonth}
+                          onChange={(e) => setSelectedCommissionMonth(Number(e.target.value))}
+                          className="bg-slate-950 border border-slate-800 focus:border-blue-500 rounded-lg px-2 py-1 text-xs text-slate-200 focus:outline-none transition cursor-pointer capitalize"
+                        >
+                          {monthsList.map((m) => (
+                            <option key={m.value} value={m.value}>
+                              {m.label}
+                            </option>
+                          ))}
+                        </select>
+
+                        <select
+                          value={selectedCommissionYear}
+                          onChange={(e) => setSelectedCommissionYear(Number(e.target.value))}
+                          className="bg-slate-950 border border-slate-800 focus:border-blue-500 rounded-lg px-2 py-1 text-xs text-slate-200 focus:outline-none transition cursor-pointer"
+                        >
+                          {yearsList.map((yr) => (
+                            <option key={yr} value={yr}>
+                              {yr}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Selector de Vendedor para Admin / Supervisor */}
+                  {!isVendedor && (
+                    <div className="mb-3">
+                      <select
+                        value={selectedVendedorId}
+                        onChange={(e) => setSelectedVendedorId(e.target.value)}
+                        className="w-full bg-slate-950 border border-slate-800 focus:border-blue-500 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none transition cursor-pointer font-medium"
+                      >
+                        <option value="">-- Seleccionar Vendedor --</option>
+                        {vendedores.map((v) => (
+                          <option key={v.id} value={v.id}>
+                            👤 {v.name} ({v.email})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+                </div>
+
+                <div>
+                  <span className="block text-2xl md:text-3xl font-black text-white mt-1 font-mono">
+                    {loadingPedidos ? 'Cargando...' : formatCurrency(comisionMes)}
+                  </span>
+                  <span className="block text-[11px] text-slate-400 mt-1.5 truncate">
+                    {showDateFilter
+                      ? `${comisionPercentageText} de ${formatCurrency(totalCobradoMes)} cobrados ${selectedCommissionMonth === 0 ? '(Todos los meses)' : `en ${monthsList.find(m => m.value === selectedCommissionMonth)?.label || 'el mes'} ${selectedCommissionYear}`}`
+                      : 'Seleccione un vendedor para calcular su comisión'}
+                  </span>
+                </div>
+              </div>
+            </div>
+          )
         )}
 
         {/* Grid de Tablas: Pedidos Actuales + Completados por Cobrar */}
@@ -1025,6 +1229,9 @@ export default function DashboardPage() {
             setSelectedPedidoForCommentModal(updated)
             setPedidos((prev) => prev.map((item) => (item.id === updated.id ? updated : item)))
           }}
+          onOpenEdit={(pedidoToEdit) => {
+            setSelectedPedidoForEdit(pedidoToEdit)
+          }}
           onOpenGallery={(p) => {
             setSelectedPedidoForImages(p)
             setIsImagesModalOpen(true)
@@ -1032,6 +1239,20 @@ export default function DashboardPage() {
           onOpenPayments={(pedidoToPay) => {
             setSelectedPedidoForPayments(pedidoToPay)
             setIsPaymentsModalOpen(true)
+          }}
+        />
+
+        {/* Modal de Edición de Pedido */}
+        <EditPedidoModal
+          isOpen={!!selectedPedidoForEdit}
+          pedido={selectedPedidoForEdit}
+          onClose={() => setSelectedPedidoForEdit(null)}
+          onPedidoUpdated={(updatedPedido) => {
+            setSelectedPedidoForEdit(null)
+            fetchPedidos(filters).then(setPedidos).catch(console.error)
+            if (selectedPedidoForCommentModal && selectedPedidoForCommentModal.id === updatedPedido.id) {
+              setSelectedPedidoForCommentModal(updatedPedido)
+            }
           }}
         />
 

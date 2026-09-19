@@ -19,6 +19,7 @@ import {
   fetchEtapas,
   fetchEtapasCatalog,
   syncEtapas,
+  topologicalSortEtapas,
   type Etapa,
   type EtapaCatalog,
   type SyncEtapaItemInput
@@ -99,7 +100,7 @@ export default function ProductosPage() {
     setStagesError('')
     try {
       const data = await fetchEtapas({ producto_id: productId })
-      setStages(data)
+      setStages(topologicalSortEtapas(data))
       setHasUnsavedChanges(false)
       await loadCatalog()
     } catch (err: unknown) {
@@ -176,7 +177,7 @@ export default function ProductosPage() {
         }
         return s
       })
-      setStages(updated)
+      setStages(topologicalSortEtapas(updated))
       setEditingStage(null)
       showNotification('Etapa modificada localmente')
     } else {
@@ -192,7 +193,7 @@ export default function ProductosPage() {
         updated_at: new Date().toISOString(),
         dependencias: selectedDeps
       }
-      setStages([...stages, newStage])
+      setStages(topologicalSortEtapas([...stages, newStage]))
       showNotification('Etapa agregada localmente')
     }
 
@@ -239,7 +240,7 @@ export default function ProductosPage() {
         return s
       })
 
-    setStages(updated)
+    setStages(topologicalSortEtapas(updated))
     setEditingStage(null)
     setHasUnsavedChanges(true)
     showNotification('Etapa eliminada localmente')
@@ -273,7 +274,7 @@ export default function ProductosPage() {
 
     try {
       const updatedData = await syncEtapas(selectedProductForStages.id, formattedEtapas)
-      setStages(updatedData)
+      setStages(topologicalSortEtapas(updatedData))
       setHasUnsavedChanges(false)
       showNotification('Etapas guardadas en el servidor correctamente')
     } catch (err: unknown) {

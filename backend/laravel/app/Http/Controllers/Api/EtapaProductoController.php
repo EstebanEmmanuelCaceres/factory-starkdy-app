@@ -28,6 +28,8 @@ class EtapaProductoController extends Controller
             ], 404);
         }
 
+        EtapaProducto::reordenarTopologicamentePorProducto((int) $productId);
+
         $etapasProductos = EtapaProducto::where('producto_id', $productId)
             ->with(['etapa', 'dependencias.etapa'])
             ->orderBy('orden', 'asc')
@@ -170,6 +172,9 @@ class EtapaProductoController extends Controller
                     $epModel->dependencias()->sync($depIds);
                 }
             }
+
+            // Reordenar topológicamente según dependencias
+            EtapaProducto::reordenarTopologicamentePorProducto((int) $productId);
 
             DB::commit();
 

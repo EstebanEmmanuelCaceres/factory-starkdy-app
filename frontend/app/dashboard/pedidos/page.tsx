@@ -5,6 +5,7 @@ import RoleGuard from '@/components/RoleGuard'
 import OrderImageGallery from '@/components/OrderImageGallery'
 import Modal from '@/components/Modal'
 import PedidoDetailModal from '@/components/PedidoDetailModal'
+import EditPedidoModal from '@/components/EditPedidoModal'
 import PaymentModal from '@/components/PaymentModal'
 import { fetchOrderImages } from '@/lib/entities/orderImages'
 import {
@@ -26,7 +27,7 @@ import {
 import { fetchClientes, createCliente as createNewClient, type Cliente } from '@/lib/clientes'
 import { fetchProducts, type Product } from '@/lib/products'
 import { getStoredUser, fetchUsers, type User } from '@/lib/auth'
-import { fetchEtapas, type Etapa } from '@/lib/entities/etapas'
+import { fetchEtapas, topologicalSortEtapas, type Etapa } from '@/lib/entities/etapas'
 import {
   fetchResponsablesEtapas,
   assignTask,
@@ -708,7 +709,7 @@ export default function PedidosPage() {
 
   const getProductCurrentStage = (pedidoId: number, productStages: Etapa[], tasks: ResponsableEtapa[]) => {
     const pedidoTasks = tasks.filter(t => t.pedido_id === pedidoId)
-    const sortedStages = [...productStages].sort((a, b) => a.orden - b.orden)
+    const sortedStages = topologicalSortEtapas(productStages)
 
     // Buscar la primera tarea que no esté completada
     for (const stage of sortedStages) {
@@ -1136,8 +1137,18 @@ export default function PedidosPage() {
                           )}
                           <div>
                             <span className="font-bold text-white text-base block">
-                              {pedido.cliente?.nombre_empresa || pedido.cliente?.nombre_cliente || 'Sin empresa'}
+                              {pedido.cliente?.nombre_empresa || pedido.cliente?.nombre_cliente || `Pedido #${pedido.id}`}
                             </span>
+                            {pedido.cliente?.nombre_empresa && pedido.cliente?.nombre_cliente && (
+                              <span className="text-xs text-slate-400 block font-medium">
+                                {pedido.cliente.nombre_cliente} • #{pedido.id}
+                              </span>
+                            )}
+                            {(!pedido.cliente?.nombre_empresa || !pedido.cliente?.nombre_cliente) && (
+                              <span className="text-xs text-slate-500 font-mono block">
+                                #{pedido.id}
+                              </span>
+                            )}
                           </div>
                         </div>
                         <div className="flex flex-col items-end gap-1">
@@ -1254,7 +1265,7 @@ export default function PedidosPage() {
                     <tr className="border-b border-slate-800 bg-slate-950/40 text-slate-400 font-semibold text-xs uppercase tracking-wider select-none">
                       <th className="px-6 py-4">Portada</th>
                       <th onClick={() => handleSort('cliente')} className="px-6 py-4 cursor-pointer hover:text-white transition text-left">
-                        Cliente {sortField === 'cliente' ? (sortDirection === 'asc' ? ' ▲' : ' ▼') : ''}
+                        Empresa / Cliente {sortField === 'cliente' ? (sortDirection === 'asc' ? ' ▲' : ' ▼') : ''}
                       </th>
                       <th onClick={() => handleSort('productos')} className="px-6 py-4 text-center cursor-pointer hover:text-white transition">
                         Productos {sortField === 'productos' ? (sortDirection === 'asc' ? ' ▲' : ' ▼') : ''}
@@ -1320,9 +1331,21 @@ export default function PedidosPage() {
                             )}
                           </td>
                           <td className="px-6 py-4">
-                            <span className="font-semibold text-white">
-                              {pedido.cliente?.nombre_empresa || pedido.cliente?.nombre_cliente || 'Sin empresa'}
-                            </span>
+                            <div className="flex flex-col">
+                              <span className="font-semibold text-white text-sm">
+                                {pedido.cliente?.nombre_empresa || pedido.cliente?.nombre_cliente || `Pedido #${pedido.id}`}
+                              </span>
+                              {pedido.cliente?.nombre_empresa && pedido.cliente?.nombre_cliente && (
+                                <span className="text-xs text-slate-400 font-medium">
+                                  {pedido.cliente.nombre_cliente} • #{pedido.id}
+                                </span>
+                              )}
+                              {(!pedido.cliente?.nombre_empresa || !pedido.cliente?.nombre_cliente) && (
+                                <span className="text-xs text-slate-500 font-mono">
+                                  #{pedido.id}
+                                </span>
+                              )}
+                            </div>
                           </td>
                           <td className="px-6 py-4 max-w-xs">
                             {pedido.productos && pedido.productos.length > 0 ? (
@@ -2200,9 +2223,9 @@ export default function PedidosPage() {
                       <div className="space-y-4 max-h-[300px] overflow-y-auto bg-slate-950/60 p-3 rounded-lg border border-slate-800">
                         {formData.selectedProductIds.map((prodId) => {
                           const product = productos.find(p => p.id === prodId)
-                          const productStages = localEtapas
-                            .filter(s => s.producto_id === prodId)
-                            .sort((a, b) => a.orden - b.orden)
+                          const productStages = topologicalSortEtapas(
+                            localEtapas.filter(s => s.producto_id === prodId)
+                          )
 
                           return (
                             <div key={prodId} className="space-y-2 bg-slate-900/60 p-3 rounded-lg border border-slate-800/40">
@@ -2389,332 +2412,26 @@ export default function PedidosPage() {
             )}
           </Modal>
         )}
-
-        {/* Modal de Edición */}
-        {isEditModalOpen && selectedPedido && (
-          <Modal
-            isOpen={isEditModalOpen}
-            onClose={() => setIsEditModalOpen(false)}
-            className="max-w-xl p-6"
-          >
-            <h2 className="text-xl font-bold text-white mb-4">Editar Pedido</h2>
-            <form onSubmit={handleEditSubmit} className="space-y-4 text-slate-300">
-              <div className="relative">
-                <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5 flex items-center justify-between">
-                  <span>Cliente *</span>
-                  <button
-                    type="button"
-                    onClick={handleOpenCreateClienteModal}
-                    className="text-xs text-blue-450 hover:text-blue-300 font-semibold"
-                  >
-                    + Nuevo Cliente
-                  </button>
-                </label>
-                <input
-                  type="text"
-                  placeholder="Buscar cliente..."
-                  value={clientSearchText}
-                  onChange={(e) => {
-                    setClientSearchText(e.target.value)
-                    setIsClientDropdownOpen(true)
-                  }}
-                  onFocus={() => setIsClientDropdownOpen(true)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition"
-                />
-                {isClientDropdownOpen && (
-                  <>
-                    <div className="fixed inset-0 z-40" onClick={() => setIsClientDropdownOpen(false)} />
-                    <div className="absolute z-50 left-0 right-0 mt-1 max-h-60 overflow-y-auto bg-slate-950 border border-slate-800 rounded-lg shadow-xl divide-y divide-slate-900 text-left">
-                      {clientes
-                        .filter((c) => {
-                          const query = clientSearchText.toLowerCase().trim()
-                          return (
-                            (c.nombre_cliente || '').toLowerCase().includes(query) ||
-                            (c.nombre_empresa || '').toLowerCase().includes(query) ||
-                            (c.email || '').toLowerCase().includes(query)
-                          )
-                        })
-                        .map((c) => (
-                          <div
-                            key={c.id}
-                            onClick={() => {
-                              setFormData({ ...formData, cliente_id: c.id.toString() })
-                              setClientSearchText(`${c.nombre_cliente} - ${c.nombre_empresa}`)
-                              setIsClientDropdownOpen(false)
-                            }}
-                            className="px-3.5 py-2.5 hover:bg-slate-900 cursor-pointer text-sm text-slate-300 hover:text-white transition flex justify-between"
-                          >
-                            <div>
-                              <span className="font-semibold block">{c.nombre_cliente}</span>
-                              <span className="text-xs text-slate-500">{c.nombre_empresa}</span>
-                            </div>
-                            {c.email && <span className="text-xs text-slate-500 self-center">{c.email}</span>}
-                          </div>
-                        ))}
-                      {clientes.filter((c) => {
-                        const query = clientSearchText.toLowerCase().trim()
-                        return (
-                          (c.nombre_cliente || '').toLowerCase().includes(query) ||
-                          (c.nombre_empresa || '').toLowerCase().includes(query) ||
-                          (c.email || '').toLowerCase().includes(query)
-                        )
-                      }).length === 0 && (
-                          <div className="px-3.5 py-2.5 text-xs text-slate-500 italic text-center">
-                            No se encontraron clientes.{" "}
-                            <button
-                              type="button"
-                              onClick={handleOpenCreateClienteModal}
-                              className="text-blue-450 hover:underline font-semibold"
-                            >
-                              Crear nuevo cliente
-                            </button>
-                          </div>
-                        )}
-                    </div>
-                  </>
-                )}
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
-                    Prioridad *
-                  </label>
-                  <select
-                    value={formData.prioridad}
-                    onChange={(e) => setFormData({ ...formData, prioridad: e.target.value as any })}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition"
-                  >
-                    <option value="baja">Baja</option>
-                    <option value="normal">Normal</option>
-                    <option value="alta">Alta</option>
-                    <option value="critica">Crítica</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
-                    Estado *
-                  </label>
-                  <select
-                    value={formData.estado}
-                    onChange={(e) => setFormData({ ...formData, estado: e.target.value })}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition"
-                  >
-                    <option value="pendiente">Pendiente</option>
-                    <option value="listo_para_produccion">Listo para producción</option>
-                    <option value="en_progreso">En Progreso</option>
-                    <option value="completado">Completado</option>
-                    <option value="completado_pd">Completado - Pendiente de pago (PD)</option>
-                    <option value="enviado">Enviado</option>
-                    <option value="enviado_faltante">Enviado con faltante</option>
-                    <option value="cancelado">Cancelado</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
-                    Fecha Entrega
-                  </label>
-                  <input
-                    type="date"
-                    value={formData.fecha_entrega}
-                    onChange={(e) => setFormData({ ...formData, fecha_entrega: e.target.value })}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
-                    Precio ($)
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="Ej. 1500"
-                    value={formData.precio}
-                    onChange={(e) => {
-                      const val = e.target.value
-                      if (/^[0-9]*$/.test(val)) {
-                        setFormData({ ...formData, precio: val })
-                      }
-                    }}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition"
-                  />
-                </div>
-
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
-                  Comentario
-                </label>
-                <textarea
-                  placeholder="Escribe un comentario o notas adicionales para el pedido..."
-                  value={formData.comentario}
-                  onChange={(e) => setFormData({ ...formData, comentario: e.target.value })}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition h-20 resize-none mb-4"
-                />
-              </div>
-
-              {/* Selección de Productos */}
-              <div>
-                <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
-                  Asociar Productos (Opcional)
-                </label>
-                <div className="mb-2">
-                  <input
-                    type="text"
-                    placeholder="Filtrar productos..."
-                    value={productSearchQuery}
-                    onChange={(e) => setProductSearchQuery(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-blue-500 transition"
-                  />
-                </div>
-                {productos.length === 0 ? (
-                  <p className="text-slate-500 italic text-xs">No hay productos cargados en el catálogo.</p>
-                ) : (
-                  <div className="bg-slate-950 border border-slate-800 rounded-lg p-3 max-h-48 overflow-y-auto space-y-2">
-                    {productos
-                      .filter((prod) => {
-                        const query = productSearchQuery.toLowerCase().trim()
-                        return (
-                          (prod.nombre || '').toLowerCase().includes(query)
-                        )
-                      })
-                      .map((prod) => {
-                        const isSelected = formData.selectedProductIds.includes(prod.id)
-                        return (
-                          <div key={prod.id} className="flex items-center justify-between text-sm hover:text-white transition p-1 hover:bg-slate-900/60 rounded">
-                            <label className="flex items-center gap-2.5 cursor-pointer flex-grow text-left">
-                              <input
-                                type="checkbox"
-                                checked={isSelected}
-                                onChange={() => handleProductCheckboxChange(prod.id)}
-                                className="rounded border-slate-800 bg-slate-900 text-blue-600 focus:ring-blue-500/20"
-                              />
-                              <span className="font-semibold ml-1">{prod.nombre}</span>
-                            </label>
-                            {isSelected && (
-                              <div className="flex items-center gap-1">
-                                <span className="text-[10px] text-slate-500 uppercase font-semibold">Cant:</span>
-                                <input
-                                  type="number"
-                                  min="1"
-                                  value={formData.productQuantities[prod.id] || 1}
-                                  onChange={(e) => handleProductQuantityChange(prod.id, parseInt(e.target.value) || 1)}
-                                  className="w-16 bg-slate-950 border border-slate-800 rounded px-1.5 py-0.5 text-xs text-white focus:outline-none focus:border-blue-500 text-center"
-                                />
-                              </div>
-                            )}
-                          </div>
-                        )
-                      })}
-                  </div>
-                )}
-              </div>
-              {/* Etapas de Fabricación y Asignación */}
-              {/* {currentUser?.role !== 'vendedor' && (
-                  <div className="border-t border-slate-800 pt-4 mt-4 space-y-3">
-                    <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                      Etapas de Fabricación y Asignación de Operarios
-                    </h3>
-                    <p className="text-[11px] text-slate-500">
-                      Se muestran las etapas de fabricación preconfiguradas para los productos seleccionados. Puede asignar el operario responsable de cada etapa.
-                    </p>
-
-                    {formData.selectedProductIds.length === 0 ? (
-                      <p className="text-slate-500 italic text-xs">Asocia productos al pedido para ver sus etapas.</p>
-                    ) : (
-                      <div className="space-y-4 max-h-[300px] overflow-y-auto bg-slate-950/60 p-3 rounded-lg border border-slate-800">
-                        {formData.selectedProductIds.map((prodId) => {
-                          const product = productos.find(p => p.id === prodId)
-                          const productStages = localEtapas
-                            .filter(s => s.producto_id === prodId)
-                            .sort((a, b) => a.orden - b.orden)
-
-                          return (
-                            <div key={prodId} className="space-y-2 bg-slate-900/60 p-3 rounded-lg border border-slate-800/40">
-                              <div className="flex items-center justify-between border-b border-slate-850 pb-1.5">
-                                <span className="text-xs font-bold uppercase tracking-wider text-blue-400">
-                                  {product?.nombre}
-                                </span>
-                                <span className="text-[10px] bg-slate-850 text-slate-400 px-2 py-0.5 rounded-full">
-                                  {productStages.length} {productStages.length === 1 ? 'etapa' : 'etapas'}
-                                </span>
-                              </div>
-
-                              {productStages.length === 0 ? (
-                                <div className="flex flex-col sm:flex-row items-center justify-between gap-2 py-2">
-                                  <span className="text-xs text-slate-500 italic">No hay etapas configuradas.</span>
-                                </div>
-                              ) : (
-                                <div className="space-y-1.5">
-                                  {productStages.map((stage) => {
-                                    const stageIdOrTempId = stage.id || stage.temp_id
-                                    const stageKey = stageIdOrTempId.toString()
-                                    return (
-                                      <div key={stageKey} className="flex items-center justify-between text-xs bg-slate-950 border border-slate-850/60 p-2 rounded-lg">
-                                        <div className="flex items-center gap-2">
-                                          <div>
-                                            <span className="font-semibold block text-slate-200">{stage.orden}. {stage.nombre}</span>
-                                          </div>
-                                        </div>
-
-                                        {currentUser && ['admin', 'encargado'].includes(currentUser.role) ? (
-                                          <select
-                                            value={localAssignments[stageKey] || ''}
-                                            onChange={(e) => handleAssignTask(stageIdOrTempId, e.target.value)}
-                                            className="bg-slate-900 border border-slate-800 rounded px-2.5 py-1 text-xs text-white focus:outline-none focus:border-blue-500 transition"
-                                          >
-                                            <option value="">Sin Asignar</option>
-                                            {operarios.map((op) => (
-                                              <option key={op.id} value={op.id}>
-                                                {op.name}
-                                              </option>
-                                            ))}
-                                          </select>
-                                        ) : (
-                                          (() => {
-                                            const assignedOp = operarios.find(o => o.id === localAssignments[stageKey])
-                                            return assignedOp ? (
-                                              <span className="text-slate-400 text-xs italic">
-                                                Asignado: {assignedOp.name}
-                                              </span>
-                                            ) : (
-                                              <span className="text-slate-500 text-xs italic">
-                                                Sin asignar
-                                              </span>
-                                            )
-                                          })()
-                                        )}
-                                      </div>
-                                    )
-                                  })}
-                                </div>
-                              )}
-                            </div>
-                          )
-                        })}
-                      </div>
-                    )}
-                  </div>
-                )} */}
-
-              <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-800">
-                <button
-                  type="button"
-                  onClick={() => setIsEditModalOpen(false)}
-                  className="px-4 py-2 rounded-lg text-sm text-slate-400 hover:text-white hover:bg-slate-800 transition"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  className="px-4 py-2 rounded-lg text-sm bg-blue-600 hover:bg-blue-500 text-white font-medium shadow transition hover:scale-[1.02] active:scale-[0.98]"
-                >
-                  Guardar Cambios
-                </button>
-              </div>
-            </form>
-          </Modal>
-        )}
+        {/* Modal de Edición de Pedido */}
+        <EditPedidoModal
+          isOpen={isEditModalOpen}
+          pedido={selectedPedido}
+          onClose={() => {
+            setIsEditModalOpen(false)
+            setSelectedPedido(null)
+          }}
+          onPedidoUpdated={(updatedPedido) => {
+            setIsEditModalOpen(false)
+            setSelectedPedido(null)
+            loadData()
+            if (selectedPedidoForView?.id === updatedPedido.id) {
+              setSelectedPedidoForView(updatedPedido)
+            }
+          }}
+          clientes={clientes}
+          productos={productos}
+          users={operarios}
+        />
 
         {/* Modal de Creación de Cliente Rápido */}
         {isCreateClienteModalOpen && (
@@ -2925,6 +2642,7 @@ export default function PedidosPage() {
           onUpdatePedido={(updated) => {
             setSelectedPedidoForView(updated)
             setPedidos((prev) => prev.map((p) => (p.id === updated.id ? updated : p)))
+            fetchResponsablesEtapas().then(setTaskAssignments).catch(console.error)
           }}
           allStages={allStages}
           taskAssignments={taskAssignments}

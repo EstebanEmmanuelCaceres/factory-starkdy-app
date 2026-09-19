@@ -9,7 +9,7 @@ import {
   updatePedido,
   createPedidoComentario
 } from '@/lib/pedidos'
-import { fetchEtapas, type Etapa } from '@/lib/entities/etapas'
+import { fetchEtapas, topologicalSortEtapas, type Etapa } from '@/lib/entities/etapas'
 import { fetchResponsablesEtapas, assignTask, type ResponsableEtapa } from '@/lib/responsable_etapas'
 import { completeOperarioTask } from '@/lib/operario_tasks'
 import { getStoredUser } from '@/lib/auth'
@@ -90,13 +90,8 @@ export default function PedidoDetailModal({
           loadedStages = await fetchEtapas().catch(() => [])
         }
 
-        // 3. Obtener asignaciones/responsables del pedido
-        let loadedAssignments: ResponsableEtapa[] = []
-        if (propTaskAssignments && propTaskAssignments.length > 0) {
-          loadedAssignments = propTaskAssignments
-        } else {
-          loadedAssignments = await fetchResponsablesEtapas({ pedido_id: pedido.id }).catch(() => [])
-        }
+        // 3. Obtener asignaciones/responsables actualizados de este pedido
+        const loadedAssignments = await fetchResponsablesEtapas({ pedido_id: pedido.id }).catch(() => [])
 
         if (isMounted) {
           setStages(loadedStages)
@@ -112,20 +107,14 @@ export default function PedidoDetailModal({
     return () => {
       isMounted = false
     }
-  }, [isOpen, pedido, propAllStages, propTaskAssignments])
+  }, [isOpen, pedido?.id, propAllStages])
 
-  // Si se envían props actualizadas de etapas/asignaciones
+  // Si se envían props actualizadas de etapas
   useEffect(() => {
     if (propAllStages && propAllStages.length > 0) {
       setStages(propAllStages)
     }
   }, [propAllStages])
-
-  useEffect(() => {
-    if (propTaskAssignments && propTaskAssignments.length > 0) {
-      setAssignments(propTaskAssignments)
-    }
-  }, [propTaskAssignments])
 
   const userRole = (() => {
     const u = getStoredUser()
@@ -243,9 +232,10 @@ export default function PedidoDetailModal({
     productoStages: Etapa[],
     taskAssignmentsList: ResponsableEtapa[]
   ) => {
-    if (productoStages.length === 0) return null
+    const sorted = topologicalSortEtapas(productoStages)
+    if (sorted.length === 0) return null
 
-    for (const stage of productoStages) {
+    for (const stage of sorted) {
       const task = taskAssignmentsList.find(
         (t) =>
           t.pedido_id === currentPedido.id &&
@@ -255,7 +245,7 @@ export default function PedidoDetailModal({
         return { stage, task }
       }
     }
-    const lastStage = productoStages[productoStages.length - 1]
+    const lastStage = sorted[sorted.length - 1]
     const lastTask = taskAssignmentsList.find(
       (t) =>
         t.pedido_id === currentPedido.id &&
@@ -323,8 +313,14 @@ export default function PedidoDetailModal({
           <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 pr-8">
             <div className="text-left space-y-1.5 min-w-0">
               <div className="flex flex-wrap items-center gap-3">
-                <h2 className="text-2xl font-bold text-white tracking-tight">
-                  📋 Pedido #{currentPedido.id}
+                <h2 className="text-2xl font-bold text-white tracking-tight flex items-center gap-2">
+                  <span>📋</span>
+                  <span>
+                    {currentPedido.cliente?.nombre_empresa || currentPedido.cliente?.nombre_cliente || `Pedido #${currentPedido.id}`}
+                  </span>
+                  <span className="text-xs font-mono font-normal text-slate-400 bg-slate-900 border border-slate-800 px-2 py-0.5 rounded-md">
+                    #{currentPedido.id}
+                  </span>
                 </h2>
                 {/* Estado del Pedido Selector */}
                 <div className="flex items-center gap-1.5 bg-slate-950 border border-slate-800 rounded-xl px-3 py-1 shadow-inner">
@@ -367,9 +363,9 @@ export default function PedidoDetailModal({
               <p className="text-xs text-slate-400">
                 Cliente:{' '}
                 <span className="text-slate-200 font-bold">
-                  {currentPedido.cliente?.nombre_cliente}
+                  {currentPedido.cliente?.nombre_cliente || 'N/A'}
                 </span>{' '}
-                {currentPedido.cliente?.nombre_empresa
+                {currentPedido.cliente?.nombre_empresa && currentPedido.cliente?.nombre_cliente
                   ? `(${currentPedido.cliente.nombre_empresa})`
                   : ''}
               </p>
@@ -505,14 +501,19 @@ export default function PedidoDetailModal({
                   </div>
                 </div>
               ) : (
-                <div className="bg-slate-950/40 border border-slate-850 p-4 rounded-xl">
+                <div
+                  onClick={() => setIsEditCommentActive(true)}
+                  className="bg-slate-950/40 border border-slate-850 p-4 rounded-xl cursor-pointer hover:border-blue-500/50 hover:bg-slate-900/60 transition group"
+                  title="Haz clic para editar la descripción"
+                >
                   {currentPedido.comentario ? (
-                    <p className="text-sm text-slate-300 whitespace-pre-wrap">
+                    <p className="text-sm text-slate-300 whitespace-pre-wrap group-hover:text-white transition">
                       {currentPedido.comentario}
                     </p>
                   ) : (
-                    <p className="text-sm text-slate-500 italic">
-                      No hay descripción añadida. Haz clic en Editar para agregar una.
+                    <p className="text-sm text-slate-500 italic group-hover:text-slate-400 transition flex items-center justify-between">
+                      <span>No hay descripción añadida. Haz clic para agregar una.</span>
+                      <span className="text-xs text-blue-400 font-normal not-italic opacity-0 group-hover:opacity-100 transition">✏️ Clic para editar</span>
                     </p>
                   )}
                 </div>
@@ -532,9 +533,9 @@ export default function PedidoDetailModal({
               ) : (
                 <div className="space-y-3">
                   {displayedProducts.map((prod) => {
-                    const prodStages = stages
-                      .filter((s) => s.producto_id === prod.id)
-                      .sort((a, b) => a.orden - b.orden)
+                    const prodStages = topologicalSortEtapas(
+                      stages.filter((s) => s.producto_id === prod.id)
+                    )
                     const qty = prod.pivot?.cantidad || 1
                     const currentInfo = getProductCurrentStage(prodStages, assignments)
                     const isAccordionOpen = openAccordions[prod.id] || false

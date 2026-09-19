@@ -186,11 +186,20 @@ export default function PaymentModal({
       onClose={onClose}
       className="max-w-4xl p-6"
     >
-      <h2 className="text-xl font-bold text-white mb-1">
-        Gestión de Pagos: Pedido #{currentPedido.id}
+      <h2 className="text-xl font-bold text-white mb-1 flex items-center gap-2">
+        <span>Gestión de Pagos:</span>
+        <span className="text-blue-400">
+          {currentPedido.cliente?.nombre_empresa || currentPedido.cliente?.nombre_cliente || `Pedido #${currentPedido.id}`}
+        </span>
+        <span className="text-xs font-mono font-normal text-slate-400 bg-slate-900 border border-slate-800 px-2 py-0.5 rounded-md">
+          #{currentPedido.id}
+        </span>
       </h2>
       <p className="text-xs text-slate-400 mb-5">
-        Cliente: <span className="font-semibold text-slate-200">{currentPedido.cliente?.nombre_cliente} ({currentPedido.cliente?.nombre_empresa})</span>
+        Cliente: <span className="font-semibold text-slate-200">{currentPedido.cliente?.nombre_cliente || 'N/A'}</span>
+        {currentPedido.cliente?.nombre_empresa && currentPedido.cliente?.nombre_cliente && (
+          <span className="text-slate-400 font-normal"> ({currentPedido.cliente.nombre_empresa})</span>
+        )}
       </p>
 
       {paymentError && (
