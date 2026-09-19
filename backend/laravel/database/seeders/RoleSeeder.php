@@ -19,7 +19,11 @@ class RoleSeeder extends Seeder
             ],
             [
                 'slug' => 'disenador',
-                'name' => 'Diseñador',
+                'name' => 'Diseñador/a',
+            ],
+            [
+                'slug' => 'disenadora',
+                'name' => 'Diseñadora',
             ],
             [
                 'slug' => 'encargado',

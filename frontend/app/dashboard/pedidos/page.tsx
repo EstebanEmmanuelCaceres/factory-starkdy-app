@@ -5,6 +5,8 @@ import RoleGuard from '@/components/RoleGuard'
 import OrderImageGallery from '@/components/OrderImageGallery'
 import Modal from '@/components/Modal'
 import PedidoDetailModal from '@/components/PedidoDetailModal'
+import EditPedidoModal from '@/components/EditPedidoModal'
+import PaymentModal from '@/components/PaymentModal'
 import { fetchOrderImages } from '@/lib/entities/orderImages'
 import {
   fetchPedidos,
@@ -25,7 +27,7 @@ import {
 import { fetchClientes, createCliente as createNewClient, type Cliente } from '@/lib/clientes'
 import { fetchProducts, type Product } from '@/lib/products'
 import { getStoredUser, fetchUsers, type User } from '@/lib/auth'
-import { fetchEtapas, type Etapa } from '@/lib/entities/etapas'
+import { fetchEtapas, topologicalSortEtapas, type Etapa } from '@/lib/entities/etapas'
 import {
   fetchResponsablesEtapas,
   assignTask,
@@ -50,6 +52,7 @@ export default function PedidosPage() {
   const [searchQuery, setSearchQuery] = useState('')
   const [filterPrioridad, setFilterPrioridad] = useState('')
   const [filterEstado, setFilterEstado] = useState('')
+  const [filterVendedor, setFilterVendedor] = useState('')
 
   // Modales
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
@@ -117,7 +120,7 @@ export default function PedidosPage() {
 
   useEffect(() => {
     setCurrentPage(1)
-  }, [searchQuery, filterPrioridad, filterEstado])
+  }, [searchQuery, filterPrioridad, filterEstado, filterVendedor])
 
   const handleSort = (field: string) => {
     if (sortField === field) {
@@ -261,12 +264,11 @@ export default function PedidosPage() {
     setIsImagesModalOpen(true)
   }
 
-  const handleOpenCreateModal = () => {
+  const resetAllCreateOrderForms = () => {
     setSelectedPedido(null)
     setLocalEtapas([])
     setLocalAssignments({})
 
-    // Calcular fecha por defecto: hoy + 15 días
     const defaultDeliveryDate = (() => {
       const d = new Date()
       d.setDate(d.getDate() + 15)
@@ -288,16 +290,34 @@ export default function PedidosPage() {
       medio_pago_inicial: 'transferencia',
       observaciones_pago_inicial: ''
     })
+
+    setClienteFormData({
+      nombre_cliente: '',
+      nombre_empresa: '',
+      email: '',
+      telefono: '',
+      dni: '',
+      direccion: '',
+      provincia: '',
+      cp: '',
+      localidad: '',
+      saldo: 0,
+      observaciones: ''
+    })
+
     setClientSearchText('')
     setProductSearchQuery('')
 
-    // Reset wizard steps
     setWizardStep('select_client')
     setSelectedWizardClient(null)
     setCreatedPedidoResult(null)
     setClientMode('search')
     setWizardNewClient(null)
+    setIsClientDropdownOpen(false)
+  }
 
+  const handleOpenCreateModal = () => {
+    resetAllCreateOrderForms()
     setIsCreateModalOpen(true)
   }
 
@@ -444,6 +464,21 @@ export default function PedidosPage() {
       setIsCreateClienteModalOpen(false)
       showNotification('Cliente registrado correctamente')
 
+      // Resetear datos del formulario de cliente
+      setClienteFormData({
+        nombre_cliente: '',
+        nombre_empresa: '',
+        email: '',
+        telefono: '',
+        dni: '',
+        direccion: '',
+        provincia: '',
+        cp: '',
+        localidad: '',
+        saldo: 0,
+        observaciones: ''
+      })
+
       // Recargar clientes
       const updatedClients = await fetchClientes()
       setClientes(updatedClients)
@@ -572,6 +607,21 @@ export default function PedidosPage() {
       showNotification('Pedido creado correctamente')
       setCreatedPedidoResult(newPedido)
 
+      // Limpiar formulario de cliente para evitar que persista en el estado
+      setClienteFormData({
+        nombre_cliente: '',
+        nombre_empresa: '',
+        email: '',
+        telefono: '',
+        dni: '',
+        direccion: '',
+        provincia: '',
+        cp: '',
+        localidad: '',
+        saldo: 0,
+        observaciones: ''
+      })
+
       // Recargar la lista de pedidos en segundo plano para cuando se cierre el wizard
       loadData()
 
@@ -659,7 +709,7 @@ export default function PedidosPage() {
 
   const getProductCurrentStage = (pedidoId: number, productStages: Etapa[], tasks: ResponsableEtapa[]) => {
     const pedidoTasks = tasks.filter(t => t.pedido_id === pedidoId)
-    const sortedStages = [...productStages].sort((a, b) => a.orden - b.orden)
+    const sortedStages = topologicalSortEtapas(productStages)
 
     // Buscar la primera tarea que no esté completada
     for (const stage of sortedStages) {
@@ -726,119 +776,9 @@ export default function PedidosPage() {
   }
 
   // ── Gestores de Pagos Parciales/Únicos ─────────────────────────────
-  const handleOpenPaymentsModal = async (pedido: Pedido) => {
+  const handleOpenPaymentsModal = (pedido: Pedido) => {
     setSelectedPedidoForPayments(pedido)
-    setPaymentError('')
-    setPaymentSuccess('')
-
-    const precio = Number(pedido.precio) || 0
-    const currentPaid = pedido.pagos
-      ? pedido.pagos.filter(p => p.estado === 'pagado').reduce((sum, p) => sum + Number(p.monto), 0)
-      : (pedido.pago && pedido.pago.estado === 'pagado' ? Number(pedido.pago.monto) : 0)
-    const saldo = Math.max(0, precio - currentPaid)
-
-    setPaymentFormData({
-      monto: saldo > 0 ? saldo.toString() : '',
-      medio_pago: 'efectivo',
-      tipo_cobro: 'parcial',
-      observaciones: '',
-      fecha_pago: new Date().toISOString().split('T')[0]
-    })
-
-    try {
-      const pagos = await fetchPedidoPagos(pedido.id)
-      setPedidoPayments(pagos)
-    } catch (err) {
-      console.error('Error fetching payments:', err)
-      setPedidoPayments(pedido.pagos || (pedido.pago ? [pedido.pago] : []))
-    }
-
     setIsPaymentsModalOpen(true)
-  }
-
-  const handleCreatePayment = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!selectedPedidoForPayments) return
-    setPaymentError('')
-    setPaymentSuccess('')
-    setIsSubmittingPayment(true)
-
-    const monto = parseFloat(paymentFormData.monto)
-    if (isNaN(monto) || monto <= 0) {
-      setPaymentError('Por favor ingrese un monto válido mayor a 0.')
-      setIsSubmittingPayment(false)
-      return
-    }
-
-    try {
-      const res = await createPedidoPago(selectedPedidoForPayments.id, {
-        monto,
-        medio_pago: paymentFormData.medio_pago,
-        tipo_cobro: paymentFormData.tipo_cobro,
-        observaciones: paymentFormData.observaciones || undefined,
-        fecha_pago: paymentFormData.fecha_pago || undefined
-      })
-
-      setPaymentSuccess(res.message || 'Pago registrado con éxito.')
-
-      const updatedPagos = await fetchPedidoPagos(selectedPedidoForPayments.id)
-      setPedidoPayments(updatedPagos)
-
-      const updatedPedido = res.pedido
-      setSelectedPedidoForPayments(updatedPedido)
-      const precio = Number(updatedPedido.precio) || 0
-      const currentPaid = updatedPedido.pagos
-        ? updatedPedido.pagos.filter(p => p.estado === 'pagado').reduce((sum, p) => sum + Number(p.monto), 0)
-        : (updatedPedido.pago && updatedPedido.pago.estado === 'pagado' ? Number(updatedPedido.pago.monto) : 0)
-      const newSaldo = Math.max(0, precio - currentPaid)
-
-      setPaymentFormData({
-        monto: newSaldo > 0 ? newSaldo.toString() : '',
-        medio_pago: 'efectivo',
-        tipo_cobro: 'parcial',
-        observaciones: '',
-        fecha_pago: new Date().toISOString().split('T')[0]
-      })
-
-      loadData()
-    } catch (err: any) {
-      setPaymentError(err instanceof Error ? err.message : 'Error al registrar el pago.')
-    } finally {
-      setIsSubmittingPayment(false)
-    }
-  }
-
-  const handleAnnulPayment = async (pagoId: number) => {
-    if (!confirm('¿Estás seguro de que deseas anular este pago? Esta acción no se puede deshacer.')) return
-    setPaymentError('')
-    setPaymentSuccess('')
-
-    try {
-      const res = await deletePedidoPago(pagoId)
-      setPaymentSuccess('Pago anulado con éxito.')
-
-      if (selectedPedidoForPayments) {
-        const updatedPagos = await fetchPedidoPagos(selectedPedidoForPayments.id)
-        setPedidoPayments(updatedPagos)
-
-        const updatedPedido = res.pedido
-        setSelectedPedidoForPayments(updatedPedido)
-        const precio = Number(updatedPedido.precio) || 0
-        const currentPaid = updatedPedido.pagos
-          ? updatedPedido.pagos.filter(p => p.estado === 'pagado').reduce((sum, p) => sum + Number(p.monto), 0)
-          : (updatedPedido.pago && updatedPedido.pago.estado === 'pagado' ? Number(updatedPedido.pago.monto) : 0)
-        const newSaldo = Math.max(0, precio - currentPaid)
-
-        setPaymentFormData(prev => ({
-          ...prev,
-          monto: newSaldo > 0 ? newSaldo.toString() : ''
-        }))
-      }
-
-      loadData()
-    } catch (err: any) {
-      setPaymentError(err instanceof Error ? err.message : 'Error al anular el pago.')
-    }
   }
 
   const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -851,6 +791,8 @@ export default function PedidosPage() {
     setSearchQuery('')
     setFilterPrioridad('')
     setFilterEstado('')
+    setFilterVendedor('')
+    setCurrentPage(1)
     loadData('', '', '')
   }
 
@@ -924,6 +866,9 @@ export default function PedidosPage() {
       if (['operario', 'operator'].includes(currentUser.role)) {
         if (p.estado === 'pendiente') return false
       }
+      if (filterVendedor) {
+        if (p.user_id !== Number(filterVendedor)) return false
+      }
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase().trim()
         const matchCode = (p.codigo || '').toLowerCase().includes(q)
@@ -971,14 +916,15 @@ export default function PedidosPage() {
       return 0
     })
 
-  const totalPages = Math.ceil(filteredAndSortedPedidos.length / 5)
+  const ITEMS_PER_PAGE = 10
+  const totalPages = Math.ceil(filteredAndSortedPedidos.length / ITEMS_PER_PAGE)
   const displayedPedidos = filteredAndSortedPedidos.slice(
-    (currentPage - 1) * 5,
-    currentPage * 5
+    (currentPage - 1) * ITEMS_PER_PAGE,
+    currentPage * ITEMS_PER_PAGE
   )
 
   return (
-    <RoleGuard allowedRoles={['admin', 'supervisor', 'encargado', 'vendedor', 'disenador']}>
+    <RoleGuard allowedRoles={['admin', 'supervisor', 'encargado', 'vendedor', 'disenador', 'disenadora']}>
       <main className="page-content p-6 text-white">
         {/* Notificaciones */}
         {successMessage && (
@@ -1022,73 +968,100 @@ export default function PedidosPage() {
         </div>
 
         {/* Filtros */}
-        <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 mb-6 flex flex-col sm:flex-row gap-4 items-center justify-between shadow-md">
-          <div className="w-full flex flex-col sm:flex-row gap-3 items-stretch sm:items-center">
-            <div className="relative w-full sm:w-80">
-              <input
-                type="text"
-                placeholder="Buscar por nombre o empresa del cliente..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                onKeyDown={handleSearchKeyDown}
-                className="w-full bg-slate-950 border border-slate-800 focus:border-blue-500 rounded-lg px-3.5 py-2 pl-9 text-sm text-white placeholder-slate-500 focus:outline-none transition duration-150"
-              />
-              <span className="absolute left-3.5 top-2.5 text-slate-500 text-sm">🔍</span>
-              {searchQuery && (
-                <button
-                  onClick={handleClearSearch}
-                  className="absolute right-3 top-2.5 text-slate-500 hover:text-slate-300 text-sm"
+        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 mb-6 shadow-md">
+          <div className="flex flex-col lg:flex-row gap-3 items-stretch lg:items-center justify-between">
+            <div className="flex flex-wrap items-center gap-3 flex-1">
+              {/* Buscador */}
+              <div className="relative flex-1 min-w-[240px]">
+                <input
+                  type="text"
+                  placeholder="Buscar por nombre o empresa del cliente..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onKeyDown={handleSearchKeyDown}
+                  className="w-full bg-slate-950 border border-slate-800 focus:border-blue-500 rounded-xl px-3.5 py-2.5 pl-9 text-sm text-white placeholder-slate-500 focus:outline-none transition duration-150"
+                />
+                <span className="absolute left-3.5 top-3 text-slate-500 text-sm">🔍</span>
+                {searchQuery && (
+                  <button
+                    onClick={handleClearSearch}
+                    className="absolute right-3 top-3 text-slate-500 hover:text-slate-300 text-sm cursor-pointer"
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+
+              {/* Botón Buscar con Estética Premium */}
+              <button
+                onClick={() => loadData()}
+                className="flex items-center justify-center gap-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-sm font-bold px-5 py-2.5 rounded-xl shadow-md shadow-blue-600/20 hover:shadow-blue-600/30 border border-blue-500/30 transition duration-200 hover:scale-[1.02] active:scale-[0.98] cursor-pointer shrink-0"
+              >
+                <span>🔍</span> Buscar
+              </button>
+
+              {/* Filtro de Vendedor (Visible para roles con acceso general) */}
+              {currentUser?.role !== 'vendedor' && currentUser?.role !== 'disenador' && (
+                <select
+                  value={filterVendedor}
+                  onChange={(e) => {
+                    setFilterVendedor(e.target.value)
+                    setCurrentPage(1)
+                  }}
+                  className="bg-slate-950 border border-slate-800 focus:border-blue-500 text-slate-300 text-sm rounded-xl px-3.5 py-2.5 focus:outline-none transition duration-150 cursor-pointer hover:border-slate-700"
                 >
-                  ✕
-                </button>
+                  <option value="">👤 Todos los Vendedores</option>
+                  {operarios
+                    .filter((u) => u.role === 'vendedor' || u.role === 'disenador' || u.role === 'admin')
+                    .map((v) => (
+                      <option key={v.id} value={v.id}>
+                        {v.name}
+                      </option>
+                    ))}
+                </select>
               )}
+
+              {/* Filtro de Prioridad */}
+              <select
+                value={filterPrioridad}
+                onChange={(e) => {
+                  setFilterPrioridad(e.target.value)
+                  loadData(undefined, e.target.value, undefined)
+                }}
+                className="bg-slate-950 border border-slate-800 focus:border-blue-500 text-slate-300 text-sm rounded-xl px-3.5 py-2.5 focus:outline-none transition duration-150 cursor-pointer hover:border-slate-700"
+              >
+                <option value="">🎯 Todas las Prioridades</option>
+                <option value="baja">Prioridad Baja</option>
+                <option value="normal">Prioridad Normal</option>
+                <option value="alta">Prioridad Alta</option>
+                <option value="critica">Prioridad Crítica</option>
+              </select>
+
+              {/* Filtro de Estado */}
+              <select
+                value={filterEstado}
+                onChange={(e) => {
+                  setFilterEstado(e.target.value)
+                  loadData(undefined, undefined, e.target.value)
+                }}
+                className="bg-slate-950 border border-slate-800 focus:border-blue-500 text-slate-300 text-sm rounded-xl px-3.5 py-2.5 focus:outline-none transition duration-150 cursor-pointer hover:border-slate-700"
+              >
+                <option value="">📊 Todos los Estados</option>
+                <option value="pendiente">Pendiente</option>
+                <option value="listo_para_produccion">Listo para producción</option>
+                <option value="en_progreso">En Progreso</option>
+                <option value="completado">Completado</option>
+                <option value="completado_pd">Completado - Pend. Pago (PD)</option>
+                <option value="enviado">Enviado</option>
+                <option value="enviado_faltante">Enviado con Faltante</option>
+                <option value="cancelado">Cancelado</option>
+              </select>
             </div>
 
-            <select
-              value={filterPrioridad}
-              onChange={(e) => {
-                setFilterPrioridad(e.target.value)
-                loadData(undefined, e.target.value, undefined)
-              }}
-              className="bg-slate-950 border border-slate-800 text-slate-300 text-sm rounded-lg px-3.5 py-2 focus:outline-none focus:border-blue-500 transition duration-150"
-            >
-              <option value="">Todas las Prioridades</option>
-              <option value="baja">Prioridad Baja</option>
-              <option value="normal">Prioridad Normal</option>
-              <option value="alta">Prioridad Alta</option>
-              <option value="critica">Prioridad Crítica</option>
-            </select>
-
-            <select
-              value={filterEstado}
-              onChange={(e) => {
-                setFilterEstado(e.target.value)
-                loadData(undefined, undefined, e.target.value)
-              }}
-              className="bg-slate-950 border border-slate-800 text-slate-300 text-sm rounded-lg px-3.5 py-2 focus:outline-none focus:border-blue-500 transition duration-150"
-            >
-              <option value="">Todos los Estados</option>
-              <option value="pendiente">Pendiente</option>
-              <option value="listo_para_produccion">Listo para producción</option>
-              <option value="en_progreso">En Progreso</option>
-              <option value="completado">Completado</option>
-              <option value="completado_pd">Completado - Pend. Pago (PD)</option>
-              <option value="enviado">Enviado</option>
-              <option value="enviado_faltante">Enviado con Faltante</option>
-              <option value="cancelado">Cancelado</option>
-            </select>
-
-            <button
-              onClick={() => loadData()}
-              className="bg-slate-850 hover:bg-slate-800 text-white text-sm font-medium px-4 py-2 rounded-lg border border-slate-800 transition hover:scale-[1.02] active:scale-[0.98]"
-            >
-              Buscar
-            </button>
-
-            {(searchQuery || filterPrioridad || filterEstado) && (
+            {(searchQuery || filterPrioridad || filterEstado || filterVendedor) && (
               <button
                 onClick={handleClearSearch}
-                className="text-xs text-rose-400 hover:text-rose-300 font-semibold transition ml-auto sm:ml-0 self-center"
+                className="text-xs text-rose-400 hover:text-rose-300 font-semibold underline transition self-center lg:self-auto cursor-pointer"
               >
                 Limpiar Filtros
               </button>
@@ -1096,8 +1069,8 @@ export default function PedidosPage() {
           </div>
         </div>
 
-        {/* Listado de Pedidos */}
-        <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-lg">
+        {/* Listado de Pedidos con Altura Fija para evitar saltos */}
+        <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-lg min-h-[660px] flex flex-col justify-between">
           {loading ? (
             <div className="py-20 flex flex-col items-center justify-center text-slate-400 gap-3">
               <div className="animate-spin rounded-full h-8 w-8 border-2 border-blue-500 border-t-transparent"></div>
@@ -1164,8 +1137,18 @@ export default function PedidosPage() {
                           )}
                           <div>
                             <span className="font-bold text-white text-base block">
-                              {pedido.cliente?.nombre_empresa || pedido.cliente?.nombre_cliente || 'Sin empresa'}
+                              {pedido.cliente?.nombre_empresa || pedido.cliente?.nombre_cliente || `Pedido #${pedido.id}`}
                             </span>
+                            {pedido.cliente?.nombre_empresa && pedido.cliente?.nombre_cliente && (
+                              <span className="text-xs text-slate-400 block font-medium">
+                                {pedido.cliente.nombre_cliente} • #{pedido.id}
+                              </span>
+                            )}
+                            {(!pedido.cliente?.nombre_empresa || !pedido.cliente?.nombre_cliente) && (
+                              <span className="text-xs text-slate-500 font-mono block">
+                                #{pedido.id}
+                              </span>
+                            )}
                           </div>
                         </div>
                         <div className="flex flex-col items-end gap-1">
@@ -1238,8 +1221,12 @@ export default function PedidosPage() {
                           <button
                             onClick={async () => {
                               try {
-                                await updatePedido(pedido.id, { estado: 'listo_para_produccion' })
+                                const updated = await updatePedido(pedido.id, { estado: 'listo_para_produccion' })
                                 showNotification('Pedido enviado a producción correctamente')
+                                setPedidos((prev) => prev.map((p) => (p.id === updated.id ? updated : p)))
+                                if (selectedPedidoForView && selectedPedidoForView.id === updated.id) {
+                                  setSelectedPedidoForView(updated)
+                                }
                                 loadData()
                               } catch (err: unknown) {
                                 setError(err instanceof Error ? err.message : 'Error al enviar a producción')
@@ -1278,7 +1265,7 @@ export default function PedidosPage() {
                     <tr className="border-b border-slate-800 bg-slate-950/40 text-slate-400 font-semibold text-xs uppercase tracking-wider select-none">
                       <th className="px-6 py-4">Portada</th>
                       <th onClick={() => handleSort('cliente')} className="px-6 py-4 cursor-pointer hover:text-white transition text-left">
-                        Cliente {sortField === 'cliente' ? (sortDirection === 'asc' ? ' ▲' : ' ▼') : ''}
+                        Empresa / Cliente {sortField === 'cliente' ? (sortDirection === 'asc' ? ' ▲' : ' ▼') : ''}
                       </th>
                       <th onClick={() => handleSort('productos')} className="px-6 py-4 text-center cursor-pointer hover:text-white transition">
                         Productos {sortField === 'productos' ? (sortDirection === 'asc' ? ' ▲' : ' ▼') : ''}
@@ -1344,9 +1331,21 @@ export default function PedidosPage() {
                             )}
                           </td>
                           <td className="px-6 py-4">
-                            <span className="font-semibold text-white">
-                              {pedido.cliente?.nombre_empresa || pedido.cliente?.nombre_cliente || 'Sin empresa'}
-                            </span>
+                            <div className="flex flex-col">
+                              <span className="font-semibold text-white text-sm">
+                                {pedido.cliente?.nombre_empresa || pedido.cliente?.nombre_cliente || `Pedido #${pedido.id}`}
+                              </span>
+                              {pedido.cliente?.nombre_empresa && pedido.cliente?.nombre_cliente && (
+                                <span className="text-xs text-slate-400 font-medium">
+                                  {pedido.cliente.nombre_cliente} • #{pedido.id}
+                                </span>
+                              )}
+                              {(!pedido.cliente?.nombre_empresa || !pedido.cliente?.nombre_cliente) && (
+                                <span className="text-xs text-slate-500 font-mono">
+                                  #{pedido.id}
+                                </span>
+                              )}
+                            </div>
                           </td>
                           <td className="px-6 py-4 max-w-xs">
                             {pedido.productos && pedido.productos.length > 0 ? (
@@ -1408,8 +1407,12 @@ export default function PedidosPage() {
                                 <button
                                   onClick={async () => {
                                     try {
-                                      await updatePedido(pedido.id, { estado: 'listo_para_produccion' })
+                                      const updated = await updatePedido(pedido.id, { estado: 'listo_para_produccion' })
                                       showNotification('Pedido enviado a producción correctamente')
+                                      setPedidos((prev) => prev.map((p) => (p.id === updated.id ? updated : p)))
+                                      if (selectedPedidoForView && selectedPedidoForView.id === updated.id) {
+                                        setSelectedPedidoForView(updated)
+                                      }
                                       loadData()
                                     } catch (err: unknown) {
                                       setError(err instanceof Error ? err.message : 'Error al enviar a producción')
@@ -1446,9 +1449,9 @@ export default function PedidosPage() {
 
               {/* Controles de Paginación */}
               {totalPages > 1 && (
-                <div className="flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-slate-800 bg-slate-950/20 p-4 sm:px-6 sm:py-4">
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-slate-800 bg-slate-950/20 p-4 sm:px-6 sm:py-4 mt-auto">
                   <div className="text-xs text-slate-400 text-center sm:text-left">
-                    Mostrando <span className="font-semibold text-white">{(currentPage - 1) * 5 + 1}</span> a <span className="font-semibold text-white">{Math.min(currentPage * 5, filteredAndSortedPedidos.length)}</span> de <span className="font-semibold text-white">{filteredAndSortedPedidos.length}</span> pedidos
+                    Mostrando <span className="font-semibold text-white">{(currentPage - 1) * ITEMS_PER_PAGE + 1}</span> a <span className="font-semibold text-white">{Math.min(currentPage * ITEMS_PER_PAGE, filteredAndSortedPedidos.length)}</span> de <span className="font-semibold text-white">{filteredAndSortedPedidos.length}</span> pedidos
                   </div>
                   <div className="flex items-center gap-1.5 sm:gap-2">
                     <button
@@ -1499,9 +1502,7 @@ export default function PedidosPage() {
             isOpen={isCreateModalOpen}
             onClose={() => {
               setIsCreateModalOpen(false)
-              setWizardStep('select_client')
-              setSelectedWizardClient(null)
-              setCreatedPedidoResult(null)
+              resetAllCreateOrderForms()
             }}
             className="max-w-xl p-6"
           >
@@ -2132,7 +2133,7 @@ export default function PedidosPage() {
                     <div className="space-y-2 pt-1 border-t border-slate-850">
                       <div>
                         <label className="block text-[11px] font-semibold text-slate-400 mb-1">
-                          Observación o Referencia del Pago
+                          Observación o Referencia del Pago <span className="text-slate-500 font-normal lowercase">(opcional)</span>
                         </label>
                         <input
                           type="text"
@@ -2222,9 +2223,9 @@ export default function PedidosPage() {
                       <div className="space-y-4 max-h-[300px] overflow-y-auto bg-slate-950/60 p-3 rounded-lg border border-slate-800">
                         {formData.selectedProductIds.map((prodId) => {
                           const product = productos.find(p => p.id === prodId)
-                          const productStages = localEtapas
-                            .filter(s => s.producto_id === prodId)
-                            .sort((a, b) => a.orden - b.orden)
+                          const productStages = topologicalSortEtapas(
+                            localEtapas.filter(s => s.producto_id === prodId)
+                          )
 
                           return (
                             <div key={prodId} className="space-y-2 bg-slate-900/60 p-3 rounded-lg border border-slate-800/40">
@@ -2400,12 +2401,9 @@ export default function PedidosPage() {
                     type="button"
                     onClick={() => {
                       setIsCreateModalOpen(false)
-                      // Resetear wizard para la próxima vez
-                      setWizardStep('select_client')
-                      setSelectedWizardClient(null)
-                      setCreatedPedidoResult(null)
+                      resetAllCreateOrderForms()
                     }}
-                    className="px-6 py-2 bg-blue-600 hover:bg-blue-500 text-white font-semibold shadow transition hover:scale-[1.02] active:scale-[0.98] rounded-lg text-sm"
+                    className="px-6 py-2 bg-blue-600 hover:bg-blue-500 text-white font-semibold shadow transition hover:scale-[1.02] active:scale-[0.98] rounded-lg text-sm cursor-pointer"
                   >
                     Finalizar y Ver en Panel
                   </button>
@@ -2414,332 +2412,26 @@ export default function PedidosPage() {
             )}
           </Modal>
         )}
-
-        {/* Modal de Edición */}
-        {isEditModalOpen && selectedPedido && (
-          <Modal
-            isOpen={isEditModalOpen}
-            onClose={() => setIsEditModalOpen(false)}
-            className="max-w-xl p-6"
-          >
-            <h2 className="text-xl font-bold text-white mb-4">Editar Pedido</h2>
-            <form onSubmit={handleEditSubmit} className="space-y-4 text-slate-300">
-              <div className="relative">
-                <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5 flex items-center justify-between">
-                  <span>Cliente *</span>
-                  <button
-                    type="button"
-                    onClick={handleOpenCreateClienteModal}
-                    className="text-xs text-blue-450 hover:text-blue-300 font-semibold"
-                  >
-                    + Nuevo Cliente
-                  </button>
-                </label>
-                <input
-                  type="text"
-                  placeholder="Buscar cliente..."
-                  value={clientSearchText}
-                  onChange={(e) => {
-                    setClientSearchText(e.target.value)
-                    setIsClientDropdownOpen(true)
-                  }}
-                  onFocus={() => setIsClientDropdownOpen(true)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition"
-                />
-                {isClientDropdownOpen && (
-                  <>
-                    <div className="fixed inset-0 z-40" onClick={() => setIsClientDropdownOpen(false)} />
-                    <div className="absolute z-50 left-0 right-0 mt-1 max-h-60 overflow-y-auto bg-slate-950 border border-slate-800 rounded-lg shadow-xl divide-y divide-slate-900 text-left">
-                      {clientes
-                        .filter((c) => {
-                          const query = clientSearchText.toLowerCase().trim()
-                          return (
-                            (c.nombre_cliente || '').toLowerCase().includes(query) ||
-                            (c.nombre_empresa || '').toLowerCase().includes(query) ||
-                            (c.email || '').toLowerCase().includes(query)
-                          )
-                        })
-                        .map((c) => (
-                          <div
-                            key={c.id}
-                            onClick={() => {
-                              setFormData({ ...formData, cliente_id: c.id.toString() })
-                              setClientSearchText(`${c.nombre_cliente} - ${c.nombre_empresa}`)
-                              setIsClientDropdownOpen(false)
-                            }}
-                            className="px-3.5 py-2.5 hover:bg-slate-900 cursor-pointer text-sm text-slate-300 hover:text-white transition flex justify-between"
-                          >
-                            <div>
-                              <span className="font-semibold block">{c.nombre_cliente}</span>
-                              <span className="text-xs text-slate-500">{c.nombre_empresa}</span>
-                            </div>
-                            {c.email && <span className="text-xs text-slate-500 self-center">{c.email}</span>}
-                          </div>
-                        ))}
-                      {clientes.filter((c) => {
-                        const query = clientSearchText.toLowerCase().trim()
-                        return (
-                          (c.nombre_cliente || '').toLowerCase().includes(query) ||
-                          (c.nombre_empresa || '').toLowerCase().includes(query) ||
-                          (c.email || '').toLowerCase().includes(query)
-                        )
-                      }).length === 0 && (
-                          <div className="px-3.5 py-2.5 text-xs text-slate-500 italic text-center">
-                            No se encontraron clientes.{" "}
-                            <button
-                              type="button"
-                              onClick={handleOpenCreateClienteModal}
-                              className="text-blue-450 hover:underline font-semibold"
-                            >
-                              Crear nuevo cliente
-                            </button>
-                          </div>
-                        )}
-                    </div>
-                  </>
-                )}
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
-                    Prioridad *
-                  </label>
-                  <select
-                    value={formData.prioridad}
-                    onChange={(e) => setFormData({ ...formData, prioridad: e.target.value as any })}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition"
-                  >
-                    <option value="baja">Baja</option>
-                    <option value="normal">Normal</option>
-                    <option value="alta">Alta</option>
-                    <option value="critica">Crítica</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
-                    Estado *
-                  </label>
-                  <select
-                    value={formData.estado}
-                    onChange={(e) => setFormData({ ...formData, estado: e.target.value })}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition"
-                  >
-                    <option value="pendiente">Pendiente</option>
-                    <option value="listo_para_produccion">Listo para producción</option>
-                    <option value="en_progreso">En Progreso</option>
-                    <option value="completado">Completado</option>
-                    <option value="completado_pd">Completado - Pendiente de pago (PD)</option>
-                    <option value="enviado">Enviado</option>
-                    <option value="enviado_faltante">Enviado con faltante</option>
-                    <option value="cancelado">Cancelado</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
-                    Fecha Entrega
-                  </label>
-                  <input
-                    type="date"
-                    value={formData.fecha_entrega}
-                    onChange={(e) => setFormData({ ...formData, fecha_entrega: e.target.value })}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
-                    Precio ($)
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="Ej. 1500"
-                    value={formData.precio}
-                    onChange={(e) => {
-                      const val = e.target.value
-                      if (/^[0-9]*$/.test(val)) {
-                        setFormData({ ...formData, precio: val })
-                      }
-                    }}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition"
-                  />
-                </div>
-
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
-                  Comentario
-                </label>
-                <textarea
-                  placeholder="Escribe un comentario o notas adicionales para el pedido..."
-                  value={formData.comentario}
-                  onChange={(e) => setFormData({ ...formData, comentario: e.target.value })}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition h-20 resize-none mb-4"
-                />
-              </div>
-
-              {/* Selección de Productos */}
-              <div>
-                <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
-                  Asociar Productos (Opcional)
-                </label>
-                <div className="mb-2">
-                  <input
-                    type="text"
-                    placeholder="Filtrar productos..."
-                    value={productSearchQuery}
-                    onChange={(e) => setProductSearchQuery(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-blue-500 transition"
-                  />
-                </div>
-                {productos.length === 0 ? (
-                  <p className="text-slate-500 italic text-xs">No hay productos cargados en el catálogo.</p>
-                ) : (
-                  <div className="bg-slate-950 border border-slate-800 rounded-lg p-3 max-h-48 overflow-y-auto space-y-2">
-                    {productos
-                      .filter((prod) => {
-                        const query = productSearchQuery.toLowerCase().trim()
-                        return (
-                          (prod.nombre || '').toLowerCase().includes(query)
-                        )
-                      })
-                      .map((prod) => {
-                        const isSelected = formData.selectedProductIds.includes(prod.id)
-                        return (
-                          <div key={prod.id} className="flex items-center justify-between text-sm hover:text-white transition p-1 hover:bg-slate-900/60 rounded">
-                            <label className="flex items-center gap-2.5 cursor-pointer flex-grow text-left">
-                              <input
-                                type="checkbox"
-                                checked={isSelected}
-                                onChange={() => handleProductCheckboxChange(prod.id)}
-                                className="rounded border-slate-800 bg-slate-900 text-blue-600 focus:ring-blue-500/20"
-                              />
-                              <span className="font-semibold ml-1">{prod.nombre}</span>
-                            </label>
-                            {isSelected && (
-                              <div className="flex items-center gap-1">
-                                <span className="text-[10px] text-slate-500 uppercase font-semibold">Cant:</span>
-                                <input
-                                  type="number"
-                                  min="1"
-                                  value={formData.productQuantities[prod.id] || 1}
-                                  onChange={(e) => handleProductQuantityChange(prod.id, parseInt(e.target.value) || 1)}
-                                  className="w-16 bg-slate-950 border border-slate-800 rounded px-1.5 py-0.5 text-xs text-white focus:outline-none focus:border-blue-500 text-center"
-                                />
-                              </div>
-                            )}
-                          </div>
-                        )
-                      })}
-                  </div>
-                )}
-              </div>
-              {/* Etapas de Fabricación y Asignación */}
-              {/* {currentUser?.role !== 'vendedor' && (
-                  <div className="border-t border-slate-800 pt-4 mt-4 space-y-3">
-                    <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                      Etapas de Fabricación y Asignación de Operarios
-                    </h3>
-                    <p className="text-[11px] text-slate-500">
-                      Se muestran las etapas de fabricación preconfiguradas para los productos seleccionados. Puede asignar el operario responsable de cada etapa.
-                    </p>
-
-                    {formData.selectedProductIds.length === 0 ? (
-                      <p className="text-slate-500 italic text-xs">Asocia productos al pedido para ver sus etapas.</p>
-                    ) : (
-                      <div className="space-y-4 max-h-[300px] overflow-y-auto bg-slate-950/60 p-3 rounded-lg border border-slate-800">
-                        {formData.selectedProductIds.map((prodId) => {
-                          const product = productos.find(p => p.id === prodId)
-                          const productStages = localEtapas
-                            .filter(s => s.producto_id === prodId)
-                            .sort((a, b) => a.orden - b.orden)
-
-                          return (
-                            <div key={prodId} className="space-y-2 bg-slate-900/60 p-3 rounded-lg border border-slate-800/40">
-                              <div className="flex items-center justify-between border-b border-slate-850 pb-1.5">
-                                <span className="text-xs font-bold uppercase tracking-wider text-blue-400">
-                                  {product?.nombre}
-                                </span>
-                                <span className="text-[10px] bg-slate-850 text-slate-400 px-2 py-0.5 rounded-full">
-                                  {productStages.length} {productStages.length === 1 ? 'etapa' : 'etapas'}
-                                </span>
-                              </div>
-
-                              {productStages.length === 0 ? (
-                                <div className="flex flex-col sm:flex-row items-center justify-between gap-2 py-2">
-                                  <span className="text-xs text-slate-500 italic">No hay etapas configuradas.</span>
-                                </div>
-                              ) : (
-                                <div className="space-y-1.5">
-                                  {productStages.map((stage) => {
-                                    const stageIdOrTempId = stage.id || stage.temp_id
-                                    const stageKey = stageIdOrTempId.toString()
-                                    return (
-                                      <div key={stageKey} className="flex items-center justify-between text-xs bg-slate-950 border border-slate-850/60 p-2 rounded-lg">
-                                        <div className="flex items-center gap-2">
-                                          <div>
-                                            <span className="font-semibold block text-slate-200">{stage.orden}. {stage.nombre}</span>
-                                          </div>
-                                        </div>
-
-                                        {currentUser && ['admin', 'encargado'].includes(currentUser.role) ? (
-                                          <select
-                                            value={localAssignments[stageKey] || ''}
-                                            onChange={(e) => handleAssignTask(stageIdOrTempId, e.target.value)}
-                                            className="bg-slate-900 border border-slate-800 rounded px-2.5 py-1 text-xs text-white focus:outline-none focus:border-blue-500 transition"
-                                          >
-                                            <option value="">Sin Asignar</option>
-                                            {operarios.map((op) => (
-                                              <option key={op.id} value={op.id}>
-                                                {op.name}
-                                              </option>
-                                            ))}
-                                          </select>
-                                        ) : (
-                                          (() => {
-                                            const assignedOp = operarios.find(o => o.id === localAssignments[stageKey])
-                                            return assignedOp ? (
-                                              <span className="text-slate-400 text-xs italic">
-                                                Asignado: {assignedOp.name}
-                                              </span>
-                                            ) : (
-                                              <span className="text-slate-500 text-xs italic">
-                                                Sin asignar
-                                              </span>
-                                            )
-                                          })()
-                                        )}
-                                      </div>
-                                    )
-                                  })}
-                                </div>
-                              )}
-                            </div>
-                          )
-                        })}
-                      </div>
-                    )}
-                  </div>
-                )} */}
-
-              <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-800">
-                <button
-                  type="button"
-                  onClick={() => setIsEditModalOpen(false)}
-                  className="px-4 py-2 rounded-lg text-sm text-slate-400 hover:text-white hover:bg-slate-800 transition"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  className="px-4 py-2 rounded-lg text-sm bg-blue-600 hover:bg-blue-500 text-white font-medium shadow transition hover:scale-[1.02] active:scale-[0.98]"
-                >
-                  Guardar Cambios
-                </button>
-              </div>
-            </form>
-          </Modal>
-        )}
+        {/* Modal de Edición de Pedido */}
+        <EditPedidoModal
+          isOpen={isEditModalOpen}
+          pedido={selectedPedido}
+          onClose={() => {
+            setIsEditModalOpen(false)
+            setSelectedPedido(null)
+          }}
+          onPedidoUpdated={(updatedPedido) => {
+            setIsEditModalOpen(false)
+            setSelectedPedido(null)
+            loadData()
+            if (selectedPedidoForView?.id === updatedPedido.id) {
+              setSelectedPedidoForView(updatedPedido)
+            }
+          }}
+          clientes={clientes}
+          productos={productos}
+          users={operarios}
+        />
 
         {/* Modal de Creación de Cliente Rápido */}
         {isCreateClienteModalOpen && (
@@ -2924,246 +2616,21 @@ export default function PedidosPage() {
         )}
 
         {/* Modal de Gestión de Pagos */}
-        {isPaymentsModalOpen && selectedPedidoForPayments && (
-          <Modal
-            isOpen={isPaymentsModalOpen}
-            onClose={() => setIsPaymentsModalOpen(false)}
-            className="max-w-4xl p-6"
-          >
-
-            <h2 className="text-xl font-bold text-white mb-1">
-              Gestión de Pagos: Pedido #{selectedPedidoForPayments.id}
-            </h2>
-            <p className="text-xs text-slate-400 mb-5">
-              Cliente: <span className="font-semibold text-slate-200">{selectedPedidoForPayments.cliente?.nombre_cliente} ({selectedPedidoForPayments.cliente?.nombre_empresa})</span>
-            </p>
-
-            {paymentError && (
-              <div className="mb-4 bg-rose-500/10 border border-rose-500/20 text-rose-300 p-3 rounded-lg text-xs font-semibold">
-                ⚠️ {paymentError}
-              </div>
-            )}
-            {paymentSuccess && (
-              <div className="mb-4 bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 p-3 rounded-lg text-xs font-semibold">
-                ✓ {paymentSuccess}
-              </div>
-            )}
-
-            {/* Grid Principal */}
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-
-              {/* Lado Izquierdo: Resumen y Listado de Pagos */}
-              <div className="lg:col-span-7 space-y-5 text-left">
-
-                {/* Resumen Financiero */}
-                <div className="bg-slate-950/60 p-4 rounded-xl border border-slate-800/60 space-y-3">
-                  <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Resumen de Cobros</h3>
-                  <div className="grid grid-cols-3 gap-2 text-center sm:text-left">
-                    <div>
-                      <span className="text-[10px] text-slate-500 uppercase block font-semibold">Total Pedido</span>
-                      <span className="text-sm font-bold text-white font-mono">
-                        $ {Number(selectedPedidoForPayments.precio || 0).toLocaleString('es-AR', { minimumFractionDigits: 2 })}
-                      </span>
-                    </div>
-                    <div>
-                      <span className="text-[10px] text-slate-500 uppercase block font-semibold">Cobrado</span>
-                      <span className="text-sm font-bold text-emerald-400 font-mono">
-                        $ {Number(selectedPedidoForPayments.monto_pagado || 0).toLocaleString('es-AR', { minimumFractionDigits: 2 })}
-                      </span>
-                    </div>
-                    <div>
-                      <span className="text-[10px] text-slate-500 uppercase block font-semibold">Saldo Pendiente</span>
-                      <span className="text-sm font-bold text-amber-500 font-mono">
-                        $ {Number(selectedPedidoForPayments.saldo_pendiente || 0).toLocaleString('es-AR', { minimumFractionDigits: 2 })}
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Barra de progreso */}
-                  <div className="space-y-1.5">
-                    <div className="flex justify-between text-[10px] font-semibold text-slate-400">
-                      <span>Progreso de cobro</span>
-                      <span>{selectedPedidoForPayments.porcentaje_pagado || 0}%</span>
-                    </div>
-                    <div className="w-full bg-slate-800 rounded-full h-2">
-                      <div
-                        className={`h-2 rounded-full transition-all duration-350 ${(selectedPedidoForPayments.porcentaje_pagado || 0) <= 10
-                          ? 'bg-rose-500'
-                          : (selectedPedidoForPayments.porcentaje_pagado || 0) <= 50
-                            ? 'bg-amber-500'
-                            : 'bg-emerald-500'
-                          }`}
-                        style={{ width: `${Math.min(100, selectedPedidoForPayments.porcentaje_pagado || 0)}%` }}
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                {/* Listado / Historial de Pagos */}
-                <div className="space-y-2">
-                  <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Historial de Transacciones</h3>
-                  {pedidoPayments.length === 0 ? (
-                    <p className="text-xs text-slate-500 italic py-4 text-center bg-slate-950/20 rounded-lg border border-slate-850">
-                      No hay cobros registrados para este pedido.
-                    </p>
-                  ) : (
-                    <div className="max-h-[220px] overflow-y-auto border border-slate-800/80 rounded-lg divide-y divide-slate-850">
-                      {pedidoPayments.map((pago) => (
-                        <div
-                          key={pago.id}
-                          className={`p-3 text-xs flex justify-between items-center transition ${pago.estado === 'anulado' ? 'bg-slate-950/20 opacity-50' : 'bg-slate-900/40 hover:bg-slate-950/20'
-                            }`}
-                        >
-                          <div className="space-y-0.5">
-                            <div className="flex items-center gap-2">
-                              <span className="font-mono font-bold text-white">
-                                $ {Number(pago.monto).toLocaleString('es-AR', { minimumFractionDigits: 2 })}
-                              </span>
-                              <span className="text-[9px] px-1 rounded bg-slate-850 border border-slate-800 text-slate-300 font-semibold uppercase">
-                                {pago.medio_pago || pago.medio}
-                              </span>
-                              {pago.estado === 'anulado' ? (
-                                <span className="text-[8px] font-bold bg-rose-500/10 text-rose-400 border border-rose-500/20 px-1 rounded">ANULADO</span>
-                              ) : (
-                                <span className="text-[8px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-1 rounded">{pago.tipo_cobro}</span>
-                              )}
-                            </div>
-                            <div className="text-[10px] text-slate-500 flex flex-wrap gap-x-2">
-                              <span>Fecha: {pago.fecha_pago ? new Date(pago.fecha_pago + 'T00:00:00').toLocaleDateString('es-AR') : new Date(pago.created_at).toLocaleDateString('es-AR')}</span>
-                              <span>•</span>
-                              <span>Por: {pago.vendedor?.name || 'Sistema'}</span>
-                            </div>
-                            {pago.observaciones && (
-                              <p className="text-[10px] text-slate-400 italic mt-0.5">Nota: &quot;{pago.observaciones}&quot;</p>
-                            )}
-                          </div>
-
-                          {/* Botón para anular pago */}
-                          {pago.estado !== 'anulado' && currentUser && ['admin', 'encargado', 'vendedor'].includes(currentUser.role) && (
-                            <button
-                              onClick={() => handleAnnulPayment(pago.id)}
-                              className="text-[10px] text-rose-455 hover:text-rose-300 font-bold hover:bg-rose-500/10 px-2 py-1 rounded transition"
-                              title="Anular Cobro"
-                            >
-                              Anular
-                            </button>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Lado Derecho: Registrar Nuevo Pago */}
-              <div className="lg:col-span-5 bg-slate-950/40 p-4 rounded-xl border border-slate-800 text-left">
-                <h3 className="text-xs font-bold text-slate-200 uppercase tracking-wider mb-3">Registrar Nuevo Cobro</h3>
-
-                {(selectedPedidoForPayments.saldo_pendiente ?? 0) <= 0 ? (
-                  <div className="text-xs text-slate-500 italic py-8 text-center">
-                    🎉 Este pedido se encuentra **completamente cobrado**. Saldo pendiente: $0.00.
-                  </div>
-                ) : (
-                  <form onSubmit={handleCreatePayment} className="space-y-3.5">
-                    <div>
-                      <label className="block text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">
-                        Monto a Cobrar ($) *
-                      </label>
-                      <input
-                        type="number"
-                        step="0.01"
-                        required
-                        max={selectedPedidoForPayments.saldo_pendiente ?? 0}
-                        value={paymentFormData.monto}
-                        onChange={(e) => setPaymentFormData({ ...paymentFormData, monto: e.target.value })}
-                        className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-blue-500 transition"
-                        placeholder="Ej. 500"
-                      />
-                      <span className="text-[9px] text-slate-500 block mt-0.5">Máximo disponible: ${selectedPedidoForPayments.saldo_pendiente ?? 0}</span>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-2">
-                      <div>
-                        <label className="block text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">
-                          Medio de Pago *
-                        </label>
-                        <select
-                          value={paymentFormData.medio_pago}
-                          onChange={(e) => setPaymentFormData({ ...paymentFormData, medio_pago: e.target.value })}
-                          className="w-full bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-blue-500 transition"
-                        >
-                          <option value="efectivo">💵 Efectivo</option>
-                          <option value="transferencia">🏦 Transferencia</option>
-                          <option value="tarjeta">💳 Tarjeta</option>
-                          <option value="mercado_pago">📱 Mercado Pago</option>
-                          <option value="otro">⚙️ Otro</option>
-                        </select>
-                      </div>
-                      <div>
-                        <label className="block text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">
-                          Tipo de Cobro *
-                        </label>
-                        <select
-                          value={paymentFormData.tipo_cobro}
-                          onChange={(e) => setPaymentFormData({ ...paymentFormData, tipo_cobro: e.target.value as any })}
-                          className="w-full bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-blue-500 transition"
-                        >
-                          <option value="parcial">Abono Parcial</option>
-                          <option value="seña">Seña / Adelanto</option>
-                          <option value="saldo">Saldo Final</option>
-                        </select>
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="block text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">
-                        Fecha de Pago
-                      </label>
-                      <input
-                        type="date"
-                        value={paymentFormData.fecha_pago}
-                        onChange={(e) => setPaymentFormData({ ...paymentFormData, fecha_pago: e.target.value })}
-                        className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-blue-500 transition"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">
-                        Observaciones / Notas
-                      </label>
-                      <textarea
-                        rows={2}
-                        value={paymentFormData.observaciones}
-                        onChange={(e) => setPaymentFormData({ ...paymentFormData, observaciones: e.target.value })}
-                        className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-blue-500 transition resize-none"
-                        placeholder="Detalles de la transferencia, banco, etc."
-                      />
-                    </div>
-
-                    <button
-                      type="submit"
-                      disabled={isSubmittingPayment}
-                      className="w-full py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-semibold shadow transition active:scale-[0.98] disabled:opacity-50"
-                    >
-                      {isSubmittingPayment ? 'Registrando...' : 'Registrar Cobro'}
-                    </button>
-                  </form>
-                )}
-              </div>
-
-            </div>
-
-            <div className="flex items-center justify-end pt-4 border-t border-slate-800 mt-5">
-              <button
-                type="button"
-                onClick={() => setIsPaymentsModalOpen(false)}
-                className="px-4 py-2 rounded-lg text-xs text-slate-400 hover:text-white hover:bg-slate-800 transition"
-              >
-                Cerrar
-              </button>
-            </div>
-          </Modal>
-        )}
+        <PaymentModal
+          isOpen={isPaymentsModalOpen}
+          pedido={selectedPedidoForPayments}
+          currentUser={currentUser}
+          onClose={() => {
+            setIsPaymentsModalOpen(false)
+            setSelectedPedidoForPayments(null)
+          }}
+          onPaymentUpdated={(updatedPedido) => {
+            loadData()
+            if (updatedPedido && selectedPedidoForView?.id === updatedPedido.id) {
+              setSelectedPedidoForView(updatedPedido)
+            }
+          }}
+        />
 
         <PedidoDetailModal
           pedido={selectedPedidoForView}
@@ -3175,6 +2642,7 @@ export default function PedidosPage() {
           onUpdatePedido={(updated) => {
             setSelectedPedidoForView(updated)
             setPedidos((prev) => prev.map((p) => (p.id === updated.id ? updated : p)))
+            fetchResponsablesEtapas().then(setTaskAssignments).catch(console.error)
           }}
           allStages={allStages}
           taskAssignments={taskAssignments}

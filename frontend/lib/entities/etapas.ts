@@ -96,3 +96,77 @@ export async function syncEtapas(productId: number, etapas: SyncEtapaItemInput[]
     etapa: item.etapa
   }))
 }
+
+// Ordenar etapas topológicamente en base a sus dependencias
+export function topologicalSortEtapas(etapas: Etapa[]): Etapa[] {
+  if (!etapas || etapas.length === 0) return []
+
+  const stageMap = new Map<number | string, Etapa>()
+  const inDegree = new Map<number | string, number>()
+  const adj = new Map<number | string, (number | string)[]>()
+  const originalOrdenMap = new Map<number | string, number>()
+
+  etapas.forEach((stage, idx) => {
+    const key = stage.id || (stage as any).temp_id || `idx_${idx}`
+    stageMap.set(key, stage)
+    inDegree.set(key, 0)
+    adj.set(key, [])
+    originalOrdenMap.set(key, stage.orden ?? idx + 1)
+  })
+
+  etapas.forEach((stage, idx) => {
+    const key = stage.id || (stage as any).temp_id || `idx_${idx}`
+    if (stage.dependencias && stage.dependencias.length > 0) {
+      stage.dependencias.forEach((dep) => {
+        const depKey = dep.id || (dep as any).temp_id
+        if (depKey !== undefined && stageMap.has(depKey)) {
+          // dep -> key (stage depende de dep)
+          adj.get(depKey)?.push(key)
+          inDegree.set(key, (inDegree.get(key) || 0) + 1)
+        }
+      })
+    }
+  })
+
+  const queue: (number | string)[] = []
+  stageMap.forEach((_, key) => {
+    if (inDegree.get(key) === 0) {
+      queue.push(key)
+    }
+  })
+
+  queue.sort((a, b) => (originalOrdenMap.get(a) || 0) - (originalOrdenMap.get(b) || 0))
+
+  const sortedResult: Etapa[] = []
+
+  while (queue.length > 0) {
+    const currentKey = queue.shift()!
+    const stageObj = stageMap.get(currentKey)
+    if (stageObj) {
+      sortedResult.push(stageObj)
+    }
+
+    const neighbors = adj.get(currentKey) || []
+    neighbors.forEach((neighborKey) => {
+      const currentInDegree = (inDegree.get(neighborKey) || 0) - 1
+      inDegree.set(neighborKey, currentInDegree)
+      if (currentInDegree === 0) {
+        queue.push(neighborKey)
+        queue.sort((a, b) => (originalOrdenMap.get(a) || 0) - (originalOrdenMap.get(b) || 0))
+      }
+    })
+  }
+
+  if (sortedResult.length < etapas.length) {
+    etapas.forEach((s) => {
+      if (!sortedResult.includes(s)) {
+        sortedResult.push(s)
+      }
+    })
+  }
+
+  return sortedResult.map((stage, idx) => ({
+    ...stage,
+    orden: idx + 1
+  }))
+}

@@ -45,25 +45,18 @@ class Pedido extends Model
         'estado_pago',
     ];
 
-    protected ?string $pendingEstado = null;
+    public ?string $pendingInitialState = null;
 
     protected static function booted(): void
     {
-        static::saved(function (Pedido $pedido) {
-            if ($pedido->pendingEstado !== null) {
-                $nuevoEstado = $pedido->pendingEstado;
-                $pedido->pendingEstado = null;
-                $pedido->historialEstados()->create([
-                    'estado' => $nuevoEstado,
+        static::created(function (Pedido $pedido) {
+            if ($pedido->historialEstados()->count() === 0) {
+                $initialState = $pedido->pendingInitialState ?? 'pendiente';
+                $nuevoHistorial = $pedido->historialEstados()->create([
+                    'estado' => $initialState,
                     'created_at' => now(),
                 ]);
-                $pedido->unsetRelation('ultimoEstado');
-            } elseif ($pedido->wasRecentlyCreated && $pedido->historialEstados()->count() === 0) {
-                $pedido->historialEstados()->create([
-                    'estado' => 'pendiente',
-                    'created_at' => now(),
-                ]);
-                $pedido->unsetRelation('ultimoEstado');
+                $pedido->setRelation('ultimoEstado', $nuevoHistorial);
             }
         });
     }
@@ -131,15 +124,14 @@ class Pedido extends Model
      */
     public function ultimoEstado(): HasOne
     {
-        return $this->hasOne(PedidoHistorialEstado::class, 'pedido_id')->latestOfMany();
+        return $this->hasOne(PedidoHistorialEstado::class, 'pedido_id')->latestOfMany(['created_at', 'id']);
     }
 
-    // Accessor y Mutator para la propiedad dinámica 'estado'
+
+
+    // Accessor y Mutator para el estado basado 100% en la tabla de historial (pedido_historial_estado)
     public function getEstadoAttribute(): string
     {
-        if ($this->pendingEstado !== null) {
-            return $this->pendingEstado;
-        }
         return $this->ultimoEstado?->estado ?? 'pendiente';
     }
 
@@ -148,9 +140,17 @@ class Pedido extends Model
         if ($value === null) {
             return;
         }
+        if (!$this->exists) {
+            $this->pendingInitialState = $value;
+            return;
+        }
         $current = $this->ultimoEstado?->estado;
         if ($current !== $value) {
-            $this->pendingEstado = $value;
+            $nuevoHistorial = $this->historialEstados()->create([
+                'estado' => $value,
+                'created_at' => now(),
+            ]);
+            $this->setRelation('ultimoEstado', $nuevoHistorial);
         }
     }
 
@@ -215,6 +215,11 @@ class Pedido extends Model
         $adminUserId = $adminUser?->id;
 
         foreach ($etapasProductos as $etapaProducto) {
+            // Verificar si la etapa corresponde a diseño (etapa_id 5 o por nombre)
+            $etapaNombre = mb_strtolower($etapaProducto->etapa->nombre ?? '');
+            $isDiseno = ((int) $etapaProducto->etapa_id === 5) || str_contains($etapaNombre, 'diseño') || str_contains($etapaNombre, 'diseno');
+            $assignedUserId = $isDiseno ? ($this->user_id ?? $adminUserId) : $adminUserId;
+
             // Verificar si ya existe la tarea
             $tarea = ResponsableEtapa::where('pedido_id', $this->id)
                 ->where('etapa_producto_id', $etapaProducto->id)
@@ -227,16 +232,26 @@ class Pedido extends Model
                 ResponsableEtapa::create([
                     'pedido_id' => $this->id,
                     'etapa_producto_id' => $etapaProducto->id,
-                    'user_id' => $adminUserId,
+                    'user_id' => $assignedUserId,
                     'estado' => $estadoInicial
                 ]);
             } else {
-                // Si la tarea existe y estaba bloqueada pero ahora no tiene dependencias (o viceversa), actualizar
-                // Pero no sobreescribir si está en progreso o completada
+                $updates = [];
+
+                // Si es etapa de diseño, asegurar asignación al vendedor del pedido
+                if ($isDiseno && !empty($this->user_id) && $tarea->user_id !== $this->user_id) {
+                    $updates['user_id'] = $this->user_id;
+                }
+
+                // Si la tarea existe y estaba bloqueada pero ahora no tiene dependencias (o viceversa)
                 if ($tarea->estado === 'bloqueada' && !$tieneDependencias) {
-                    $tarea->update(['estado' => 'pendiente']);
+                    $updates['estado'] = 'pendiente';
                 } elseif ($tarea->estado === 'pendiente' && $tieneDependencias) {
-                    $tarea->update(['estado' => 'bloqueada']);
+                    $updates['estado'] = 'bloqueada';
+                }
+
+                if (!empty($updates)) {
+                    $tarea->update($updates);
                 }
             }
         }

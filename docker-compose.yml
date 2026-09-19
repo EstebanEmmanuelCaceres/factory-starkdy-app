@@ -11,6 +11,8 @@ services:
     container_name: factory-frontend
     ports:
       - "${FRONTEND_PORT:-3000}:3000"
+    environment:
+      - INTERNAL_BACKEND_URL=${INTERNAL_BACKEND_URL:-http://backend:80}
     depends_on:
       - backend
     networks:

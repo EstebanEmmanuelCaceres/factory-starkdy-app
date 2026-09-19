@@ -175,10 +175,21 @@ class ClienteController extends Controller
     /**
      * Display a listing of the resource with related pedidos.
      */
-    public function clientesWithPedidos(): JsonResponse
+    public function clientesWithPedidos(Request $request): JsonResponse
     {
-        $clientes = Cliente::with(['pedidos' => function ($q) {
-            $q->select('id', 'cliente_id', 'codigo');
+        $query = Cliente::query();
+
+        if ($request->has('search') && !empty($request->input('search'))) {
+            $searchTerm = mb_strtolower(trim($request->input('search')));
+            $query->where(function ($q) use ($searchTerm) {
+                $q->whereRaw('LOWER(nombre_empresa) LIKE ?', ['%' . $searchTerm . '%'])
+                    ->orWhereRaw('LOWER(nombre_cliente) LIKE ?', ['%' . $searchTerm . '%'])
+                    ->orWhereRaw('LOWER(email) LIKE ?', ['%' . $searchTerm . '%']);
+            });
+        }
+
+        $clientes = $query->with(['pedidos' => function ($q) {
+            $q->select('id', 'cliente_id', 'codigo', 'fecha_entrega', 'created_at');
         }])->get();
 
         $clientes->each(function ($cliente) {

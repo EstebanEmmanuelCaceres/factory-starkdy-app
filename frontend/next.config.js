@@ -8,6 +8,15 @@ const nextConfig = {
     NEXT_PUBLIC_API_URL:
       process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api',
   },
+  async rewrites() {
+    const backendUrl = process.env.INTERNAL_BACKEND_URL || 'http://backend:80'
+    return [
+      {
+        source: '/storage/:path*',
+        destination: `${backendUrl}/storage/:path*`,
+      },
+    ]
+  },
 }
 
 module.exports = nextConfig
