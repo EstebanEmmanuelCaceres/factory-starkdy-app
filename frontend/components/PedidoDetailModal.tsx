@@ -122,6 +122,7 @@ export default function PedidoDetailModal({
     if (typeof u.role === 'string') return u.role
     return (u.role as any).slug || ''
   })()
+  const isOperario = userRole === 'operario' || userRole === 'operator'
   const isAuthorizedRole = !userRole || ['admin', 'encargado', 'vendedor'].includes(userRole)
 
   if (!isOpen || !currentPedido) return null
@@ -373,7 +374,7 @@ export default function PedidoDetailModal({
 
             {/* Botones de acción derecha: Editar Pedido, Galería */}
             <div className="flex flex-wrap items-center gap-2.5 shrink-0 self-end sm:self-start">
-              {onOpenEdit && isAuthorizedRole && (
+              {onOpenEdit && isAuthorizedRole && !isOperario && (
                 <button
                   type="button"
                   onClick={() => onOpenEdit(currentPedido)}
@@ -384,7 +385,7 @@ export default function PedidoDetailModal({
                   <span>Editar Pedido</span>
                 </button>
               )}
-              {onOpenGallery && isAuthorizedRole && (
+              {onOpenGallery && (
                 <button
                   type="button"
                   onClick={() => onOpenGallery(currentPedido)}
@@ -404,7 +405,7 @@ export default function PedidoDetailModal({
           </div>
 
           {/* Resumen Financiero y Botón de Cobro */}
-          {currentPedido.precio !== null && currentPedido.precio !== undefined && (
+          {!isOperario && currentPedido.precio !== null && currentPedido.precio !== undefined && (
             <div className="bg-slate-950/60 border border-slate-800/80 p-3.5 rounded-xl flex flex-wrap items-center justify-between gap-3 text-xs shadow-inner">
               <div className="flex flex-wrap items-center gap-4 sm:gap-6">
                 <div>

@@ -923,8 +923,10 @@ export default function PedidosPage() {
     currentPage * ITEMS_PER_PAGE
   )
 
+  const isOperario = currentUser?.role === 'operario' || currentUser?.role === 'operator'
+
   return (
-    <RoleGuard allowedRoles={['admin', 'supervisor', 'encargado', 'vendedor', 'disenador', 'disenadora']}>
+    <RoleGuard allowedRoles={['admin', 'supervisor', 'encargado', 'vendedor', 'disenador', 'disenadora', 'operario', 'operator']}>
       <main className="page-content p-6 text-white">
         {/* Notificaciones */}
         {successMessage && (
@@ -946,25 +948,29 @@ export default function PedidosPage() {
           <div>
             <h1 className="text-2xl font-bold text-white tracking-tight">Panel de Pedidos</h1>
             <p className="text-sm text-slate-400">
-              {currentUser?.role === 'vendedor' || currentUser?.role === 'disenador'
+              {isOperario
+                ? 'Visualiza los pedidos de fabricación y sus etapas asignadas.'
+                : currentUser?.role === 'vendedor' || currentUser?.role === 'disenador'
                 ? 'Visualiza y gestiona las ventas y pedidos asignados a tu cuenta.'
                 : 'Gestiona los pedidos de fabricación, asocia productos y asigna operarios a etapas.'}
             </p>
           </div>
-          <div className="flex items-center gap-3 self-start md:self-auto">
-            <button
-              onClick={handleOpenCreateClienteModal}
-              className="flex items-center justify-center gap-2 bg-slate-800 hover:bg-slate-700 text-white font-medium px-4 py-2.5 rounded-lg shadow transition duration-200 text-sm hover:scale-[1.02] active:scale-[0.98]"
-            >
-              <span>➕</span> Nuevo Cliente
-            </button>
-            <button
-              onClick={handleOpenCreateModal}
-              className="flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-500 text-white font-medium px-4 py-2.5 rounded-lg shadow transition duration-200 text-sm hover:scale-[1.02] active:scale-[0.98]"
-            >
-              <span>➕</span> Nuevo Pedido
-            </button>
-          </div>
+          {!isOperario && (
+            <div className="flex items-center gap-3 self-start md:self-auto">
+              <button
+                onClick={handleOpenCreateClienteModal}
+                className="flex items-center justify-center gap-2 bg-slate-800 hover:bg-slate-700 text-white font-medium px-4 py-2.5 rounded-lg shadow transition duration-200 text-sm hover:scale-[1.02] active:scale-[0.98]"
+              >
+                <span>➕</span> Nuevo Cliente
+              </button>
+              <button
+                onClick={handleOpenCreateModal}
+                className="flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-500 text-white font-medium px-4 py-2.5 rounded-lg shadow transition duration-200 text-sm hover:scale-[1.02] active:scale-[0.98]"
+              >
+                <span>➕</span> Nuevo Pedido
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Filtros */}
@@ -1001,7 +1007,7 @@ export default function PedidosPage() {
               </button>
 
               {/* Filtro de Vendedor (Visible para roles con acceso general) */}
-              {currentUser?.role !== 'vendedor' && currentUser?.role !== 'disenador' && (
+              {!isOperario && currentUser?.role !== 'vendedor' && currentUser?.role !== 'disenador' && (
                 <select
                   value={filterVendedor}
                   onChange={(e) => {
@@ -1046,7 +1052,8 @@ export default function PedidosPage() {
                 }}
                 className="bg-slate-950 border border-slate-800 focus:border-blue-500 text-slate-300 text-sm rounded-xl px-3.5 py-2.5 focus:outline-none transition duration-150 cursor-pointer hover:border-slate-700"
               >
-                <option value="">📊 Todos los Estados</option>
+                <option value="">📊 Estados Activos (sin finalizados/cancelados)</option>
+                <option value="todos">🌐 Todos los Estados (incluir completados y cancelados)</option>
                 <option value="pendiente">Pendiente</option>
                 <option value="listo_para_produccion">Listo para producción</option>
                 <option value="en_progreso">En Progreso</option>
@@ -1199,16 +1206,18 @@ export default function PedidosPage() {
                             )}
                           </span>
                         </div>
-                        <div>
-                          <span className="text-slate-500 block mb-0.5">Precio</span>
-                          <span className="font-bold text-white">
-                            {pedido.precio !== null && pedido.precio !== undefined ? (
-                              `$ ${parseFloat(pedido.precio.toString()).toLocaleString('es-AR', { minimumFractionDigits: 2 })}`
-                            ) : (
-                              'Sin precio'
-                            )}
-                          </span>
-                        </div>
+                        {!isOperario && (
+                          <div>
+                            <span className="text-slate-500 block mb-0.5">Precio</span>
+                            <span className="font-bold text-white">
+                              {pedido.precio !== null && pedido.precio !== undefined ? (
+                                `$ ${parseFloat(pedido.precio.toString()).toLocaleString('es-AR', { minimumFractionDigits: 2 })}`
+                              ) : (
+                                'Sin precio'
+                              )}
+                            </span>
+                          </div>
+                        )}
                         <div>
                           <span className="text-slate-500 block mb-0.5">Registrado por</span>
                           <span className="text-slate-400">{pedido.user?.name || 'Desconocido'}</span>
@@ -1245,13 +1254,15 @@ export default function PedidosPage() {
                         >
                           👁️ <span className="text-[11px]">Ver</span>
                         </button>
-                        <button
-                          onClick={() => handleDelete(pedido.id)}
-                          className="text-rose-400 hover:text-rose-300 p-2 bg-slate-950 border border-slate-800 hover:bg-rose-500/10 rounded-lg transition text-xs flex items-center gap-1 font-semibold"
-                          title="Dar de baja pedido"
-                        >
-                          🗑️
-                        </button>
+                        {!isOperario && (
+                          <button
+                            onClick={() => handleDelete(pedido.id)}
+                            className="text-rose-400 hover:text-rose-300 p-2 bg-slate-950 border border-slate-800 hover:bg-rose-500/10 rounded-lg transition text-xs flex items-center gap-1 font-semibold"
+                            title="Dar de baja pedido"
+                          >
+                            🗑️
+                          </button>
+                        )}
                       </div>
                     </div>
                   )
@@ -1279,9 +1290,11 @@ export default function PedidosPage() {
                       <th onClick={() => handleSort('created_at')} className="px-6 py-4 cursor-pointer hover:text-white transition text-left">
                         Fecha Creación {sortField === 'created_at' || sortField === 'fecha_entrega' ? (sortDirection === 'asc' ? ' ▲' : ' ▼') : ''}
                       </th>
-                      <th onClick={() => handleSort('precio')} className="px-6 py-4 text-right cursor-pointer hover:text-white transition">
-                        Precio {sortField === 'precio' ? (sortDirection === 'asc' ? ' ▲' : ' ▼') : ''}
-                      </th>
+                      {!isOperario && (
+                        <th onClick={() => handleSort('precio')} className="px-6 py-4 text-right cursor-pointer hover:text-white transition">
+                          Precio {sortField === 'precio' ? (sortDirection === 'asc' ? ' ▲' : ' ▼') : ''}
+                        </th>
+                      )}
                       <th onClick={() => handleSort('user')} className="px-6 py-4 cursor-pointer hover:text-white transition text-left">
                         Registrado por {sortField === 'user' ? (sortDirection === 'asc' ? ' ▲' : ' ▼') : ''}
                       </th>
@@ -1393,13 +1406,15 @@ export default function PedidosPage() {
                               <span className="text-slate-600 italic">-</span>
                             )}
                           </td>
-                          <td className="px-6 py-4 text-right text-xs font-semibold text-white">
-                            {pedido.precio !== null && pedido.precio !== undefined ? (
-                              `$ ${parseFloat(pedido.precio.toString()).toLocaleString('es-AR', { minimumFractionDigits: 2 })}`
-                            ) : (
-                              <span className="text-slate-600 italic">-</span>
-                            )}
-                          </td>
+                          {!isOperario && (
+                            <td className="px-6 py-4 text-right text-xs font-semibold text-white">
+                              {pedido.precio !== null && pedido.precio !== undefined ? (
+                                `$ ${parseFloat(pedido.precio.toString()).toLocaleString('es-AR', { minimumFractionDigits: 2 })}`
+                              ) : (
+                                <span className="text-slate-600 italic">-</span>
+                              )}
+                            </td>
+                          )}
                           <td className="px-6 py-4 text-xs text-slate-400">{pedido.user?.name || 'Desconocido'}</td>
                           <td className="px-6 py-4 text-right">
                             <div className="flex justify-end gap-2.5">
@@ -1431,13 +1446,15 @@ export default function PedidosPage() {
                               >
                                 👁️
                               </button>
-                              <button
-                                onClick={() => handleDelete(pedido.id)}
-                                className="text-rose-400 hover:text-rose-300 p-1 hover:bg-rose-500/10 rounded transition"
-                                title="Dar de baja pedido"
-                              >
-                                🗑️
-                              </button>
+                              {!isOperario && (
+                                <button
+                                  onClick={() => handleDelete(pedido.id)}
+                                  className="text-rose-400 hover:text-rose-300 p-1 hover:bg-rose-500/10 rounded transition"
+                                  title="Dar de baja pedido"
+                                >
+                                  🗑️
+                                </button>
+                              )}
                             </div>
                           </td>
                         </tr>

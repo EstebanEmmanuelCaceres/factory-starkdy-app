@@ -67,7 +67,7 @@ const NAV_SECTIONS = [
       { id: 'dashboard', label: 'Dashboard', href: '/dashboard', Icon: Icons.dashboard, available: true, roles: ['admin', 'supervisor', 'encargado', 'vendedor', 'disenador', 'disenadora'] },
       { id: 'productos', label: 'Productos', href: '/dashboard/productos', Icon: Icons.products, available: true, roles: ['admin'] },
       { id: 'clientes', label: 'Clientes', href: '/dashboard/clientes', Icon: Icons.customers, available: true, roles: ['admin', 'encargado', 'vendedor', 'disenador', 'disenadora'] },
-      { id: 'pedidos', label: 'Pedidos', href: '/dashboard/pedidos', Icon: Icons.orders, available: true, roles: ['admin', 'supervisor', 'encargado', 'vendedor', 'disenador', 'disenadora'] },
+      { id: 'pedidos', label: 'Pedidos', href: '/dashboard/pedidos', Icon: Icons.orders, available: true, roles: ['admin', 'supervisor', 'encargado', 'vendedor', 'disenador', 'disenadora', 'operario', 'operator'] },
       { id: 'usuarios', label: 'Usuarios', href: '/dashboard/usuarios', Icon: Icons.users, available: true, roles: ['admin'] },
       { id: 'saldos', label: 'Saldos Pendientes', href: '/dashboard/saldos', Icon: Icons.saldos, available: true, roles: ['vendedor', 'disenador', 'disenadora'] },
       { id: 'tareas', label: 'Mis Tareas', href: '/dashboard/tareas', Icon: Icons.orders, available: true, roles: ['operario', 'admin', 'supervisor', 'encargado'] },
