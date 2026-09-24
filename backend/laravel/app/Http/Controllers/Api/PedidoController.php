@@ -38,8 +38,10 @@ class PedidoController extends Controller
                 'comentarios.user:id,name'
             ]);
 
+        $hasSearch = $request->has('search') && !empty(trim($request->input('search')));
+
         // Búsqueda opcional por código de pedido, nombre de empresa, nombre de cliente o correo del cliente relacionado
-        if ($request->has('search') && !empty($request->input('search'))) {
+        if ($hasSearch) {
             $searchTerm = mb_strtolower(trim($request->input('search')));
             $query->where(function ($q) use ($searchTerm) {
                 $q->whereRaw('LOWER(codigo) LIKE ?', ['%' . $searchTerm . '%'])
@@ -64,8 +66,8 @@ class PedidoController extends Controller
                     $q->where('estado', $estadoInput);
                 });
             }
-        } else {
-            // Por defecto (sin filtro explícito): Excluir pedidos completados, cancelados o enviados
+        } elseif (!$hasSearch) {
+            // Por defecto (sin filtro explícito y sin búsqueda activa): Excluir pedidos completados, cancelados o enviados
             $query->whereHas('ultimoEstado', function ($q) {
                 $q->whereNotIn('estado', [
                     'completado',

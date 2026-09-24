@@ -158,22 +158,19 @@ export default function PedidosPage() {
     try {
       const filters: { search?: string; prioridad?: string; estado?: string } = {}
 
-      if (search !== undefined) {
-        if (search) filters.search = search
-      } else if (searchQuery) {
-        filters.search = searchQuery
-      }
+      const targetSearch = search !== undefined ? search : searchQuery
 
-      if (priority !== undefined) {
-        if (priority) filters.prioridad = priority
-      } else if (filterPrioridad) {
-        filters.prioridad = filterPrioridad
-      }
+      if (targetSearch && targetSearch.trim()) {
+        filters.search = targetSearch.trim()
+        // Al tener búsqueda activa, el buscador queda desacoplado de los filtros de estado/prioridad
+        // Enviamos estado='todos' para que el backend consulte en todos los estados (enviados, completados, cancelados)
+        filters.estado = 'todos'
+      } else {
+        const targetPriority = priority !== undefined ? priority : filterPrioridad
+        const targetStatus = status !== undefined ? status : filterEstado
 
-      if (status !== undefined) {
-        if (status) filters.estado = status
-      } else if (filterEstado) {
-        filters.estado = filterEstado
+        if (targetPriority) filters.prioridad = targetPriority
+        if (targetStatus) filters.estado = targetStatus
       }
 
       const [pedidosData, clientesData, productosData, usersData, stagesData] = await Promise.all([
@@ -787,6 +784,12 @@ export default function PedidosPage() {
     }
   }
 
+  const handleClearSearchInput = () => {
+    setSearchQuery('')
+    setCurrentPage(1)
+    loadData('')
+  }
+
   const handleClearSearch = () => {
     setSearchQuery('')
     setFilterPrioridad('')
@@ -866,18 +869,20 @@ export default function PedidosPage() {
       if (['operario', 'operator'].includes(currentUser.role)) {
         if (p.estado === 'pendiente') return false
       }
-      if (filterVendedor) {
-        if (p.user_id !== Number(filterVendedor)) return false
-      }
+
+      // Si hay una búsqueda por texto activa, el buscador está desacoplado de los dropdowns de filtro
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase().trim()
         const matchCode = (p.codigo || '').toLowerCase().includes(q)
         const matchClientName = (p.cliente?.nombre_cliente || '').toLowerCase().includes(q)
         const matchEmpresa = (p.cliente?.nombre_empresa || '').toLowerCase().includes(q)
         const matchEmail = (p.cliente?.email || '').toLowerCase().includes(q)
-        if (!matchCode && !matchClientName && !matchEmpresa && !matchEmail) {
-          return false
-        }
+        return matchCode || matchClientName || matchEmpresa || matchEmail
+      }
+
+      // Si NO hay texto en el buscador, se aplican los filtros de la barra
+      if (filterVendedor) {
+        if (p.user_id !== Number(filterVendedor)) return false
       }
       return true
     })
@@ -990,7 +995,7 @@ export default function PedidosPage() {
                 <span className="absolute left-3.5 top-3 text-slate-500 text-sm">🔍</span>
                 {searchQuery && (
                   <button
-                    onClick={handleClearSearch}
+                    onClick={handleClearSearchInput}
                     className="absolute right-3 top-3 text-slate-500 hover:text-slate-300 text-sm cursor-pointer"
                   >
                     ✕
