@@ -47,7 +47,15 @@ class User extends Authenticatable
     public function responsabilidades(): BelongsToMany
     {
         return $this->belongsToMany(Responsabilidad::class, 'user_responsabilidades', 'user_id', 'responsabilidad_id')
-                    ->withTimestamps();
+            ->withTimestamps();
+    }
+
+    /**
+     * Relación Muchos a Muchos con Categorías.
+     */
+    public function categorias(): BelongsToMany
+    {
+        return $this->belongsToMany(Categoria::class, 'categoria_user', 'user_id', 'categoria_id');
     }
 
     /**

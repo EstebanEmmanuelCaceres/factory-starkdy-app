@@ -1,9 +1,11 @@
 import api from '../api'
+import type { Categoria } from './categorias'
 
 export interface EtapaCatalog {
   id: number
   nombre: string
   descripcion: string | null
+  categorias?: Categoria[]
 }
 
 export interface Etapa {
@@ -17,6 +19,7 @@ export interface Etapa {
   dependencias?: Etapa[]
   etapa?: EtapaCatalog
   producto?: { id: number; nombre: string }
+  categorias?: Categoria[]
 }
 
 export interface SyncEtapaItemInput {
@@ -26,6 +29,7 @@ export interface SyncEtapaItemInput {
   nombre: string
   orden: number
   depende_de_ids: (number | string)[]
+  categoria_ids?: number[]
 }
 
 // Obtener etapas del catálogo maestro con búsqueda opcional
@@ -61,9 +65,11 @@ export async function fetchEtapas(filters?: { producto_id?: number }): Promise<E
         id: d.id,
         producto_id: d.producto_id,
         nombre: d.etapa?.nombre || d.nombre || '',
-        orden: d.orden
+        orden: d.orden,
+        categorias: d.etapa?.categorias || d.categorias || []
       })),
-      etapa: item.etapa
+      etapa: item.etapa,
+      categorias: item.etapa?.categorias || item.categorias || []
     }))
   }
   
@@ -73,6 +79,7 @@ export async function fetchEtapas(filters?: { producto_id?: number }): Promise<E
     producto_id: 0,
     nombre: item.nombre,
     orden: 0,
+    categorias: item.categorias || []
   }))
 }
 
@@ -91,9 +98,11 @@ export async function syncEtapas(productId: number, etapas: SyncEtapaItemInput[]
       id: d.id,
       producto_id: d.producto_id,
       nombre: d.etapa?.nombre || d.nombre || '',
-      orden: d.orden
+      orden: d.orden,
+      categorias: d.etapa?.categorias || d.categorias || []
     })),
-    etapa: item.etapa
+    etapa: item.etapa,
+    categorias: item.etapa?.categorias || item.categorias || []
   }))
 }
 

@@ -125,4 +125,3 @@ class Producto extends Model
         $epFinalizado->dependencias()->attach($epProduccion->id);
     }
 }
-

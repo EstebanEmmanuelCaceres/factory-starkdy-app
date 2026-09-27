@@ -14,6 +14,8 @@ export interface UserManagementItem {
   role_id: number
   role_label: string
   created_at: string
+  categorias?: { id: number; nombre: string }[]
+  categoria_ids?: number[]
 }
 
 export interface CreateUserInput {
@@ -21,12 +23,14 @@ export interface CreateUserInput {
   email: string
   password: string
   role_id: number
+  categoria_ids?: number[]
 }
 
 export interface UpdateUserInput {
-  name: string
-  email: string
+  name?: string
+  email?: string
   role_id?: number
+  categoria_ids?: number[]
 }
 
 export interface AdminUsersFilters {

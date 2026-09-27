@@ -32,7 +32,15 @@ class Etapa extends Model
     public function productos(): BelongsToMany
     {
         return $this->belongsToMany(Producto::class, 'etapas_productos', 'etapa_id', 'producto_id')
-                    ->withPivot(['id', 'orden'])
-                    ->withTimestamps();
+            ->withPivot(['id', 'orden'])
+            ->withTimestamps();
+    }
+
+    /**
+     * Relación Muchos a Muchos con Categorías.
+     */
+    public function categorias(): BelongsToMany
+    {
+        return $this->belongsToMany(Categoria::class, 'categoria_etapa', 'etapa_id', 'categoria_id');
     }
 }

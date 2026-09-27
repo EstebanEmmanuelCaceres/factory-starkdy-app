@@ -16,9 +16,12 @@ class UserController extends Controller
     /**
      * Listar todos los usuarios con sus roles y opciones de filtrado.
      */
+    /**
+     * Listar todos los usuarios con sus roles y categorías de filtrado.
+     */
     public function index(Request $request): JsonResponse
     {
-        $query = User::with('role');
+        $query = User::with(['role', 'categorias']);
 
         if ($request->filled('search')) {
             $search = $request->input('search');
@@ -61,10 +64,12 @@ class UserController extends Controller
     public function store(Request $request): JsonResponse
     {
         $validated = $request->validate([
-            'name'     => ['required', 'string', 'max:255'],
-            'email'    => ['required', 'string', 'email', 'max:255', 'unique:users,email'],
-            'password' => ['required', 'string', 'min:8'],
-            'role_id'  => ['required', 'integer', 'exists:roles,id'],
+            'name'          => ['required', 'string', 'max:255'],
+            'email'         => ['required', 'string', 'email', 'max:255', 'unique:users,email'],
+            'password'      => ['required', 'string', 'min:8'],
+            'role_id'       => ['required', 'integer', 'exists:roles,id'],
+            'categoria_ids'   => ['nullable', 'array'],
+            'categoria_ids.*' => ['integer', 'exists:categorias,id'],
         ], [
             'name.required'     => 'El nombre es obligatorio.',
             'email.required'    => 'El correo electrónico es obligatorio.',
@@ -83,7 +88,11 @@ class UserController extends Controller
             'role_id'  => $validated['role_id'],
         ]);
 
-        $user->load('role');
+        if (isset($validated['categoria_ids'])) {
+            $user->categorias()->sync($validated['categoria_ids']);
+        }
+
+        $user->load(['role', 'categorias']);
 
         return response()->json([
             'message' => 'Usuario creado correctamente.',
@@ -96,7 +105,7 @@ class UserController extends Controller
      */
     public function show(int $id): JsonResponse
     {
-        $user = User::with('role')->findOrFail($id);
+        $user = User::with(['role', 'categorias'])->findOrFail($id);
 
         return response()->json([
             'user' => $this->formatUser($user),
@@ -104,16 +113,18 @@ class UserController extends Controller
     }
 
     /**
-     * Actualizar la información básica de un usuario (Nombre, Email, Rol).
+     * Actualizar la información básica de un usuario (Nombre, Email, Rol, Categorías).
      */
     public function update(Request $request, int $id): JsonResponse
     {
         $user = User::findOrFail($id);
 
         $validated = $request->validate([
-            'name'    => ['required', 'string', 'max:255'],
-            'email'   => ['required', 'string', 'email', 'max:255', Rule::unique('users', 'email')->ignore($user->id)],
-            'role_id' => ['nullable', 'integer', 'exists:roles,id'],
+            'name'          => ['sometimes', 'required', 'string', 'max:255'],
+            'email'         => ['sometimes', 'required', 'string', 'email', 'max:255', Rule::unique('users', 'email')->ignore($user->id)],
+            'role_id'       => ['nullable', 'integer', 'exists:roles,id'],
+            'categoria_ids'   => ['nullable', 'array'],
+            'categoria_ids.*' => ['integer', 'exists:categorias,id'],
         ], [
             'name.required'  => 'El nombre es obligatorio.',
             'email.required' => 'El correo electrónico es obligatorio.',
@@ -122,18 +133,26 @@ class UserController extends Controller
             'role_id.exists' => 'El rol seleccionado no es válido.',
         ]);
 
-        $updateData = [
-            'name'  => $validated['name'],
-            'email' => $validated['email'],
-        ];
-
+        $updateData = [];
+        if (isset($validated['name'])) {
+            $updateData['name'] = $validated['name'];
+        }
+        if (isset($validated['email'])) {
+            $updateData['email'] = $validated['email'];
+        }
         if (isset($validated['role_id'])) {
             $updateData['role_id'] = $validated['role_id'];
         }
 
-        $user->update($updateData);
+        if (!empty($updateData)) {
+            $user->update($updateData);
+        }
 
-        $user->load('role');
+        if (isset($validated['categoria_ids'])) {
+            $user->categorias()->sync($validated['categoria_ids']);
+        }
+
+        $user->load(['role', 'categorias']);
 
         return response()->json([
             'message' => 'Usuario actualizado correctamente.',
@@ -159,7 +178,7 @@ class UserController extends Controller
             'role_id' => $validated['role_id'],
         ]);
 
-        $user->load('role');
+        $user->load(['role', 'categorias']);
 
         return response()->json([
             'message' => "Rol de {$user->name} actualizado a {$user->role?->name} correctamente.",
@@ -216,13 +235,18 @@ class UserController extends Controller
     private function formatUser(User $user): array
     {
         return [
-            'id'         => $user->id,
-            'name'       => $user->name,
-            'email'      => $user->email,
-            'role'       => $user->role?->slug,
-            'role_id'    => $user->role_id,
-            'role_label' => $user->role?->name ?? 'Sin Rol',
-            'created_at' => $user->created_at?->toIso8601String() ?? $user->created_at?->toDateString(),
+            'id'            => $user->id,
+            'name'          => $user->name,
+            'email'         => $user->email,
+            'role'          => $user->role?->slug,
+            'role_id'       => $user->role_id,
+            'role_label'    => $user->role?->name ?? 'Sin Rol',
+            'created_at'    => $user->created_at?->toIso8601String() ?? $user->created_at?->toDateString(),
+            'categorias'    => $user->categorias ? $user->categorias->map(fn($c) => [
+                'id'     => $c->id,
+                'nombre' => $c->nombre,
+            ]) : [],
+            'categoria_ids' => $user->categorias ? $user->categorias->pluck('id')->toArray() : [],
         ];
     }
 }

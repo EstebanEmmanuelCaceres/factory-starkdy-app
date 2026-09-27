@@ -3,27 +3,32 @@
 import { useEffect, useState } from 'react'
 import RoleGuard from '@/components/RoleGuard'
 import Modal from '@/components/Modal'
+import TasksByCategoryBox from '@/components/TasksByCategoryBox'
 import {
   fetchOperarioTasks,
   startOperarioTask,
   cancelOperarioTask,
   completeOperarioTask
 } from '@/lib/operario_tasks'
-import { fetchResponsablesEtapas, assignTask, type ResponsableEtapa } from '@/lib/responsable_etapas'
+import { assignTask, type ResponsableEtapa } from '@/lib/responsable_etapas'
 import { getStoredUser, fetchUsers, type User } from '@/lib/auth'
 
 export default function TareasPage() {
   const [tasks, setTasks] = useState<ResponsableEtapa[]>([])
   const [operarios, setOperarios] = useState<User[]>([])
   const [selectedUserId, setSelectedUserId] = useState<number | null>(null)
-
   const [currentUser, setCurrentUser] = useState<User | null>(null)
+
   const [loading, setLoading] = useState(true)
   const [actionLoading, setActionLoading] = useState<number | null>(null)
   const [error, setError] = useState('')
   const [successMessage, setSuccessMessage] = useState('')
 
-  // Modal para Completar y Modal para Ver detalle
+  // Límites para "Ver más" (inicializan en 7, expanden a 15)
+  const [activeLimit, setActiveLimit] = useState<number>(7)
+  const [blockedLimit, setBlockedLimit] = useState<number>(7)
+
+  // Modales
   const [completingTask, setCompletingTask] = useState<ResponsableEtapa | null>(null)
   const [viewingTask, setViewingTask] = useState<ResponsableEtapa | null>(null)
 
@@ -34,33 +39,22 @@ export default function TareasPage() {
       const user = getStoredUser()
       setCurrentUser(user)
 
-      // Cargar todos los usuarios disponibles para la asignación
       const usersData = await fetchUsers()
       setOperarios(usersData)
 
-      const targetUserId = overrideUserId !== undefined ? overrideUserId : selectedUserId
+      let targetUserId = overrideUserId !== undefined ? overrideUserId : selectedUserId
+      if (targetUserId === null && user) {
+        targetUserId = user.id
+        setSelectedUserId(user.id)
+      }
 
       const isPendingOrderTask = (t: ResponsableEtapa) => {
         const pState = t.pedido?.estado || (t.pedido as any)?.ultimo_estado?.estado
         return pState === 'pendiente'
       }
 
-      if (user && ['admin', 'supervisor', 'encargado'].includes(user.role)) {
-        const filters: { user_id?: number } = {}
-        if (targetUserId) {
-          filters.user_id = targetUserId
-        }
-        const allTasks = await fetchResponsablesEtapas(filters)
-        setTasks(allTasks.filter(t => t.estado !== 'completado' && !isPendingOrderTask(t)))
-      } else {
-        if (targetUserId && targetUserId !== user?.id) {
-          const tasksData = await fetchResponsablesEtapas({ user_id: targetUserId })
-          setTasks(tasksData.filter(t => t.estado !== 'completado' && !isPendingOrderTask(t)))
-        } else {
-          const tasksData = await fetchOperarioTasks()
-          setTasks(tasksData.filter(t => t.estado !== 'completado' && !isPendingOrderTask(t)))
-        }
-      }
+      const tasksData = await fetchOperarioTasks(targetUserId ? { user_id: targetUserId } : undefined)
+      setTasks(tasksData.filter(t => t.estado !== 'completado' && !isPendingOrderTask(t)))
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Error al cargar las tareas')
     } finally {
@@ -160,11 +154,11 @@ export default function TareasPage() {
       case 'bloqueada':
         return '🔒 Bloqueada'
       case 'en_progreso':
-        return 'En Progreso'
+        return '🔥 En Progreso'
       case 'pendiente':
-        return 'Pendiente'
+        return '⏳ Pendiente'
       case 'completado':
-        return 'Completado'
+        return '✅ Completado'
       default:
         return status
     }
@@ -184,31 +178,40 @@ export default function TareasPage() {
     }
   }
 
-  // Clasificación de tareas activas
-  const inProgressTasks = tasks.filter(t => t.estado === 'en_progreso')
-  const pendingTasks = tasks.filter(t => t.estado === 'pendiente')
+  // Filtrado de tareas
+  const activeTasks = tasks.filter(t => t.estado === 'pendiente' || t.estado === 'en_progreso')
+  const blockedTasks = tasks.filter(t => t.estado === 'bloqueada')
+
+  const visibleActiveTasks = activeTasks.slice(0, activeLimit)
+  const visibleBlockedTasks = blockedTasks.slice(0, blockedLimit)
 
   const isManager = currentUser && ['admin', 'supervisor', 'encargado'].includes(currentUser.role)
-  const isEncargado = currentUser && (
-    currentUser.role === 'encargado' ||
-    (typeof currentUser.role === 'object' && (currentUser.role as any).slug === 'encargado')
-  )
 
-  const renderInProgressSection = () => (
+  const renderActiveSection = () => (
     <div className="space-y-4">
-      <h2 className="text-xl font-bold text-amber-400 flex items-center gap-2">
-        <span>🔥</span> Tareas En Progreso ({inProgressTasks.length})
-      </h2>
+      <div className="flex items-center justify-between">
+        <h2 className="text-xl font-bold text-blue-400 flex items-center gap-2">
+          <span>⚡</span> Pendientes Activas ({activeTasks.length})
+        </h2>
+        {activeTasks.length > 7 && (
+          <button
+            onClick={() => setActiveLimit(prev => (prev === 7 ? 15 : 7))}
+            className="text-xs bg-slate-800 hover:bg-slate-700 text-blue-400 hover:text-blue-300 font-bold px-3 py-1.5 rounded-xl border border-slate-700 transition"
+          >
+            {activeLimit === 7 ? `Ver más (hasta 15 de ${activeTasks.length})` : 'Ver menos (7)'}
+          </button>
+        )}
+      </div>
 
-      {inProgressTasks.length === 0 ? (
+      {activeTasks.length === 0 ? (
         <div className="bg-slate-900/50 border border-slate-800/80 rounded-xl p-6 text-sm text-slate-500 italic text-center">
-          No hay tareas actualmente en progreso.
+          No hay tareas activas pendientes.
         </div>
       ) : (
         <>
-          {/* VISTA EN TARJETAS PARA MOBILE (< md) */}
+          {/* MOBILE CARDS */}
           <div className="md:hidden space-y-3">
-            {inProgressTasks.map((task) => (
+            {visibleActiveTasks.map((task) => (
               <div key={task.id} className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-3 shadow-xl text-left">
                 <div className="flex items-start justify-between gap-2 border-b border-slate-800 pb-2.5">
                   <div>
@@ -219,8 +222,8 @@ export default function TareasPage() {
                       {task.created_at ? new Date(task.created_at).toLocaleDateString('es-ES') : '-'}
                     </span>
                   </div>
-                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-extrabold uppercase tracking-wide bg-amber-500/10 text-amber-400 border border-amber-500/30">
-                    🔥 En Progreso
+                  <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-extrabold uppercase tracking-wide ${getStatusBadgeClass(task.estado)}`}>
+                    {getStatusLabel(task.estado)}
                   </span>
                 </div>
 
@@ -259,27 +262,47 @@ export default function TareasPage() {
                   >
                     👁️ Ver
                   </button>
-                  <button
-                    onClick={() => handleCancelTask(task.id)}
-                    disabled={actionLoading === task.id}
-                    className="bg-rose-600/20 hover:bg-rose-600/30 text-rose-300 border border-rose-500/30 text-xs font-bold px-3 py-2 rounded-xl transition"
-                    title="Cancelar tarea iniciada y devolver a pendiente"
-                  >
-                    {actionLoading === task.id ? 'Cancelando...' : '⏹️ Cancelar'}
-                  </button>
-                  <button
-                    onClick={() => handleOpenCompleteModal(task)}
-                    disabled={actionLoading === task.id}
-                    className="bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-slate-950 text-xs font-extrabold px-3.5 py-2 rounded-xl shadow-lg shadow-amber-500/20 transition hover:scale-[1.02] active:scale-[0.98]"
-                  >
-                    {actionLoading === task.id ? 'Cargando...' : 'Completar Tarea'}
-                  </button>
+                  {task.estado === 'en_progreso' ? (
+                    <>
+                      <button
+                        onClick={() => handleCancelTask(task.id)}
+                        disabled={actionLoading === task.id}
+                        className="bg-rose-600/20 hover:bg-rose-600/30 text-rose-300 border border-rose-500/30 text-xs font-bold px-3 py-2 rounded-xl transition"
+                      >
+                        {actionLoading === task.id ? 'Cancelando...' : '⏹️ Cancelar'}
+                      </button>
+                      <button
+                        onClick={() => handleOpenCompleteModal(task)}
+                        disabled={actionLoading === task.id}
+                        className="bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-extrabold px-3.5 py-2 rounded-xl shadow-lg transition"
+                      >
+                        Completar
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <button
+                        onClick={() => handleOpenCompleteModal(task)}
+                        disabled={actionLoading === task.id}
+                        className="bg-slate-800 hover:bg-slate-700 text-emerald-400 border border-emerald-500/30 text-xs font-bold px-3 py-2 rounded-xl transition"
+                      >
+                        ✓ Completar
+                      </button>
+                      <button
+                        onClick={() => handleStartTask(task.id)}
+                        disabled={actionLoading === task.id}
+                        className="bg-blue-600 hover:bg-blue-500 text-white text-xs font-extrabold px-3.5 py-2 rounded-xl shadow-lg transition"
+                      >
+                        {actionLoading === task.id ? 'Iniciando...' : '🚀 Iniciar'}
+                      </button>
+                    </>
+                  )}
                 </div>
               </div>
             ))}
           </div>
 
-          {/* VISTA EN TABLA PARA ESCRITORIO (hidden md:block) */}
+          {/* DESKTOP TABLE */}
           <div className="hidden md:block bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">
@@ -294,7 +317,7 @@ export default function TareasPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-800 text-base font-medium text-slate-200">
-                  {inProgressTasks.map((task) => (
+                  {visibleActiveTasks.map((task) => (
                     <tr key={task.id} className="hover:bg-slate-800/50 transition">
                       <td className="px-6 py-4 font-bold text-white text-base">
                         {task.pedido?.cliente?.nombre_empresa || task.pedido?.cliente?.nombre_cliente || 'N/A'}
@@ -328,8 +351,8 @@ export default function TareasPage() {
                         )}
                       </td>
                       <td className="px-6 py-4">
-                        <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-extrabold uppercase tracking-wide bg-amber-500/10 text-amber-400 border border-amber-500/30">
-                          🔥 En Progreso
+                        <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-extrabold uppercase tracking-wide ${getStatusBadgeClass(task.estado)}`}>
+                          {getStatusLabel(task.estado)}
                         </span>
                       </td>
                       <td className="px-6 py-4 text-right">
@@ -340,21 +363,41 @@ export default function TareasPage() {
                           >
                             👁️ Ver
                           </button>
-                          <button
-                            onClick={() => handleCancelTask(task.id)}
-                            disabled={actionLoading === task.id}
-                            className="bg-rose-600/20 hover:bg-rose-600/30 text-rose-300 border border-rose-500/30 text-sm font-bold px-4 py-2.5 rounded-xl transition"
-                            title="Cancelar tarea iniciada y devolver a pendiente"
-                          >
-                            {actionLoading === task.id ? 'Cancelando...' : '⏹️ Cancelar Tarea'}
-                          </button>
-                          <button
-                            onClick={() => handleOpenCompleteModal(task)}
-                            disabled={actionLoading === task.id}
-                            className="bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-slate-950 text-sm font-extrabold px-5 py-2.5 rounded-xl shadow-lg shadow-amber-500/20 transition hover:scale-[1.02] active:scale-[0.98]"
-                          >
-                            {actionLoading === task.id ? 'Cargando...' : 'Completar Tarea'}
-                          </button>
+                          {task.estado === 'en_progreso' ? (
+                            <>
+                              <button
+                                onClick={() => handleCancelTask(task.id)}
+                                disabled={actionLoading === task.id}
+                                className="bg-rose-600/20 hover:bg-rose-600/30 text-rose-300 border border-rose-500/30 text-sm font-bold px-4 py-2.5 rounded-xl transition"
+                              >
+                                {actionLoading === task.id ? 'Cancelando...' : '⏹️ Cancelar Tarea'}
+                              </button>
+                              <button
+                                onClick={() => handleOpenCompleteModal(task)}
+                                disabled={actionLoading === task.id}
+                                className="bg-amber-500 hover:bg-amber-400 text-slate-950 text-sm font-extrabold px-5 py-2.5 rounded-xl shadow-lg transition"
+                              >
+                                {actionLoading === task.id ? 'Cargando...' : 'Completar Tarea'}
+                              </button>
+                            </>
+                          ) : (
+                            <>
+                              <button
+                                onClick={() => handleOpenCompleteModal(task)}
+                                disabled={actionLoading === task.id}
+                                className="bg-slate-800 hover:bg-slate-700 text-emerald-400 border border-emerald-500/30 text-sm font-bold px-4 py-2.5 rounded-xl transition"
+                              >
+                                ✓ Completar
+                              </button>
+                              <button
+                                onClick={() => handleStartTask(task.id)}
+                                disabled={actionLoading === task.id}
+                                className="bg-blue-600 hover:bg-blue-500 text-white text-sm font-bold px-5 py-2.5 rounded-xl transition"
+                              >
+                                {actionLoading === task.id ? 'Iniciando...' : '🚀 Iniciar Tarea'}
+                              </button>
+                            </>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -368,22 +411,32 @@ export default function TareasPage() {
     </div>
   )
 
-  const renderPendingSection = () => (
+  const renderBlockedSection = () => (
     <div className="space-y-4">
-      <h2 className="text-xl font-bold text-blue-400 flex items-center gap-2">
-        <span>⏳</span> Tareas Pendientes ({pendingTasks.length})
-      </h2>
+      <div className="flex items-center justify-between">
+        <h2 className="text-xl font-bold text-rose-400 flex items-center gap-2">
+          <span>🔒</span> Pendientes Bloqueadas ({blockedTasks.length})
+        </h2>
+        {blockedTasks.length > 7 && (
+          <button
+            onClick={() => setBlockedLimit(prev => (prev === 7 ? 15 : 7))}
+            className="text-xs bg-slate-800 hover:bg-slate-700 text-rose-400 hover:text-rose-300 font-bold px-3 py-1.5 rounded-xl border border-slate-700 transition"
+          >
+            {blockedLimit === 7 ? `Ver más (hasta 15 de ${blockedTasks.length})` : 'Ver menos (7)'}
+          </button>
+        )}
+      </div>
 
-      {pendingTasks.length === 0 ? (
+      {blockedTasks.length === 0 ? (
         <div className="bg-slate-900/50 border border-slate-800/80 rounded-xl p-6 text-sm text-slate-500 italic text-center">
-          No hay tareas pendientes en espera.
+          No hay tareas pendientes bloqueadas.
         </div>
       ) : (
         <>
-          {/* VISTA EN TARJETAS PARA MOBILE (< md) */}
+          {/* MOBILE CARDS */}
           <div className="md:hidden space-y-3">
-            {pendingTasks.map((task) => (
-              <div key={task.id} className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-3 shadow-xl text-left">
+            {visibleBlockedTasks.map((task) => (
+              <div key={task.id} className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-3 shadow-xl text-left opacity-90">
                 <div className="flex items-start justify-between gap-2 border-b border-slate-800 pb-2.5">
                   <div>
                     <span className="font-bold text-white text-base block">
@@ -393,8 +446,8 @@ export default function TareasPage() {
                       {task.created_at ? new Date(task.created_at).toLocaleDateString('es-ES') : '-'}
                     </span>
                   </div>
-                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-extrabold uppercase tracking-wide bg-blue-500/10 text-blue-400 border border-blue-500/30">
-                    ⏳ Pendiente
+                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-extrabold uppercase tracking-wide bg-rose-500/10 text-rose-400 border border-rose-500/20">
+                    🔒 Bloqueada
                   </span>
                 </div>
 
@@ -426,33 +479,20 @@ export default function TareasPage() {
                   )}
                 </div>
 
-                <div className="flex flex-wrap items-center justify-end gap-2 pt-2 border-t border-slate-800">
+                <div className="flex items-center justify-between pt-2 border-t border-slate-800">
+                  <span className="text-[11px] text-rose-300/80 italic">Requiere etapas previas</span>
                   <button
                     onClick={() => setViewingTask(task)}
                     className="bg-slate-800 hover:bg-slate-700 text-blue-400 text-xs font-bold px-3 py-2 rounded-xl border border-slate-700 transition"
                   >
-                    👁️ Ver
-                  </button>
-                  <button
-                    onClick={() => handleOpenCompleteModal(task)}
-                    disabled={actionLoading === task.id}
-                    className="bg-slate-800 hover:bg-slate-700 text-emerald-400 border border-emerald-500/30 text-xs font-bold px-3 py-2 rounded-xl transition"
-                  >
-                    ✓ Completar
-                  </button>
-                  <button
-                    onClick={() => handleStartTask(task.id)}
-                    disabled={actionLoading === task.id}
-                    className="bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white text-xs font-extrabold px-3.5 py-2 rounded-xl shadow-lg shadow-blue-600/20 transition hover:scale-[1.02] active:scale-[0.98]"
-                  >
-                    {actionLoading === task.id ? 'Iniciando...' : '🚀 Iniciar Tarea'}
+                    👁️ Ver Detalle
                   </button>
                 </div>
               </div>
             ))}
           </div>
 
-          {/* VISTA EN TABLA PARA ESCRITORIO (hidden md:block) */}
+          {/* DESKTOP TABLE */}
           <div className="hidden md:block bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">
@@ -467,7 +507,7 @@ export default function TareasPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-800 text-base font-medium text-slate-200">
-                  {pendingTasks.map((task) => (
+                  {visibleBlockedTasks.map((task) => (
                     <tr key={task.id} className="hover:bg-slate-800/50 transition">
                       <td className="px-6 py-4 font-bold text-white text-base">
                         {task.pedido?.cliente?.nombre_empresa || task.pedido?.cliente?.nombre_cliente || 'N/A'}
@@ -501,8 +541,8 @@ export default function TareasPage() {
                         )}
                       </td>
                       <td className="px-6 py-4">
-                        <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-extrabold uppercase tracking-wide bg-blue-500/10 text-blue-400 border border-blue-500/30">
-                          ⏳ Pendiente
+                        <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-extrabold uppercase tracking-wide bg-rose-500/10 text-rose-400 border border-rose-500/20">
+                          🔒 Bloqueada
                         </span>
                       </td>
                       <td className="px-6 py-4 text-right">
@@ -511,21 +551,7 @@ export default function TareasPage() {
                             onClick={() => setViewingTask(task)}
                             className="bg-slate-800 hover:bg-slate-700 text-blue-400 text-sm font-bold px-4 py-2.5 rounded-xl border border-slate-700 transition"
                           >
-                            👁️ Ver
-                          </button>
-                          <button
-                            onClick={() => handleOpenCompleteModal(task)}
-                            disabled={actionLoading === task.id}
-                            className="bg-slate-800 hover:bg-slate-700 text-emerald-400 border border-emerald-500/30 text-sm font-bold px-4 py-2.5 rounded-xl transition"
-                          >
-                            ✓ Completar
-                          </button>
-                          <button
-                            onClick={() => handleStartTask(task.id)}
-                            disabled={actionLoading === task.id}
-                            className="bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white text-sm font-bold px-5 py-2.5 rounded-xl transition hover:scale-[1.02] active:scale-[0.98]"
-                          >
-                            {actionLoading === task.id ? 'Iniciando...' : '🚀 Iniciar Tarea'}
+                            👁️ Ver Detalle
                           </button>
                         </div>
                       </td>
@@ -574,11 +600,7 @@ export default function TareasPage() {
               </span>
               <select
                 value={selectedUserId || ''}
-                onChange={(e) => {
-                  const val = e.target.value ? Number(e.target.value) : null
-                  setSelectedUserId(val)
-                  loadData(val)
-                }}
+                onChange={(e) => handleUserSelectChange(e.target.value)}
                 className="bg-transparent text-sm font-extrabold text-blue-400 focus:outline-none cursor-pointer w-full"
               >
                 {isManager && <option value="" className="bg-slate-900 text-slate-300">👥 Todos los operarios</option>}
@@ -604,6 +626,8 @@ export default function TareasPage() {
           </div>
         </div>
 
+
+
         {/* TAREAS DE PRODUCCIÓN */}
         <div className="space-y-10">
           {loading ? (
@@ -611,27 +635,23 @@ export default function TareasPage() {
               <div className="animate-spin rounded-full h-10 w-10 border-4 border-blue-500 border-t-transparent"></div>
               <span className="text-base font-semibold">Cargando tareas de producción...</span>
             </div>
-          ) : inProgressTasks.length === 0 && pendingTasks.length === 0 ? (
+          ) : activeTasks.length === 0 && blockedTasks.length === 0 ? (
             <div className="bg-slate-900 border border-slate-800 rounded-2xl py-20 flex flex-col items-center justify-center text-slate-400 gap-4">
               <span className="text-5xl">🎉</span>
-              <span className="text-lg font-bold text-white">¡No hay tareas activas pendientes!</span>
+              <span className="text-lg font-bold text-white">¡No hay tareas asignadas pendientes!</span>
               <p className="text-sm text-slate-500">No se registran tareas pendientes para el operario seleccionado.</p>
             </div>
           ) : (
-            <div className="space-y-8">
-              {isEncargado ? (
-                <>
-                  {renderPendingSection()}
-                  {renderInProgressSection()}
-                </>
-              ) : (
-                <>
-                  {renderInProgressSection()}
-                  {renderPendingSection()}
-                </>
-              )}
+            <div className="space-y-10">
+              {renderActiveSection()}
+              {renderBlockedSection()}
             </div>
           )}
+        </div>
+
+        {/* MÓDULO: ÚLTIMAS 10 TAREAS POR CATEGORÍA (DISPONIBLE PARA TODOS LOS ROLES) */}
+        <div className="mt-10">
+          <TasksByCategoryBox />
         </div>
 
         {/* Modal de Vista Detallada de Tarea (Tarjeta) */}
@@ -676,6 +696,12 @@ export default function TareasPage() {
                   <p className="text-xs text-amber-400 font-semibold italic">
                     Iniciada el: {new Date(viewingTask.fecha_inicio).toLocaleString('es-ES')}
                   </p>
+                )}
+
+                {isBlocked && (
+                  <div className="bg-rose-500/10 border border-rose-500/20 rounded-xl p-3 text-xs text-rose-300">
+                    ⚠️ <strong>Tarea Bloqueada:</strong> Esta etapa no puede iniciarse ni completarse hasta que finalicen las etapas previas del pedido.
+                  </div>
                 )}
               </div>
 

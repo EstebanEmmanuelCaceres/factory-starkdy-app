@@ -11,6 +11,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Http\JsonResponse;
+use App\Http\Resources\EtapaProductoResource;
 
 class EtapaProductoController extends Controller
 {
@@ -30,14 +31,15 @@ class EtapaProductoController extends Controller
 
         EtapaProducto::reordenarTopologicamentePorProducto((int) $productId);
 
-        $etapasProductos = EtapaProducto::where('producto_id', $productId)
-            ->with(['etapa', 'dependencias.etapa'])
+        $etapasProductos = EtapaProducto::query()->where('producto_id', $productId)
+            ->with(['etapa.categorias', 'dependencias.etapa.categorias'])
             ->orderBy('orden', 'asc')
             ->get();
 
+        // dd(EtapaProductoResource::collection($etapasProductos));
         return response()->json([
             'status' => 'success',
-            'data' => $etapasProductos
+            'data' => EtapaProductoResource::collection($etapasProductos)
         ]);
     }
 
@@ -63,6 +65,8 @@ class EtapaProductoController extends Controller
             'etapas.*.nombre' => 'nullable|string|max:255',
             'etapas.*.orden' => 'required|integer|min:1',
             'etapas.*.depende_de_ids' => 'nullable|array',
+            'etapas.*.categoria_ids' => 'nullable|array',
+            'etapas.*.categoria_ids.*' => 'integer|exists:categorias,id',
         ]);
 
         if ($validator->fails()) {
@@ -109,6 +113,17 @@ class EtapaProductoController extends Controller
                         'status' => 'error',
                         'message' => 'Cada etapa debe tener un nombre o etapa_id válido'
                     ], 422);
+                }
+
+                // Si vienen categoria_ids, sincronizarlas en la etapa global
+                /**
+                 * Utiliza sync a traves de la relación belongsToMany() de Etapa con Categoria lo que hace que para la etapa global se asocien las categorías que vienen en categoria_ids , si vienen asociaciones existentes las mantiene y si no vienen se eliminan y solo quedan las que vienen en categoria_ids
+                 */
+                if (isset($item['categoria_ids']) && is_array($item['categoria_ids'])) {
+                    $catalogItem = Etapa::find($etapaCatalogId);
+                    if ($catalogItem) {
+                        $catalogItem->categorias()->sync($item['categoria_ids']);
+                    }
                 }
 
                 $etapaProducto = null;
@@ -182,7 +197,7 @@ class EtapaProductoController extends Controller
             Pedido::regenerarTareasParaProducto($productId);
 
             $result = EtapaProducto::where('producto_id', $productId)
-                ->with(['etapa', 'dependencias.etapa'])
+                ->with(['etapa.categorias', 'dependencias.etapa.categorias'])
                 ->orderBy('orden', 'asc')
                 ->get();
 
@@ -191,7 +206,6 @@ class EtapaProductoController extends Controller
                 'message' => 'Etapas sincronizadas correctamente',
                 'data' => $result
             ]);
-
         } catch (\Exception $e) {
             DB::rollBack();
             return response()->json([
