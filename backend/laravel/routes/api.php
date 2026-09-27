@@ -74,13 +74,10 @@ Route::middleware('auth:sanctum')->group(function () {
     // ── Categorías ──────────────────────────────────────────────────
     Route::get('categorias', [CategoriaController::class, 'index']);
     Route::post('categorias', [CategoriaController::class, 'store']);
-    /**
-     * No usar por el momento porque no es necesario
-     */
-    // Route::get('categorias/{id}', [CategoriaController::class, 'show']);
-    // Route::put('categorias/{id}', [CategoriaController::class, 'update']);
-    // Route::patch('categorias/{id}', [CategoriaController::class, 'update']);
-    // Route::delete('categorias/{id}', [CategoriaController::class, 'destroy']);
+    Route::get('categorias/{id}', [CategoriaController::class, 'show']);
+    Route::patch('categorias/{id}', [CategoriaController::class, 'update']);
+    Route::put('categorias/{id}', [CategoriaController::class, 'update']);
+    Route::delete('categorias/{id}', [CategoriaController::class, 'destroy']);
 
     // ── Etapas de un Producto (NxN - etapas_productos) ────────────
     Route::get('productos/{id}/etapas', [EtapaProductoController::class, 'index']);

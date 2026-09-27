@@ -26,17 +26,17 @@ export async function createCategoria(nombre: string): Promise<Categoria> {
 /**
  * Actualizar una categoría
  */
-// export async function updateCategoria(id: number, input: { nombre?: string; descripcion?: string }): Promise<Categoria> {
-//   const { data } = await api.patch<{ status: string; data: Categoria }>(`/categorias/${id}`, input)
-//   return data.data
-// }
+export async function updateCategoria(id: number, nombre: string): Promise<Categoria> {
+  const { data } = await api.patch<{ status: string; data: Categoria }>(`/categorias/${id}`, { nombre })
+  return data.data
+}
 
 /**
  * Eliminar una categoría
  */
-// export async function deleteCategoria(id: number): Promise<void> {
-//   await api.delete(`/categorias/${id}`)
-// }
+export async function deleteCategoria(id: number): Promise<void> {
+  await api.delete(`/categorias/${id}`)
+}
 
 
 
