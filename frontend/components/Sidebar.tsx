@@ -128,6 +128,7 @@ export default function Sidebar({ user, isOpen = false, onClose }: SidebarProps)
       >
         {/* Logo y Botón de Cierre en Mobile */}
         <div className="sidebar-logo flex items-center justify-between px-4 py-4 border-b border-slate-800">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/logo.png" alt="Logo" className="sidebar-logo-img h-6 w-auto" />
           {onClose && (
             <button

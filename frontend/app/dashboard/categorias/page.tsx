@@ -219,7 +219,7 @@ export default function CategoriasPage() {
           ) : paginatedCategorias.length === 0 ? (
             <div className="p-12 text-center text-slate-400">
               <p className="text-base font-medium">No hay categorías registradas</p>
-              <p className="text-xs text-slate-500 mt-1">Haz clic en "Nueva Categoría" para agregar la primera.</p>
+              <p className="text-xs text-slate-500 mt-1">Haz clic en &quot;Nueva Categoría&quot; para agregar la primera.</p>
             </div>
           ) : (
             <div className="overflow-x-auto">
@@ -363,7 +363,7 @@ export default function CategoriasPage() {
 
             <p className="text-sm text-slate-300 mb-6">
               ¿Estás seguro de que deseas eliminar permanentemente la categoría{' '}
-              <strong className="text-white">"{selectedCategoria?.nombre}"</strong>?
+              <strong className="text-white">&quot;{selectedCategoria?.nombre}&quot;</strong>?
             </p>
 
             <div className="flex justify-end gap-3 pt-4 border-t border-slate-800">

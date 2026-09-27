@@ -39,6 +39,7 @@ export default function ProductImageGallery({ productId, productName, onImagesUp
 
   useEffect(() => {
     loadImages()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [productId])
 
   useEffect(() => {
@@ -84,6 +85,7 @@ export default function ProductImageGallery({ productId, productName, onImagesUp
 
     window.addEventListener('paste', handlePaste)
     return () => window.removeEventListener('paste', handlePaste)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [productId])
 
   const notifyUpdate = () => {

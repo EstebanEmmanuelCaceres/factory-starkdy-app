@@ -107,6 +107,7 @@ export default function PedidoDetailModal({
     return () => {
       isMounted = false
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, pedido?.id, propAllStages])
 
   // Si se envían props actualizadas de etapas
