@@ -1114,7 +1114,7 @@ export default function PedidosPage() {
                           onClick={() => handleOpenImagesModal(pedido)}
                           title={coverUrl ? "Ver o editar imágenes del pedido" : "Agregar imágenes"}
                           className="w-full h-48 sm:h-60 rounded-xl"
-                          imgClassName="object-contain w-full h-full p-1"
+                          imgClassName="object-contain w-full p-1"
                         />
                       </div>
 

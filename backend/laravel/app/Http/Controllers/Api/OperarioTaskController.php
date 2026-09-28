@@ -61,7 +61,7 @@ class OperarioTaskController extends Controller
             }
         }
 
-        $tasks = $query->orderBy('created_at', 'desc')->get();
+        $tasks = $query->orderBy('created_at', 'asc')->get();
 
         foreach ($tasks as $task) {
             $depsInfo = [];

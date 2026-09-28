@@ -5,7 +5,7 @@ const sizes = {
     md: 'w-12 h-12',
     lg: 'w-16 h-16',
     xl: 'w-24 h-24',
-    full: 'w-full h-full',
+    full: 'w-full',
     auto: 'w-full h-auto'
 }
 
@@ -30,7 +30,7 @@ export default function ImagePedido({
 }: ImagePedidoProps) {
     const sizeClass = sizes[size] || sizes.md
     const base = `rounded-xl flex-shrink-0 cursor-pointer transition ${sizeClass} ${className}`
-    
+
     return (
         <div
             data-prevent-row-click="true"
@@ -47,7 +47,7 @@ export default function ImagePedido({
                 <img
                     src={url}
                     alt={alt}
-                    className={`w-full h-full object-cover group-hover:scale-105 transition duration-200 ${imgClassName}`}
+                    className={`w-full object-cover group-hover:scale-105 transition duration-200 ${imgClassName}`}
                 />
             ) : (
                 <div className="flex flex-col items-center justify-center p-2 text-center gap-1 select-none">
@@ -57,4 +57,4 @@ export default function ImagePedido({
             )}
         </div>
     )
-}
+}

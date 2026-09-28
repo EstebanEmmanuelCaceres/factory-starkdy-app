@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import RoleGuard from '@/components/RoleGuard'
 import Modal from '@/components/Modal'
 import TasksByCategoryBox from '@/components/TasksByCategoryBox'
+import Pagination from '@/components/Pagination'
 import {
   fetchOperarioTasks,
   startOperarioTask,
@@ -24,9 +25,10 @@ export default function TareasPage() {
   const [error, setError] = useState('')
   const [successMessage, setSuccessMessage] = useState('')
 
-  // Límites para "Ver más" (inicializan en 7, expanden a 15)
-  const [activeLimit, setActiveLimit] = useState<number>(7)
-  const [blockedLimit, setBlockedLimit] = useState<number>(7)
+  // Paginadores para Pendientes Activas y Pendientes Bloqueadas (10 tareas por página)
+  const [activePage, setActivePage] = useState<number>(1)
+  const [blockedPage, setBlockedPage] = useState<number>(1)
+  const PAGE_SIZE = 10
 
   // Modales
   const [completingTask, setCompletingTask] = useState<ResponsableEtapa | null>(null)
@@ -35,6 +37,8 @@ export default function TareasPage() {
   const loadData = async (overrideUserId?: number | null) => {
     setLoading(true)
     setError('')
+    setActivePage(1)
+    setBlockedPage(1)
     try {
       const user = getStoredUser()
       setCurrentUser(user)
@@ -70,6 +74,8 @@ export default function TareasPage() {
   const handleUserSelectChange = (userIdStr: string) => {
     const newId = userIdStr ? parseInt(userIdStr) : null
     setSelectedUserId(newId)
+    setActivePage(1)
+    setBlockedPage(1)
     loadData(newId)
   }
 
@@ -182,8 +188,8 @@ export default function TareasPage() {
   const activeTasks = tasks.filter(t => t.estado === 'pendiente' || t.estado === 'en_progreso')
   const blockedTasks = tasks.filter(t => t.estado === 'bloqueada')
 
-  const visibleActiveTasks = activeTasks.slice(0, activeLimit)
-  const visibleBlockedTasks = blockedTasks.slice(0, blockedLimit)
+  const visibleActiveTasks = activeTasks.slice((activePage - 1) * PAGE_SIZE, activePage * PAGE_SIZE)
+  const visibleBlockedTasks = blockedTasks.slice((blockedPage - 1) * PAGE_SIZE, blockedPage * PAGE_SIZE)
 
   const isManager = currentUser && ['admin', 'supervisor', 'encargado'].includes(currentUser.role)
 
@@ -193,14 +199,6 @@ export default function TareasPage() {
         <h2 className="text-xl font-bold text-blue-400 flex items-center gap-2">
           <span>⚡</span> Pendientes Activas ({activeTasks.length})
         </h2>
-        {activeTasks.length > 7 && (
-          <button
-            onClick={() => setActiveLimit(prev => (prev === 7 ? 15 : 7))}
-            className="text-xs bg-slate-800 hover:bg-slate-700 text-blue-400 hover:text-blue-300 font-bold px-3 py-1.5 rounded-xl border border-slate-700 transition"
-          >
-            {activeLimit === 7 ? `Ver más (hasta 15 de ${activeTasks.length})` : 'Ver menos (7)'}
-          </button>
-        )}
       </div>
 
       {activeTasks.length === 0 ? (
@@ -406,6 +404,16 @@ export default function TareasPage() {
               </table>
             </div>
           </div>
+
+          {/* PAGINADOR TAREAS PENDIENTES ACTIVAS */}
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-xl mt-4">
+            <Pagination
+              currentPage={activePage}
+              totalItems={activeTasks.length}
+              pageSize={PAGE_SIZE}
+              onPageChange={(page) => setActivePage(page)}
+            />
+          </div>
         </>
       )}
     </div>
@@ -417,14 +425,6 @@ export default function TareasPage() {
         <h2 className="text-xl font-bold text-rose-400 flex items-center gap-2">
           <span>🔒</span> Pendientes Bloqueadas ({blockedTasks.length})
         </h2>
-        {blockedTasks.length > 7 && (
-          <button
-            onClick={() => setBlockedLimit(prev => (prev === 7 ? 15 : 7))}
-            className="text-xs bg-slate-800 hover:bg-slate-700 text-rose-400 hover:text-rose-300 font-bold px-3 py-1.5 rounded-xl border border-slate-700 transition"
-          >
-            {blockedLimit === 7 ? `Ver más (hasta 15 de ${blockedTasks.length})` : 'Ver menos (7)'}
-          </button>
-        )}
       </div>
 
       {blockedTasks.length === 0 ? (
@@ -560,6 +560,16 @@ export default function TareasPage() {
                 </tbody>
               </table>
             </div>
+          </div>
+
+          {/* PAGINADOR TAREAS PENDIENTES BLOQUEADAS */}
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-xl mt-4">
+            <Pagination
+              currentPage={blockedPage}
+              totalItems={blockedTasks.length}
+              pageSize={PAGE_SIZE}
+              onPageChange={(page) => setBlockedPage(page)}
+            />
           </div>
         </>
       )}

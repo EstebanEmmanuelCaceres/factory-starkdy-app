@@ -77,7 +77,7 @@ class ResponsableEtapaController extends Controller
             });
         }
 
-        $asignaciones = $query->latest()->get();
+        $asignaciones = $query->orderBy('created_at', 'asc')->get();
 
         foreach ($asignaciones as $item) {
             $ep = $item->etapaProducto;
