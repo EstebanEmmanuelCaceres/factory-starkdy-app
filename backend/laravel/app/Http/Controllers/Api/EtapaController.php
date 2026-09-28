@@ -15,7 +15,7 @@ class EtapaController extends Controller
      */
     public function index(Request $request): JsonResponse
     {
-        $query = Etapa::query();
+        $query = Etapa::with('categorias');
 
         // Búsqueda opcional por nombre
         if ($request->has('search') && !empty($request->input('search'))) {
@@ -42,6 +42,8 @@ class EtapaController extends Controller
         $validator = Validator::make($request->all(), [
             'nombre' => 'required|string|max:255',
             'descripcion' => 'nullable|string',
+            'categoria_ids' => 'nullable|array',
+            'categoria_ids.*' => 'integer|exists:categorias,id',
         ]);
 
         if ($validator->fails()) {
@@ -64,6 +66,12 @@ class EtapaController extends Controller
             ]);
         }
 
+        if ($request->has('categoria_ids')) {
+            $etapa->categorias()->sync($request->input('categoria_ids', []));
+        }
+
+        $etapa->load('categorias');
+
         return response()->json([
             'status' => 'success',
             'message' => 'Etapa obtenida/creada correctamente en el catálogo',
@@ -76,7 +84,7 @@ class EtapaController extends Controller
      */
     public function show($id): JsonResponse
     {
-        $etapa = Etapa::find($id);
+        $etapa = Etapa::with('categorias')->find($id);
 
         if (!$etapa) {
             return response()->json([
@@ -108,6 +116,8 @@ class EtapaController extends Controller
         $validator = Validator::make($request->all(), [
             'nombre' => 'sometimes|required|string|max:255',
             'descripcion' => 'sometimes|nullable|string',
+            'categoria_ids' => 'sometimes|array',
+            'categoria_ids.*' => 'integer|exists:categorias,id',
         ]);
 
         if ($validator->fails()) {
@@ -118,7 +128,13 @@ class EtapaController extends Controller
             ], 422);
         }
 
-        $etapa->update($request->all());
+        $etapa->update($request->only(['nombre', 'descripcion']));
+
+        if ($request->has('categoria_ids')) {
+            $etapa->categorias()->sync($request->input('categoria_ids', []));
+        }
+
+        $etapa->load('categorias');
 
         return response()->json([
             'status' => 'success',

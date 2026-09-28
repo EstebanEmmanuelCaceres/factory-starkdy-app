@@ -39,6 +39,7 @@ export default function OrderImageGallery({ orderId, orderCode, onImagesUpdated 
 
   useEffect(() => {
     loadImages()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [orderId])
 
   useEffect(() => {
@@ -84,6 +85,7 @@ export default function OrderImageGallery({ orderId, orderCode, onImagesUpdated 
 
     window.addEventListener('paste', handlePaste)
     return () => window.removeEventListener('paste', handlePaste)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [orderId])
 
   const notifyUpdate = () => {

@@ -38,8 +38,10 @@ class PedidoController extends Controller
                 'comentarios.user:id,name'
             ]);
 
+        $hasSearch = $request->has('search') && !empty(trim($request->input('search')));
+
         // Búsqueda opcional por código de pedido, nombre de empresa, nombre de cliente o correo del cliente relacionado
-        if ($request->has('search') && !empty($request->input('search'))) {
+        if ($hasSearch) {
             $searchTerm = mb_strtolower(trim($request->input('search')));
             $query->where(function ($q) use ($searchTerm) {
                 $q->whereRaw('LOWER(codigo) LIKE ?', ['%' . $searchTerm . '%'])
@@ -58,8 +60,23 @@ class PedidoController extends Controller
 
         // Filtro por estado
         if ($request->has('estado') && !empty($request->input('estado'))) {
-            $query->whereHas('ultimoEstado', function ($q) use ($request) {
-                $q->where('estado', $request->input('estado'));
+            $estadoInput = $request->input('estado');
+            if ($estadoInput !== 'todos' && $estadoInput !== 'all') {
+                $query->whereHas('ultimoEstado', function ($q) use ($estadoInput) {
+                    $q->where('estado', $estadoInput);
+                });
+            }
+        } elseif (!$hasSearch) {
+            // Por defecto (sin filtro explícito y sin búsqueda activa): Excluir pedidos completados, cancelados o enviados
+            $query->whereHas('ultimoEstado', function ($q) {
+                $q->whereNotIn('estado', [
+                    'completado',
+                    'completado_pd',
+                    'finalizado',
+                    'cancelado',
+                    'enviado',
+                    'enviado_faltante'
+                ]);
             });
         }
 
@@ -101,7 +118,13 @@ class PedidoController extends Controller
         $pedidos = $query->latest()->get();
 
         $pedidos->makeHidden(['porcentaje_pagado', 'comentario', 'fecha_entrega']);
-        $pedidos->each(function ($pedido) {
+        if ($currentUser && in_array($currentUser->role?->slug, ['operario', 'operator'])) {
+            $pedidos->makeHidden(['precio', 'monto_pagado', 'saldo_pendiente', 'pagos']);
+        }
+        $pedidos->each(function ($pedido) use ($currentUser) {
+            if ($currentUser && in_array($currentUser->role?->slug, ['operario', 'operator'])) {
+                $pedido->makeHidden(['precio', 'monto_pagado', 'saldo_pendiente', 'pagos']);
+            }
             if ($pedido->relationLoaded('comentarios')) {
                 $pedido->comentarios->makeHidden(['pedido_id', 'user_id']);
             }
@@ -330,6 +353,9 @@ class PedidoController extends Controller
                     'status' => 'error',
                     'message' => 'El pedido se encuentra pendiente y aún no ha sido habilitado para producción.'
                 ], 403);
+            }
+            if (in_array($userRole, ['operario', 'operator'])) {
+                $pedido->makeHidden(['precio', 'monto_pagado', 'saldo_pendiente', 'pagos']);
             }
         }
 

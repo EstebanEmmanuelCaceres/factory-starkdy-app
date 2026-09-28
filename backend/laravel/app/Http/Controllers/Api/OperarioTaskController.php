@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\ResponsableEtapa;
 use App\Models\EtapaProducto;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Validator;
@@ -15,23 +16,52 @@ class OperarioTaskController extends Controller
     /**
      * Listar tareas pendientes asignadas al operario autenticado.
      */
-    public function index(): JsonResponse
+    public function index(Request $request): JsonResponse
     {
-        $userId = Auth::id();
+        /** @var User|null $user */
+        $user = Auth::user();
 
-        $tasks = ResponsableEtapa::with([
+        $query = ResponsableEtapa::with([
             'pedido.cliente',
             'etapaProducto.producto',
-            'etapaProducto.etapa',
-            'etapaProducto.dependencias.etapa'
+            'etapaProducto.etapa.categorias',
+            'etapaProducto.dependencias.etapa',
+            'user'
         ])
-            ->where('user_id', $userId)
             ->whereIn('estado', ['pendiente', 'en_progreso', 'bloqueada'])
             ->whereHas('pedido.ultimoEstado', function ($q) {
                 $q->where('estado', '!=', 'pendiente');
-            })
-            ->orderBy('estado', 'desc')
-            ->get();
+            });
+
+        if ($user && !$user->isAdminOrEncargado()) {
+            $userCategoryIds = $user->categorias()->pluck('categorias.id')->toArray();
+
+            $query->where(function ($q) use ($user, $userCategoryIds) {
+                $q->where('user_id', $user->id);
+
+                if (!empty($userCategoryIds)) {
+                    $q->orWhereHas('etapaProducto.etapa.categorias', function ($cq) use ($userCategoryIds) {
+                        $cq->whereIn('categorias.id', $userCategoryIds);
+                    });
+                }
+            });
+        } elseif ($request->filled('user_id')) {
+            $targetUser = User::find($request->input('user_id'));
+            if ($targetUser && !$targetUser->isAdminOrEncargado()) {
+                $targetCategoryIds = $targetUser->categorias()->pluck('categorias.id')->toArray();
+                $query->where(function ($q) use ($targetUser, $targetCategoryIds) {
+                    $q->where('user_id', $targetUser->id);
+
+                    if (!empty($targetCategoryIds)) {
+                        $q->orWhereHas('etapaProducto.etapa.categorias', function ($cq) use ($targetCategoryIds) {
+                            $cq->whereIn('categorias.id', $targetCategoryIds);
+                        });
+                    }
+                });
+            }
+        }
+
+        $tasks = $query->orderBy('created_at', 'asc')->get();
 
         foreach ($tasks as $task) {
             $depsInfo = [];
@@ -268,6 +298,105 @@ class OperarioTaskController extends Controller
             'status' => 'success',
             'message' => 'Tarea cancelada y restablecida a pendiente',
             'data' => $task
+        ]);
+    }
+
+    /**
+     * Listar las últimas 10 tareas para una categoría seleccionada (disponible para todos los roles).
+     */
+    public function tasksPorCategoria(Request $request): JsonResponse
+    {
+        $categoriaId = $request->input('categoria_id');
+
+        if (!$categoriaId) {
+            return response()->json([
+                'status' => 'success',
+                'data' => []
+            ]);
+        }
+
+        // 1. Obtener los nombres de los usuarios habilitados para esta categoría
+        $usuariosHabilitados = User::whereHas('categorias', function ($q) use ($categoriaId) {
+            $q->where('categorias.id', $categoriaId);
+        })->pluck('name')->toArray();
+
+        // 2. Obtener las últimas 10 tareas pertenecientes a la categoría seleccionada
+        $query = ResponsableEtapa::with([
+            'pedido.cliente',
+            'etapaProducto.producto',
+            'etapaProducto.etapa',
+            'etapaProducto.dependencias.etapa',
+            'user'
+        ])
+            ->whereIn('estado', ['pendiente'])
+            ->whereHas('etapaProducto.etapa.categorias', function ($q) use ($categoriaId) {
+                $q->where('categorias.id', $categoriaId);
+            })
+            ->whereHas('pedido.ultimoEstado', function ($q) {
+                $q->where('estado', '!=', 'pendiente');
+            });
+
+        $tasks = $query->orderBy('created_at', 'desc')->take(10)->get();
+
+        $formattedTasks = [];
+
+        foreach ($tasks as $task) {
+            $ep = $task->etapaProducto;
+            $fechaFinEtapaAnterior = null;
+
+            if ($ep) {
+                $deps = $ep->dependencias;
+
+                if ($deps && $deps->count() > 0) {
+                    $tareaPrevia = ResponsableEtapa::where('pedido_id', $task->pedido_id)
+                        ->whereIn('etapa_producto_id', $deps->pluck('id'))
+                        ->where('estado', 'completado')
+                        ->whereNotNull('fecha_fin')
+                        ->orderBy('fecha_fin', 'desc')
+                        ->first();
+
+                    if ($tareaPrevia) {
+                        $fechaFinEtapaAnterior = $tareaPrevia->fecha_fin;
+                    }
+                } else {
+                    $etapaAnterior = EtapaProducto::where('producto_id', $ep->producto_id)
+                        ->where('orden', '<', $ep->orden)
+                        ->orderBy('orden', 'desc')
+                        ->first();
+
+                    if ($etapaAnterior) {
+                        $tareaPrevia = ResponsableEtapa::where('pedido_id', $task->pedido_id)
+                            ->where('etapa_producto_id', $etapaAnterior->id)
+                            ->where('estado', 'completado')
+                            ->first();
+
+                        if ($tareaPrevia) {
+                            $fechaFinEtapaAnterior = $tareaPrevia->fecha_fin;
+                        }
+                    }
+                }
+            }
+
+            $cliente = $task->pedido?->cliente;
+            $nombrePedido = $cliente?->nombre_empresa
+                ?: ($cliente?->nombre_cliente
+                    ?: ('Pedido #' . $task->pedido_id));
+
+            $formattedTasks[] = [
+                'id' => $task->id,
+                'pedido_id' => $task->pedido_id,
+                'nombre_pedido' => $nombrePedido,
+                'nombre_etapa' => $ep?->etapa?->nombre ?? 'N/A',
+                'user_asignado' => $task->user?->name ?? 'Sin Asignar',
+                'usuarios_habilitados' => $usuariosHabilitados,
+                'fecha_fin_etapa_anterior' => $fechaFinEtapaAnterior,
+                'estado' => $task->estado,
+            ];
+        }
+
+        return response()->json([
+            'status' => 'success',
+            'data' => $formattedTasks
         ]);
     }
 }

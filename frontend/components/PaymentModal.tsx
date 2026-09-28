@@ -86,6 +86,7 @@ export default function PaymentModal({
           setLoadingPayments(false)
         })
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, currentPedido?.id])
 
   if (!isOpen || !currentPedido) return null

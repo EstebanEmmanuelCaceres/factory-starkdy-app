@@ -57,6 +57,12 @@ const Icons = {
       <path d="M16 3.13a4 4 0 0 1 0 7.75" />
     </svg>
   ),
+  categories: () => (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z" />
+      <line x1="7" y1="7" x2="7.01" y2="7" />
+    </svg>
+  ),
 }
 
 // ── Estructura de navegación ───────────────────────────────────────
@@ -66,8 +72,9 @@ const NAV_SECTIONS = [
     items: [
       { id: 'dashboard', label: 'Dashboard', href: '/dashboard', Icon: Icons.dashboard, available: true, roles: ['admin', 'supervisor', 'encargado', 'vendedor', 'disenador', 'disenadora'] },
       { id: 'productos', label: 'Productos', href: '/dashboard/productos', Icon: Icons.products, available: true, roles: ['admin'] },
+      { id: 'categorias', label: 'Categorías', href: '/dashboard/categorias', Icon: Icons.categories, available: true, roles: ['admin'] },
       { id: 'clientes', label: 'Clientes', href: '/dashboard/clientes', Icon: Icons.customers, available: true, roles: ['admin', 'encargado', 'vendedor', 'disenador', 'disenadora'] },
-      { id: 'pedidos', label: 'Pedidos', href: '/dashboard/pedidos', Icon: Icons.orders, available: true, roles: ['admin', 'supervisor', 'encargado', 'vendedor', 'disenador', 'disenadora'] },
+      { id: 'pedidos', label: 'Pedidos', href: '/dashboard/pedidos', Icon: Icons.orders, available: true, roles: ['admin', 'supervisor', 'encargado', 'vendedor', 'disenador', 'disenadora', 'operario', 'operator'] },
       { id: 'usuarios', label: 'Usuarios', href: '/dashboard/usuarios', Icon: Icons.users, available: true, roles: ['admin'] },
       { id: 'saldos', label: 'Saldos Pendientes', href: '/dashboard/saldos', Icon: Icons.saldos, available: true, roles: ['vendedor', 'disenador', 'disenadora'] },
       { id: 'tareas', label: 'Mis Tareas', href: '/dashboard/tareas', Icon: Icons.orders, available: true, roles: ['operario', 'admin', 'supervisor', 'encargado'] },
@@ -121,6 +128,7 @@ export default function Sidebar({ user, isOpen = false, onClose }: SidebarProps)
       >
         {/* Logo y Botón de Cierre en Mobile */}
         <div className="sidebar-logo flex items-center justify-between px-4 py-4 border-b border-slate-800">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/logo.png" alt="Logo" className="sidebar-logo-img h-6 w-auto" />
           {onClose && (
             <button

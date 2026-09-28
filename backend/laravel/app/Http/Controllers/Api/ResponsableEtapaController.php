@@ -63,14 +63,21 @@ class ResponsableEtapaController extends Controller
             });
         }
 
+        /** @var User|null $currentUser */
         $currentUser = auth()->user();
-        if ($currentUser && in_array($currentUser->role?->slug, ['operario', 'operator', 'encargado', 'supervisor'])) {
-            $query->whereHas('pedido.ultimoEstado', function ($q) {
-                $q->where('estado', '!=', 'pendiente');
+        if ($currentUser && !$currentUser->isAdminOrEncargado()) {
+            $userCategoryIds = $currentUser->categorias()->pluck('categorias.id')->toArray();
+            $query->where(function ($q) use ($currentUser, $userCategoryIds) {
+                $q->where('user_id', $currentUser->id);
+                if (!empty($userCategoryIds)) {
+                    $q->orWhereHas('etapaProducto.etapa.categorias', function ($cq) use ($userCategoryIds) {
+                        $cq->whereIn('categorias.id', $userCategoryIds);
+                    });
+                }
             });
         }
 
-        $asignaciones = $query->latest()->get();
+        $asignaciones = $query->orderBy('created_at', 'asc')->get();
 
         foreach ($asignaciones as $item) {
             $ep = $item->etapaProducto;

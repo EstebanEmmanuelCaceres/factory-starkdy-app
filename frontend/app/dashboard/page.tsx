@@ -726,7 +726,8 @@ export default function DashboardPage() {
                     onChange={(e) => handleFilterChange('estado', e.target.value)}
                     className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-blue-500 transition"
                   >
-                    <option value="">Todos los estados</option>
+                    <option value="">Estados Activos (sin finalizados/cancelados)</option>
+                    <option value="todos">Todos los estados (incl. completados/cancelados)</option>
                     <option value="pendiente">Pendiente</option>
                     <option value="en_progreso">En Progreso</option>
                     <option value="completado">Completado</option>

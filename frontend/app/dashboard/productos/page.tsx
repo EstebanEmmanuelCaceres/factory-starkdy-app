@@ -24,6 +24,12 @@ import {
   type EtapaCatalog,
   type SyncEtapaItemInput
 } from '@/lib/entities/etapas'
+import {
+  fetchCategorias,
+  toggleSelected,
+  type Categoria
+} from '@/lib/entities/categorias'
+import ButtonCategoryAdd from '@/components/ButtonCategoryAdd/ButtonCategoryAdd'
 
 export default function ProductosPage() {
   const [products, setProducts] = useState<Product[]>([])
@@ -52,6 +58,7 @@ export default function ProductosPage() {
   const [selectedProductForStages, setSelectedProductForStages] = useState<Product | null>(null)
   const [stages, setStages] = useState<Etapa[]>([])
   const [catalogStages, setCatalogStages] = useState<EtapaCatalog[]>([])
+  const [availableCategorias, setAvailableCategorias] = useState<Categoria[]>([])
   const [isCatalogDropdownOpen, setIsCatalogDropdownOpen] = useState(false)
   const catalogDropdownRef = useRef<HTMLDivElement>(null)
 
@@ -77,7 +84,8 @@ export default function ProductosPage() {
   const [stageFormData, setStageFormData] = useState({
     nombre: '',
     orden: '',
-    depende_de_ids: [] as (number | string)[]
+    depende_de_ids: [] as (number | string)[],
+    categoria_ids: [] as number[]
   })
 
   // Datos de Formulario
@@ -95,6 +103,15 @@ export default function ProductosPage() {
     }
   }
 
+  const loadCategories = async () => {
+    try {
+      const data = await fetchCategorias()
+      setAvailableCategorias(data)
+    } catch (err) {
+      console.error('Error al cargar categorías:', err)
+    }
+  }
+
   const loadStages = async (productId: number) => {
     setLoadingStages(true)
     setStagesError('')
@@ -102,7 +119,7 @@ export default function ProductosPage() {
       const data = await fetchEtapas({ producto_id: productId })
       setStages(topologicalSortEtapas(data))
       setHasUnsavedChanges(false)
-      await loadCatalog()
+      await Promise.all([loadCatalog(), loadCategories()])
     } catch (err: unknown) {
       setStagesError(err instanceof Error ? err.message : 'Error al cargar las etapas')
     } finally {
@@ -121,7 +138,8 @@ export default function ProductosPage() {
     setStageFormData({
       nombre: '',
       orden: '1',
-      depende_de_ids: []
+      depende_de_ids: [],
+      categoria_ids: []
     })
     setIsCatalogDropdownOpen(false)
     setHasUnsavedChanges(false)
@@ -146,7 +164,8 @@ export default function ProductosPage() {
     setStageFormData({
       nombre: stage.nombre,
       orden: stage.orden.toString(),
-      depende_de_ids: stage.dependencias?.map(d => d.id) || []
+      depende_de_ids: stage.dependencias?.map(d => d.id) || [],
+      categoria_ids: stage.categorias?.map(c => c.id) || []
     })
   }
 
@@ -155,7 +174,8 @@ export default function ProductosPage() {
     setStageFormData({
       nombre: '',
       orden: (stages.length > 0 ? Math.max(...stages.map(s => s.orden)) + 1 : 1).toString(),
-      depende_de_ids: []
+      depende_de_ids: [],
+      categoria_ids: []
     })
   }
 
@@ -164,6 +184,7 @@ export default function ProductosPage() {
     if (!selectedProductForStages) return
 
     const selectedDeps = stages.filter(s => stageFormData.depende_de_ids.includes(s.id))
+    const selectedCats = availableCategorias.filter(c => stageFormData.categoria_ids.includes(c.id))
 
     if (editingStage) {
       // Editar localmente
@@ -172,7 +193,8 @@ export default function ProductosPage() {
           return {
             ...s,
             nombre: stageFormData.nombre,
-            dependencias: selectedDeps
+            dependencias: selectedDeps,
+            categorias: selectedCats
           }
         }
         return s
@@ -191,7 +213,8 @@ export default function ProductosPage() {
         orden: nextOrder,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
-        dependencias: selectedDeps
+        dependencias: selectedDeps,
+        categorias: selectedCats
       }
       setStages(topologicalSortEtapas([...stages, newStage]))
       showNotification('Etapa agregada localmente')
@@ -200,7 +223,8 @@ export default function ProductosPage() {
     setStageFormData({
       nombre: '',
       orden: '',
-      depende_de_ids: []
+      depende_de_ids: [],
+      categoria_ids: []
     })
     setIsCatalogDropdownOpen(false)
     setHasUnsavedChanges(true)
@@ -268,13 +292,15 @@ export default function ProductosPage() {
         temp_id: isTemp ? s.id.toString() : null,
         nombre: s.nombre,
         orden: s.orden,
-        depende_de_ids: s.dependencias?.map(d => d.id) || []
+        depende_de_ids: s.dependencias?.map(d => d.id) || [],
+        categoria_ids: s.categorias?.map(c => c.id) || []
       }
     })
 
     try {
       const updatedData = await syncEtapas(selectedProductForStages.id, formattedEtapas)
       setStages(topologicalSortEtapas(updatedData))
+      await loadCatalog()
       setHasUnsavedChanges(false)
       showNotification('Etapas guardadas en el servidor correctamente')
     } catch (err: unknown) {
@@ -558,94 +584,94 @@ export default function ProductosPage() {
         {/* Modal de Creación */}
         {isCreateModalOpen && (
           <Modal isOpen={isCreateModalOpen} onClose={() => setIsCreateModalOpen(false)} className="max-w-lg p-6">
-              <h2 className="text-xl font-bold text-white mb-4">Crear Nuevo Producto</h2>
-              <form onSubmit={handleCreateSubmit} className="space-y-4">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
-                    Nombre del Producto *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={formData.nombre}
-                    onChange={(e) => setFormData({ ...formData, nombre: e.target.value })}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
-                    Descripción
-                  </label>
-                  <textarea
-                    rows={3}
-                    value={formData.descripcion || ''}
-                    onChange={(e) => setFormData({ ...formData, descripcion: e.target.value })}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition resize-none"
-                  />
-                </div>
-                <div className="flex justify-end gap-3 pt-2">
-                  <button
-                    type="button"
-                    onClick={() => setIsCreateModalOpen(false)}
-                    className="bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white px-4 py-2 rounded-lg text-sm font-medium transition"
-                  >
-                    Cancelar
-                  </button>
-                  <button
-                    type="submit"
-                    className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-lg text-sm font-medium shadow-md transition"
-                  >
-                    Crear Producto
-                  </button>
-                </div>
-              </form>
+            <h2 className="text-xl font-bold text-white mb-4">Crear Nuevo Producto</h2>
+            <form onSubmit={handleCreateSubmit} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
+                  Nombre del Producto *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={formData.nombre}
+                  onChange={(e) => setFormData({ ...formData, nombre: e.target.value })}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
+                  Descripción
+                </label>
+                <textarea
+                  rows={3}
+                  value={formData.descripcion || ''}
+                  onChange={(e) => setFormData({ ...formData, descripcion: e.target.value })}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition resize-none"
+                />
+              </div>
+              <div className="flex justify-end gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setIsCreateModalOpen(false)}
+                  className="bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white px-4 py-2 rounded-lg text-sm font-medium transition"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-lg text-sm font-medium shadow-md transition"
+                >
+                  Crear Producto
+                </button>
+              </div>
+            </form>
           </Modal>
         )}
 
         {/* Modal de Edición (PATCH) */}
         {isEditModalOpen && (
           <Modal isOpen={isEditModalOpen} onClose={() => setIsEditModalOpen(false)} className="max-w-lg p-6">
-              <h2 className="text-xl font-bold text-white mb-4">Editar Producto (Parcial)</h2>
-              <form onSubmit={handleEditSubmit} className="space-y-4">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
-                    Nombre del Producto
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={formData.nombre}
-                    onChange={(e) => setFormData({ ...formData, nombre: e.target.value })}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
-                    Descripción
-                  </label>
-                  <textarea
-                    rows={3}
-                    value={formData.descripcion || ''}
-                    onChange={(e) => setFormData({ ...formData, descripcion: e.target.value })}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition resize-none"
-                  />
-                </div>
-                <div className="flex justify-end gap-3 pt-2">
-                  <button
-                    type="button"
-                    onClick={() => setIsEditModalOpen(false)}
-                    className="bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white px-4 py-2 rounded-lg text-sm font-medium transition"
-                  >
-                    Cancelar
-                  </button>
-                  <button
-                    type="submit"
-                    className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-lg text-sm font-medium shadow-md transition"
-                  >
-                    Guardar Cambios
-                  </button>
-                </div>
-              </form>
+            <h2 className="text-xl font-bold text-white mb-4">Editar Producto (Parcial)</h2>
+            <form onSubmit={handleEditSubmit} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
+                  Nombre del Producto
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={formData.nombre}
+                  onChange={(e) => setFormData({ ...formData, nombre: e.target.value })}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
+                  Descripción
+                </label>
+                <textarea
+                  rows={3}
+                  value={formData.descripcion || ''}
+                  onChange={(e) => setFormData({ ...formData, descripcion: e.target.value })}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition resize-none"
+                />
+              </div>
+              <div className="flex justify-end gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setIsEditModalOpen(false)}
+                  className="bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white px-4 py-2 rounded-lg text-sm font-medium transition"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-lg text-sm font-medium shadow-md transition"
+                >
+                  Guardar Cambios
+                </button>
+              </div>
+            </form>
           </Modal>
         )}
 
@@ -660,298 +686,341 @@ export default function ProductosPage() {
             className="max-w-5xl h-[85vh] p-6 flex flex-col text-slate-300"
           >
 
-              {/* Header */}
-              <div className="flex justify-between items-center pb-4 border-b border-slate-800 mb-4">
-                <div>
-                  <h2 className="text-xl font-bold text-white">Etapas de Fabricación</h2>
-                  <p className="text-xs text-slate-400">Configura el proceso para: <span className="text-blue-400 font-semibold">{selectedProductForStages.nombre}</span></p>
-                </div>
-                <div className="flex items-center gap-3">
-                  {hasUnsavedChanges && (
-                    <span className="bg-amber-500/10 border border-amber-500/30 text-amber-200 text-[10px] px-2.5 py-1 rounded-full font-medium animate-pulse">
-                      ⚠️ Cambios sin guardar
-                    </span>
-                  )}
-                  <button
-                    onClick={handleSaveChangesToServer}
-                    disabled={loadingStages || !hasUnsavedChanges}
-                    className="bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-800 disabled:text-slate-500 text-xs font-semibold px-3 py-1.5 rounded-lg shadow-md transition"
-                  >
-                    {loadingStages ? 'Guardando...' : 'Guardar en Servidor'}
-                  </button>
-                </div>
+            {/* Header */}
+            <div className="flex justify-between items-center pb-4 border-b border-slate-800 mb-4">
+              <div>
+                <h2 className="text-xl font-bold text-white">Etapas de Fabricación</h2>
+                <p className="text-xs text-slate-400">Configura el proceso para: <span className="text-blue-400 font-semibold">{selectedProductForStages.nombre}</span></p>
               </div>
+              <div className="flex items-center gap-3">
+                {hasUnsavedChanges && (
+                  <span className="bg-amber-500/10 border border-amber-500/30 text-amber-200 text-[10px] px-2.5 py-1 rounded-full font-medium animate-pulse">
+                    ⚠️ Cambios sin guardar
+                  </span>
+                )}
+                <button
+                  onClick={handleSaveChangesToServer}
+                  disabled={loadingStages || !hasUnsavedChanges}
+                  className="bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-800 disabled:text-slate-500 text-xs font-semibold px-3 py-1.5 rounded-lg shadow-md transition"
+                >
+                  {loadingStages ? 'Guardando...' : 'Guardar en Servidor'}
+                </button>
+              </div>
+            </div>
 
-              {/* Error inside modal */}
-              {stagesError && (
-                <div className="mb-4 bg-rose-500/10 border border-rose-500/20 text-rose-200 px-4 py-2.5 rounded-lg flex items-center gap-2 text-xs">
-                  <span>❌</span>
-                  <span className="font-medium">{stagesError}</span>
+            {/* Error inside modal */}
+            {stagesError && (
+              <div className="mb-4 bg-rose-500/10 border border-rose-500/20 text-rose-200 px-4 py-2.5 rounded-lg flex items-center gap-2 text-xs">
+                <span>❌</span>
+                <span className="font-medium">{stagesError}</span>
+              </div>
+            )}
+
+            {/* Flujo actual del proceso */}
+            <div className="bg-slate-950/40 border border-slate-800 rounded-xl p-4 mb-6">
+              <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Flujo actual del proceso</h3>
+              {stages.length === 0 ? (
+                <p className="text-xs text-slate-500 italic">No hay etapas creadas para este producto.</p>
+              ) : (
+                <div className="flex flex-wrap items-center gap-3">
+                  {stages.map((stage, idx) => (
+                    <div key={stage.id} className="flex items-center gap-3">
+                      <div
+                        className={`px-4 py-2 rounded-lg border text-sm font-semibold transition ${editingStage?.id === stage.id
+                          ? 'bg-blue-600/10 border-blue-500 text-white'
+                          : 'bg-slate-950 border border-slate-300 text-white'
+                          }`}
+                      >
+                        {stage.nombre}
+                      </div>
+                      {idx < stages.length - 1 && (
+                        <span className="text-slate-600 font-bold text-lg">→</span>
+                      )}
+                    </div>
+                  ))}
                 </div>
               )}
+            </div>
 
-              {/* Flujo actual del proceso */}
-              <div className="bg-slate-950/40 border border-slate-800 rounded-xl p-4 mb-6">
-                <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Flujo actual del proceso</h3>
-                {stages.length === 0 ? (
-                  <p className="text-xs text-slate-500 italic">No hay etapas creadas para este producto.</p>
+            {/* Main content body (Two Panes) */}
+            <div className="flex-1 min-h-0 flex flex-col md:flex-row gap-6 overflow-hidden">
+
+              {/* Left Pane: List of Stages */}
+              <div className="flex-1 flex flex-col min-h-0 bg-slate-950/30 border border-slate-800/50 rounded-xl p-4 overflow-y-auto">
+                <h3 className="text-sm font-semibold text-slate-300 mb-3 flex items-center gap-2">
+                  <span>📋</span> Listado de Etapas ({stages.length})
+                </h3>
+
+                {loadingStages ? (
+                  <div className="flex-1 flex flex-col items-center justify-center text-slate-400 gap-2">
+                    <div className="animate-spin rounded-full h-6 w-6 border-2 border-blue-500 border-t-transparent"></div>
+                    <span className="text-xs">Cargando etapas...</span>
+                  </div>
+                ) : stages.length === 0 ? (
+                  <div className="flex-1 flex flex-col items-center justify-center text-slate-500 gap-2 py-10">
+                    <span className="text-3xl">⚙️</span>
+                    <span className="text-xs font-medium">Este producto aún no tiene etapas configuradas.</span>
+                    <span className="text-[10px] text-slate-600">Usa el formulario para agregar la primera etapa.</span>
+                  </div>
                 ) : (
-                  <div className="flex flex-wrap items-center gap-3">
-                    {stages.map((stage, idx) => (
-                      <div key={stage.id} className="flex items-center gap-3">
+                  <div className="space-y-3">
+                    {stages.map((stage) => {
+                      const validDeps = stage.dependencias?.filter(d => d && d.nombre && d.nombre.trim() !== '') || [];
+                      const hasDeps = validDeps.length > 0;
+                      return (
                         <div
-                          className={`px-4 py-2 rounded-lg border text-sm font-semibold transition ${editingStage?.id === stage.id
-                              ? 'bg-blue-600/10 border-blue-500 text-white'
-                              : 'bg-slate-950 border border-slate-300 text-white'
+                          key={stage.id}
+                          className={`p-3 rounded-lg border transition ${editingStage?.id === stage.id
+                            ? 'bg-blue-600/10 border-blue-500/50'
+                            : 'bg-slate-900 border-slate-800 hover:border-slate-700'
                             }`}
                         >
-                          {stage.nombre}
+                          <div className="flex justify-between items-start gap-3">
+                            <div className="flex items-center gap-2.5">
+                              <span className="bg-slate-800 text-slate-300 border border-slate-700 w-6 h-6 rounded-md flex items-center justify-center text-xs font-mono font-bold">
+                                {stage.orden}
+                              </span>
+                              <div>
+                                <span className="font-semibold text-white text-sm">{stage.nombre}</span>
+                                {hasDeps && (
+                                  <div className="flex flex-wrap items-center gap-1.5 mt-1">
+                                    <span className="text-[11px] text-slate-400 font-medium">Requiere:</span>
+                                    {validDeps.map(dep => (
+                                      <span key={dep.id} className="bg-slate-800 text-blue-300 text-[11px] font-semibold px-2 py-0.5 rounded border border-slate-700">
+                                        {dep.nombre}
+                                      </span>
+                                    ))}
+                                  </div>
+                                )}
+                                {stage.categorias && stage.categorias.length > 0 && (
+                                  <div className="flex flex-wrap items-center gap-1 mt-1">
+                                    {stage.categorias.map(cat => (
+                                      <span key={cat.id} className="bg-purple-950/60 text-purple-300 border border-purple-800/60 text-[10px] font-semibold px-2 py-0.5 rounded-full">
+                                        🏷️ {cat.nombre}
+                                      </span>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+
+                            <div className="flex gap-1.5">
+                              <button
+                                type="button"
+                                onClick={() => handleStartEditStage(stage)}
+                                className="text-slate-400 hover:text-white p-1 hover:bg-slate-800 rounded text-xs transition"
+                                title="Editar etapa"
+                              >
+                                ✏️
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteStage(stage.id)}
+                                className="text-rose-400 hover:text-rose-300 p-1 hover:bg-rose-500/10 rounded text-xs transition"
+                                title="Eliminar etapa"
+                              >
+                                🗑️
+                              </button>
+                            </div>
+                          </div>
                         </div>
-                        {idx < stages.length - 1 && (
-                          <span className="text-slate-600 font-bold text-lg">→</span>
-                        )}
-                      </div>
-                    ))}
+                      )
+                    })}
                   </div>
                 )}
               </div>
 
-              {/* Main content body (Two Panes) */}
-              <div className="flex-1 min-h-0 flex flex-col md:flex-row gap-6 overflow-hidden">
+              {/* Right Pane: Form for Creating/Editing Stage */}
+              <div className="w-full md:w-1/2 bg-slate-900 border border-slate-800 rounded-xl p-6 flex flex-col overflow-y-auto">
+                <h3 className="text-lg font-bold text-white mb-1">
+                  {editingStage ? 'Editar etapa' : 'Agregar nueva etapa'}
+                </h3>
+                <p className="text-xs text-slate-400 mb-4">
+                  Completa el nombre, selecciona su categoría y decide si depende de otra etapa ya creada.
+                </p>
 
-                {/* Left Pane: List of Stages */}
-                <div className="flex-1 flex flex-col min-h-0 bg-slate-950/30 border border-slate-800/50 rounded-xl p-4 overflow-y-auto">
-                  <h3 className="text-sm font-semibold text-slate-300 mb-3 flex items-center gap-2">
-                    <span>📋</span> Listado de Etapas ({stages.length})
-                  </h3>
-
-                  {loadingStages ? (
-                    <div className="flex-1 flex flex-col items-center justify-center text-slate-400 gap-2">
-                      <div className="animate-spin rounded-full h-6 w-6 border-2 border-blue-500 border-t-transparent"></div>
-                      <span className="text-xs">Cargando etapas...</span>
-                    </div>
-                  ) : stages.length === 0 ? (
-                    <div className="flex-1 flex flex-col items-center justify-center text-slate-500 gap-2 py-10">
-                      <span className="text-3xl">⚙️</span>
-                      <span className="text-xs font-medium">Este producto aún no tiene etapas configuradas.</span>
-                      <span className="text-[10px] text-slate-600">Usa el formulario para agregar la primera etapa.</span>
-                    </div>
-                  ) : (
-                    <div className="space-y-3">
-                      {stages.map((stage) => {
-                        const validDeps = stage.dependencias?.filter(d => d && d.nombre && d.nombre.trim() !== '') || [];
-                        const hasDeps = validDeps.length > 0;
-                        return (
-                          <div
-                            key={stage.id}
-                            className={`p-3 rounded-lg border transition ${editingStage?.id === stage.id
-                                ? 'bg-blue-600/10 border-blue-500/50'
-                                : 'bg-slate-900 border-slate-800 hover:border-slate-700'
-                              }`}
-                          >
-                            <div className="flex justify-between items-start gap-3">
-                              <div className="flex items-center gap-2.5">
-                                <span className="bg-slate-800 text-slate-300 border border-slate-700 w-6 h-6 rounded-md flex items-center justify-center text-xs font-mono font-bold">
-                                  {stage.orden}
-                                </span>
-                                <div>
-                                  <span className="font-semibold text-white text-sm">{stage.nombre}</span>
-                                  {hasDeps && (
-                                    <div className="flex flex-wrap items-center gap-1.5 mt-1">
-                                      <span className="text-[11px] text-slate-400 font-medium">Requiere:</span>
-                                      {validDeps.map(dep => (
-                                        <span key={dep.id} className="bg-slate-800 text-blue-300 text-[11px] font-semibold px-2 py-0.5 rounded border border-slate-700">
-                                          {dep.nombre}
-                                        </span>
-                                      ))}
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-
-                              <div className="flex gap-1.5">
-                                <button
-                                  type="button"
-                                  onClick={() => handleStartEditStage(stage)}
-                                  className="text-slate-400 hover:text-white p-1 hover:bg-slate-800 rounded text-xs transition"
-                                  title="Editar etapa"
-                                >
-                                  ✏️
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => handleDeleteStage(stage.id)}
-                                  className="text-rose-400 hover:text-rose-300 p-1 hover:bg-rose-500/10 rounded text-xs transition"
-                                  title="Eliminar etapa"
-                                >
-                                  🗑️
-                                </button>
-                              </div>
-                            </div>
-                          </div>
-                        )
-                      })}
-                    </div>
-                  )}
-                </div>
-
-                {/* Right Pane: Form for Creating/Editing Stage */}
-                <div className="w-full md:w-1/2 bg-slate-900 border border-slate-800 rounded-xl p-6 flex flex-col overflow-y-auto">
-                  <h3 className="text-lg font-bold text-white mb-1">
-                    {editingStage ? 'Editar etapa' : 'Agregar nueva etapa'}
-                  </h3>
-                  <p className="text-xs text-slate-400 mb-4">
-                    Completa el nombre y decide si depende de otra etapa ya creada.
-                  </p>
-
-                  <form onSubmit={handleStageSubmit} className="space-y-4 flex-1 flex flex-col justify-between">
-                    <div className="space-y-4">
-                      {/* Nombre con Buscador en Catálogo */}
-                      <div className="relative" ref={catalogDropdownRef}>
-                        <label className="block text-xs font-semibold text-slate-400 mb-1.5 flex justify-between items-center">
-                          <span>Nombre de la etapa</span>
-                          {catalogStages.length > 0 && (
-                            <span className="text-[10px] text-blue-400 font-normal">
-                              {catalogStages.length} disponibles en catálogo
-                            </span>
-                          )}
-                        </label>
-                        <input
-                          type="text"
-                          required
-                          placeholder="Escribe para buscar en catálogo..."
-                          value={stageFormData.nombre}
-                          onFocus={() => {
-                            if (stageFormData.nombre.trim() !== '') {
-                              setIsCatalogDropdownOpen(true)
-                            }
-                          }}
-                          onChange={(e) => {
-                            const val = e.target.value
-                            setStageFormData({ ...stageFormData, nombre: val })
-                            setIsCatalogDropdownOpen(val.trim() !== '')
-                          }}
-                          className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2.5 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500 transition"
-                        />
-
-                        {/* Desplegable de Sugerencias del Catálogo */}
-                        {isCatalogDropdownOpen && stageFormData.nombre.trim() !== '' && (
-                          <div className="absolute z-20 w-full mt-1 bg-slate-950 border border-slate-800 rounded-lg shadow-xl max-h-48 overflow-y-auto">
-                            {(() => {
-                              const matches = catalogStages.filter(c =>
-                                (c.nombre || '').toLowerCase().includes(stageFormData.nombre.trim().toLowerCase())
-                              );
-
-                              return (
-                                <>
-                                  {matches.map(item => (
-                                    <button
-                                      key={item.id}
-                                      type="button"
-                                      onClick={() => {
-                                        setStageFormData({ ...stageFormData, nombre: item.nombre })
-                                        setIsCatalogDropdownOpen(false)
-                                      }}
-                                      className="w-full text-left px-3.5 py-2 text-xs text-slate-300 hover:bg-blue-600/20 hover:text-white border-b border-slate-900 last:border-0 flex items-center justify-between transition"
-                                    >
-                                      <span className="font-semibold">{item.nombre}</span>
-                                      {item.descripcion && (
-                                        <span className="text-[10px] text-slate-500 truncate max-w-[150px]">
-                                          {item.descripcion}
-                                        </span>
-                                      )}
-                                    </button>
-                                  ))}
-
-                                  {!matches.some(c => c.nombre.toLowerCase() === stageFormData.nombre.trim().toLowerCase()) && (
-                                    <div className="p-2.5 text-[11px] text-emerald-400 bg-emerald-950/30 border-t border-slate-900 flex items-center gap-1.5">
-                                      <span>✨</span>
-                                      <span>Se guardará &quot;<strong>{stageFormData.nombre}</strong>&quot; como nueva etapa global</span>
-                                    </div>
-                                  )}
-                                </>
-                              )
-                            })()}
-                          </div>
-                        )}
-                      </div>
-
-
-
-                      {/* Dependencias Checkboxes */}
-                      <div>
-                        <label className="block text-xs font-semibold text-slate-400 mb-2">
-                          Selecciona qué etapas deben completarse primero:
-                        </label>
-
-                        {stages.filter(s => !editingStage || s.id !== editingStage.id).length === 0 ? (
-                          <p className="text-xs text-slate-500 italic py-2">No hay otras etapas disponibles para establecer dependencias.</p>
-                        ) : (
-                          <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
-                            {stages
-                              .filter(s => !editingStage || s.id !== editingStage.id)
-                              .map(s => {
-                                const isChecked = stageFormData.depende_de_ids.includes(s.id);
-                                return (
-                                  <label
-                                    key={s.id}
-                                    className={`flex items-center gap-3 p-3.5 rounded-lg border cursor-pointer select-none transition ${isChecked
-                                        ? 'bg-slate-950 border-blue-500 text-white'
-                                        : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-slate-200'
-                                      }`}
-                                  >
-                                    <input
-                                      type="checkbox"
-                                      checked={isChecked}
-                                      onChange={() => handleToggleDependency(s.id)}
-                                      className="rounded bg-slate-900 border-slate-800 text-blue-600 focus:ring-0 focus:ring-offset-0 cursor-pointer w-4 h-4"
-                                    />
-                                    <span className="text-sm font-semibold">{s.nombre}</span>
-                                  </label>
-                                )
-                              })}
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Info Preview Box */}
-                      {stageFormData.depende_de_ids.length > 0 && (
-                        <div className="bg-slate-950 border border-slate-800/80 text-slate-400 px-4 py-3 rounded-lg flex items-start gap-2.5 text-xs leading-relaxed">
-                          <span className="text-slate-400 font-bold">ⓘ</span>
-                          <span>
-                            Esta etapa solo podrá comenzar cuando terminen:{' '}
-                            <span className="text-white font-semibold">
-                              {stages
-                                .filter(s => stageFormData.depende_de_ids.includes(s.id))
-                                .map(s => s.nombre)
-                                .join(', ')}
-                            </span>
+                <form onSubmit={handleStageSubmit} className="space-y-4 flex-1 flex flex-col justify-between">
+                  <div className="space-y-4">
+                    {/* Nombre con Buscador en Catálogo */}
+                    <div className="relative" ref={catalogDropdownRef}>
+                      <label className="block text-xs font-semibold text-slate-400 mb-1.5 flex justify-between items-center">
+                        <span>Nombre de la etapa</span>
+                        {catalogStages.length > 0 && (
+                          <span className="text-[10px] text-blue-400 font-normal">
+                            {catalogStages.length} disponibles en catálogo
                           </span>
+                        )}
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        placeholder="Escribe para buscar en catálogo..."
+                        value={stageFormData.nombre}
+                        onFocus={() => {
+                          if (stageFormData.nombre.trim() !== '') {
+                            setIsCatalogDropdownOpen(true)
+                          }
+                        }}
+                        onChange={(e) => {
+                          const val = e.target.value
+                          const match = catalogStages.find(c => (c.nombre || '').toLowerCase() === val.trim().toLowerCase())
+                          const autoCatIds = match?.categorias?.map(cat => cat.id) || []
+                          setStageFormData(prev => ({
+                            ...prev,
+                            nombre: val,
+                            categoria_ids: autoCatIds.length > 0 ? autoCatIds : prev.categoria_ids
+                          }))
+                          setIsCatalogDropdownOpen(val.trim() !== '')
+                        }}
+                        className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2.5 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500 transition"
+                      />
+
+                      {/* Desplegable de Sugerencias del Catálogo */}
+                      {isCatalogDropdownOpen && stageFormData.nombre.trim() !== '' && (
+                        <div className="absolute z-20 w-full mt-1 bg-slate-950 border border-slate-800 rounded-lg shadow-xl max-h-48 overflow-y-auto">
+                          {(() => {
+                            const matches = catalogStages.filter(c =>
+                              (c.nombre || '').toLowerCase().includes(stageFormData.nombre.trim().toLowerCase())
+                            );
+
+                            return (
+                              <>
+                                {matches.map(item => (
+                                  <button
+                                    key={item.id}
+                                    type="button"
+                                    onClick={() => {
+                                      const catIds = item.categorias?.map(c => c.id) || []
+                                      setStageFormData(prev => ({
+                                        ...prev,
+                                        nombre: item.nombre,
+                                        categoria_ids: catIds.length > 0 ? catIds : prev.categoria_ids
+                                      }))
+                                      setIsCatalogDropdownOpen(false)
+                                    }}
+                                    className="w-full text-left px-3.5 py-2 text-xs text-slate-300 hover:bg-blue-600/20 hover:text-white border-b border-slate-900 last:border-0 flex items-center justify-between transition"
+                                  >
+                                    <span className="font-semibold">{item.nombre}</span>
+                                    {item.descripcion && (
+                                      <span className="text-[10px] text-slate-500 truncate max-w-[150px]">
+                                        {item.descripcion}
+                                      </span>
+                                    )}
+                                  </button>
+                                ))}
+
+                                {!matches.some(c => c.nombre.toLowerCase() === stageFormData.nombre.trim().toLowerCase()) && (
+                                  <div className="p-2.5 text-[11px] text-emerald-400 bg-emerald-950/30 border-t border-slate-900 flex items-center gap-1.5">
+                                    <span>✨</span>
+                                    <span>Se guardará &quot;<strong>{stageFormData.nombre}</strong>&quot; como nueva etapa global</span>
+                                  </div>
+                                )}
+                              </>
+                            )
+                          })()}
                         </div>
                       )}
                     </div>
 
-                    <div className="pt-4 border-t border-slate-800 mt-6 flex gap-3">
-                      {editingStage && (
-                        <button
-                          type="button"
-                          onClick={handleCancelEditStage}
-                          className="flex-1 bg-slate-850 hover:bg-slate-800 text-slate-300 px-4 py-3 rounded-lg text-sm font-semibold border border-slate-800 transition"
-                        >
-                          Cancelar Edición
-                        </button>
+                    {/* Selector de Categorías */}
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-400 mb-2 flex justify-between items-center">
+                        <span>Categorías asignadas a esta etapa</span>
+                        <span className="text-[10px] text-slate-500">Selecciona las categorías aplicables</span>
+                      </label>
+                      {availableCategorias.length === 0 ? (
+                        <p className="text-xs text-slate-500 italic py-1">Cargando categorías...</p>
+                      ) : (
+                        <div className="flex flex-wrap gap-2">
+                          {availableCategorias.map(cat => (
+                            <ButtonCategoryAdd
+                              key={cat.id}
+                              label={cat.nombre}
+                              selected={stageFormData.categoria_ids.includes(cat.id)}
+                              onToggle={() => setStageFormData(prev => ({
+                                ...prev,
+                                categoria_ids: toggleSelected(prev.categoria_ids, cat.id)
+                              }))}
+                            />
+                          ))}
+                        </div>
                       )}
-                      <button
-                        type="submit"
-                        disabled={loadingStages}
-                        className="flex-1 bg-blue-600 hover:bg-blue-500 disabled:bg-blue-800 text-white px-4 py-3 rounded-lg text-sm font-bold shadow-md transition"
-                      >
-                        {editingStage ? 'Guardar Cambios' : 'Crear etapa'}
-                      </button>
                     </div>
-                  </form>
-                </div>
+
+                    {/* Dependencias Checkboxes */}
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-400 mb-2">
+                        Selecciona qué etapas deben completarse primero:
+                      </label>
+
+                      {stages.filter(s => !editingStage || s.id !== editingStage.id).length === 0 ? (
+                        <p className="text-xs text-slate-500 italic py-2">No hay otras etapas disponibles para establecer dependencias.</p>
+                      ) : (
+                        <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
+                          {stages
+                            .filter(s => !editingStage || s.id !== editingStage.id)
+                            .map(s => {
+                              const isChecked = stageFormData.depende_de_ids.includes(s.id);
+                              return (
+                                <label
+                                  key={s.id}
+                                  className={`flex items-center gap-3 p-3.5 rounded-lg border cursor-pointer select-none transition ${isChecked
+                                    ? 'bg-slate-950 border-blue-500 text-white'
+                                    : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-slate-200'
+                                    }`}
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={isChecked}
+                                    onChange={() => handleToggleDependency(s.id)}
+                                    className="rounded bg-slate-900 border-slate-800 text-blue-600 focus:ring-0 focus:ring-offset-0 cursor-pointer w-4 h-4"
+                                  />
+                                  <span className="text-sm font-semibold">{s.nombre}</span>
+                                </label>
+                              )
+                            })}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Info Preview Box */}
+                    {stageFormData.depende_de_ids.length > 0 && (
+                      <div className="bg-slate-950 border border-slate-800/80 text-slate-400 px-4 py-3 rounded-lg flex items-start gap-2.5 text-xs leading-relaxed">
+                        <span className="text-slate-400 font-bold">ⓘ</span>
+                        <span>
+                          Esta etapa solo podrá comenzar cuando terminen:{' '}
+                          <span className="text-white font-semibold">
+                            {stages
+                              .filter(s => stageFormData.depende_de_ids.includes(s.id))
+                              .map(s => s.nombre)
+                              .join(', ')}
+                          </span>
+                        </span>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="pt-4 border-t border-slate-800 mt-6 flex gap-3">
+                    {editingStage && (
+                      <button
+                        type="button"
+                        onClick={handleCancelEditStage}
+                        className="flex-1 bg-slate-850 hover:bg-slate-800 text-slate-300 px-4 py-3 rounded-lg text-sm font-semibold border border-slate-800 transition"
+                      >
+                        Cancelar Edición
+                      </button>
+                    )}
+                    <button
+                      type="submit"
+                      disabled={loadingStages}
+                      className="flex-1 bg-blue-600 hover:bg-blue-500 disabled:bg-blue-800 text-white px-4 py-3 rounded-lg text-sm font-bold shadow-md transition"
+                    >
+                      {editingStage ? 'Guardar Cambios' : 'Crear etapa'}
+                    </button>
+                  </div>
+                </form>
               </div>
+            </div>
           </Modal>
         )}
 
@@ -965,22 +1034,22 @@ export default function ProductosPage() {
             }}
             className="max-w-4xl p-6 flex flex-col text-slate-300"
           >
-              <div className="flex justify-between items-center pb-4 border-b border-slate-800 mb-4">
-                <div>
-                  <h2 className="text-xl font-bold text-white flex items-center gap-2">
-                    <span>🖼️</span> Galería de Imágenes
-                  </h2>
-                  <p className="text-xs text-slate-400">
-                    Administra el logo e imágenes secundarias de: <span className="text-blue-400 font-semibold">{selectedProductForImages.nombre}</span>
-                  </p>
-                </div>
+            <div className="flex justify-between items-center pb-4 border-b border-slate-800 mb-4">
+              <div>
+                <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                  <span>🖼️</span> Galería de Imágenes
+                </h2>
+                <p className="text-xs text-slate-400">
+                  Administra el logo e imágenes secundarias de: <span className="text-blue-400 font-semibold">{selectedProductForImages.nombre}</span>
+                </p>
               </div>
+            </div>
 
-              <ProductImageGallery
-                productId={selectedProductForImages.id}
-                productName={selectedProductForImages.nombre}
-                onImagesUpdated={() => loadProducts()}
-              />
+            <ProductImageGallery
+              productId={selectedProductForImages.id}
+              productName={selectedProductForImages.nombre}
+              onImagesUpdated={() => loadProducts()}
+            />
           </Modal>
         )}
       </main>

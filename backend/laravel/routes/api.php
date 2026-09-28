@@ -14,6 +14,7 @@ use App\Http\Controllers\Api\PagoController;
 use App\Http\Controllers\Api\ProductoImagenController;
 use App\Http\Controllers\Api\PedidoImagenController;
 use App\Http\Controllers\Api\UserController;
+use App\Http\Controllers\Api\CategoriaController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -69,6 +70,14 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('etapas/{id}', [EtapaController::class, 'show']);
     Route::patch('etapas/{id}', [EtapaController::class, 'update']);
     Route::delete('etapas/{id}', [EtapaController::class, 'destroy']);
+
+    // ── Categorías ──────────────────────────────────────────────────
+    Route::get('categorias', [CategoriaController::class, 'index']);
+    Route::post('categorias', [CategoriaController::class, 'store']);
+    Route::get('categorias/{id}', [CategoriaController::class, 'show']);
+    Route::patch('categorias/{id}', [CategoriaController::class, 'update']);
+    Route::put('categorias/{id}', [CategoriaController::class, 'update']);
+    Route::delete('categorias/{id}', [CategoriaController::class, 'destroy']);
 
     // ── Etapas de un Producto (NxN - etapas_productos) ────────────
     Route::get('productos/{id}/etapas', [EtapaProductoController::class, 'index']);
@@ -127,6 +136,7 @@ Route::middleware('auth:sanctum')->group(function () {
     // ── Panel del Operario ─────────────────────────────────────────
     Route::prefix('operario')->group(function () {
         Route::get('tasks', [OperarioTaskController::class, 'index']);
+        Route::get('tasks/por-categoria', [OperarioTaskController::class, 'tasksPorCategoria']);
         Route::post('tasks/{id}/start', [OperarioTaskController::class, 'start']);
         Route::post('tasks/{id}/cancel', [OperarioTaskController::class, 'cancel']);
         Route::post('tasks/{id}/complete', [OperarioTaskController::class, 'complete']);

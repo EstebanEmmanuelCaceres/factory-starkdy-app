@@ -34,6 +34,9 @@ import {
   removeTaskAssignment,
   type ResponsableEtapa
 } from '@/lib/responsable_etapas'
+import SelectFilter from '@/components/SelectFilter/SelectFilter'
+import { PRIORITY_OPTIONS, PEDIDO_STATE_OPTIONS } from '@/lib/order-status'
+import ImagePedido from '@/components/ImagePedido/ImagePedido'
 
 export default function PedidosPage() {
   const [pedidos, setPedidos] = useState<Pedido[]>([])
@@ -158,22 +161,19 @@ export default function PedidosPage() {
     try {
       const filters: { search?: string; prioridad?: string; estado?: string } = {}
 
-      if (search !== undefined) {
-        if (search) filters.search = search
-      } else if (searchQuery) {
-        filters.search = searchQuery
-      }
+      const targetSearch = search !== undefined ? search : searchQuery
 
-      if (priority !== undefined) {
-        if (priority) filters.prioridad = priority
-      } else if (filterPrioridad) {
-        filters.prioridad = filterPrioridad
-      }
+      if (targetSearch && targetSearch.trim()) {
+        filters.search = targetSearch.trim()
+        // Al tener búsqueda activa, el buscador queda desacoplado de los filtros de estado/prioridad
+        // Enviamos estado='todos' para que el backend consulte en todos los estados (enviados, completados, cancelados)
+        filters.estado = 'todos'
+      } else {
+        const targetPriority = priority !== undefined ? priority : filterPrioridad
+        const targetStatus = status !== undefined ? status : filterEstado
 
-      if (status !== undefined) {
-        if (status) filters.estado = status
-      } else if (filterEstado) {
-        filters.estado = filterEstado
+        if (targetPriority) filters.prioridad = targetPriority
+        if (targetStatus) filters.estado = targetStatus
       }
 
       const [pedidosData, clientesData, productosData, usersData, stagesData] = await Promise.all([
@@ -787,6 +787,12 @@ export default function PedidosPage() {
     }
   }
 
+  const handleClearSearchInput = () => {
+    setSearchQuery('')
+    setCurrentPage(1)
+    loadData('')
+  }
+
   const handleClearSearch = () => {
     setSearchQuery('')
     setFilterPrioridad('')
@@ -866,18 +872,20 @@ export default function PedidosPage() {
       if (['operario', 'operator'].includes(currentUser.role)) {
         if (p.estado === 'pendiente') return false
       }
-      if (filterVendedor) {
-        if (p.user_id !== Number(filterVendedor)) return false
-      }
+
+      // Si hay una búsqueda por texto activa, el buscador está desacoplado de los dropdowns de filtro
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase().trim()
         const matchCode = (p.codigo || '').toLowerCase().includes(q)
         const matchClientName = (p.cliente?.nombre_cliente || '').toLowerCase().includes(q)
         const matchEmpresa = (p.cliente?.nombre_empresa || '').toLowerCase().includes(q)
         const matchEmail = (p.cliente?.email || '').toLowerCase().includes(q)
-        if (!matchCode && !matchClientName && !matchEmpresa && !matchEmail) {
-          return false
-        }
+        return matchCode || matchClientName || matchEmpresa || matchEmail
+      }
+
+      // Si NO hay texto en el buscador, se aplican los filtros de la barra
+      if (filterVendedor) {
+        if (p.user_id !== Number(filterVendedor)) return false
       }
       return true
     })
@@ -923,8 +931,10 @@ export default function PedidosPage() {
     currentPage * ITEMS_PER_PAGE
   )
 
+  const isOperario = currentUser?.role === 'operario' || currentUser?.role === 'operator'
+
   return (
-    <RoleGuard allowedRoles={['admin', 'supervisor', 'encargado', 'vendedor', 'disenador', 'disenadora']}>
+    <RoleGuard allowedRoles={['admin', 'supervisor', 'encargado', 'vendedor', 'disenador', 'disenadora', 'operario', 'operator']}>
       <main className="page-content p-6 text-white">
         {/* Notificaciones */}
         {successMessage && (
@@ -946,25 +956,29 @@ export default function PedidosPage() {
           <div>
             <h1 className="text-2xl font-bold text-white tracking-tight">Panel de Pedidos</h1>
             <p className="text-sm text-slate-400">
-              {currentUser?.role === 'vendedor' || currentUser?.role === 'disenador'
-                ? 'Visualiza y gestiona las ventas y pedidos asignados a tu cuenta.'
-                : 'Gestiona los pedidos de fabricación, asocia productos y asigna operarios a etapas.'}
+              {isOperario
+                ? 'Visualiza los pedidos de fabricación y sus etapas asignadas.'
+                : currentUser?.role === 'vendedor' || currentUser?.role === 'disenador'
+                  ? 'Visualiza y gestiona las ventas y pedidos asignados a tu cuenta.'
+                  : 'Gestiona los pedidos de fabricación, asocia productos y asigna operarios a etapas.'}
             </p>
           </div>
-          <div className="flex items-center gap-3 self-start md:self-auto">
-            <button
-              onClick={handleOpenCreateClienteModal}
-              className="flex items-center justify-center gap-2 bg-slate-800 hover:bg-slate-700 text-white font-medium px-4 py-2.5 rounded-lg shadow transition duration-200 text-sm hover:scale-[1.02] active:scale-[0.98]"
-            >
-              <span>➕</span> Nuevo Cliente
-            </button>
-            <button
-              onClick={handleOpenCreateModal}
-              className="flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-500 text-white font-medium px-4 py-2.5 rounded-lg shadow transition duration-200 text-sm hover:scale-[1.02] active:scale-[0.98]"
-            >
-              <span>➕</span> Nuevo Pedido
-            </button>
-          </div>
+          {!isOperario && (
+            <div className="flex items-center gap-3 self-start md:self-auto">
+              <button
+                onClick={handleOpenCreateClienteModal}
+                className="flex items-center justify-center gap-2 bg-slate-800 hover:bg-slate-700 text-white font-medium px-4 py-2.5 rounded-lg shadow transition duration-200 text-sm hover:scale-[1.02] active:scale-[0.98]"
+              >
+                <span>➕</span> Nuevo Cliente
+              </button>
+              <button
+                onClick={handleOpenCreateModal}
+                className="flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-500 text-white font-medium px-4 py-2.5 rounded-lg shadow transition duration-200 text-sm hover:scale-[1.02] active:scale-[0.98]"
+              >
+                <span>➕</span> Nuevo Pedido
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Filtros */}
@@ -984,7 +998,7 @@ export default function PedidosPage() {
                 <span className="absolute left-3.5 top-3 text-slate-500 text-sm">🔍</span>
                 {searchQuery && (
                   <button
-                    onClick={handleClearSearch}
+                    onClick={handleClearSearchInput}
                     className="absolute right-3 top-3 text-slate-500 hover:text-slate-300 text-sm cursor-pointer"
                   >
                     ✕
@@ -1001,61 +1015,44 @@ export default function PedidosPage() {
               </button>
 
               {/* Filtro de Vendedor (Visible para roles con acceso general) */}
-              {currentUser?.role !== 'vendedor' && currentUser?.role !== 'disenador' && (
-                <select
+              {!isOperario && currentUser?.role !== 'vendedor' && currentUser?.role !== 'disenador' && (
+                <SelectFilter
                   value={filterVendedor}
-                  onChange={(e) => {
-                    setFilterVendedor(e.target.value)
+                  onChange={(value) => {
+                    setFilterVendedor(value)
+                    loadData()
                     setCurrentPage(1)
                   }}
-                  className="bg-slate-950 border border-slate-800 focus:border-blue-500 text-slate-300 text-sm rounded-xl px-3.5 py-2.5 focus:outline-none transition duration-150 cursor-pointer hover:border-slate-700"
-                >
-                  <option value="">👤 Todos los Vendedores</option>
-                  {operarios
+                  options={operarios
                     .filter((u) => u.role === 'vendedor' || u.role === 'disenador' || u.role === 'admin')
-                    .map((v) => (
-                      <option key={v.id} value={v.id}>
-                        {v.name}
-                      </option>
-                    ))}
-                </select>
+                    .map((v) => ({
+                      label: v.name,
+                      value: v.id
+                    }))}
+                  placeholder="👤 Todos los Vendedores"
+                />
               )}
-
               {/* Filtro de Prioridad */}
-              <select
+              <SelectFilter
                 value={filterPrioridad}
-                onChange={(e) => {
-                  setFilterPrioridad(e.target.value)
-                  loadData(undefined, e.target.value, undefined)
+                onChange={(value) => {
+                  setFilterPrioridad(value)
+                  loadData(undefined, value, undefined)
                 }}
-                className="bg-slate-950 border border-slate-800 focus:border-blue-500 text-slate-300 text-sm rounded-xl px-3.5 py-2.5 focus:outline-none transition duration-150 cursor-pointer hover:border-slate-700"
-              >
-                <option value="">🎯 Todas las Prioridades</option>
-                <option value="baja">Prioridad Baja</option>
-                <option value="normal">Prioridad Normal</option>
-                <option value="alta">Prioridad Alta</option>
-                <option value="critica">Prioridad Crítica</option>
-              </select>
+                options={PRIORITY_OPTIONS}
+                placeholder="🎯 Todas las prioridades"
+              />
 
               {/* Filtro de Estado */}
-              <select
+              <SelectFilter
                 value={filterEstado}
-                onChange={(e) => {
-                  setFilterEstado(e.target.value)
-                  loadData(undefined, undefined, e.target.value)
+                onChange={(value) => {
+                  setFilterEstado(value)
+                  loadData(undefined, undefined, value)
                 }}
-                className="bg-slate-950 border border-slate-800 focus:border-blue-500 text-slate-300 text-sm rounded-xl px-3.5 py-2.5 focus:outline-none transition duration-150 cursor-pointer hover:border-slate-700"
-              >
-                <option value="">📊 Todos los Estados</option>
-                <option value="pendiente">Pendiente</option>
-                <option value="listo_para_produccion">Listo para producción</option>
-                <option value="en_progreso">En Progreso</option>
-                <option value="completado">Completado</option>
-                <option value="completado_pd">Completado - Pend. Pago (PD)</option>
-                <option value="enviado">Enviado</option>
-                <option value="enviado_faltante">Enviado con Faltante</option>
-                <option value="cancelado">Cancelado</option>
-              </select>
+                options={PEDIDO_STATE_OPTIONS}
+                placeholder="📊 Estados Activos"
+              />
             </div>
 
             {(searchQuery || filterPrioridad || filterEstado || filterVendedor) && (
@@ -1092,7 +1089,7 @@ export default function PedidosPage() {
           ) : (
             <div>
               {/* VISTA EN TARJETAS PARA MOBILE (< md) */}
-              <div className="md:hidden space-y-3 p-3">
+              <div className="md:hidden space-y-4 p-3">
                 {displayedPedidos.map((pedido) => {
                   const coverUrl =
                     pedido.imagen_principal?.url ||
@@ -1106,53 +1103,35 @@ export default function PedidosPage() {
                     <div
                       key={pedido.id}
                       onClick={(e) => handleRowClick(e, pedido)}
-                      className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-3 shadow-xl text-left cursor-pointer hover:border-slate-700 transition"
+                      className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-3.5 shadow-xl text-left cursor-pointer hover:border-slate-700 transition"
                     >
-                      {/* Encabezado de la Tarjeta */}
-                      <div className="flex items-start justify-between gap-2 border-b border-slate-800 pb-2.5">
-                        <div className="flex items-center gap-3">
-                          {coverUrl ? (
-                            <div
-                              data-prevent-row-click="true"
-                              onClick={() => handleOpenImagesModal(pedido)}
-                              className="w-12 h-12 rounded-lg overflow-hidden border border-slate-700 bg-slate-950 flex-shrink-0 relative cursor-pointer group shadow"
-                              title="Ver o editar imágenes del pedido"
-                            >
-                              {/* eslint-disable-next-line @next/next/no-img-element */}
-                              <img
-                                src={coverUrl}
-                                alt={`Portada ${pedido.codigo}`}
-                                className="w-full h-full object-cover group-hover:scale-110 transition duration-200"
-                              />
-                            </div>
-                          ) : (
-                            <div
-                              data-prevent-row-click="true"
-                              onClick={() => handleOpenImagesModal(pedido)}
-                              className="w-12 h-12 rounded-lg border border-slate-800/80 bg-slate-950/50 flex-shrink-0 flex items-center justify-center text-slate-600 text-sm cursor-pointer hover:border-slate-700 transition"
-                              title="Sin imagen - Hacer clic para agregar"
-                            >
-                              📷
-                            </div>
-                          )}
-                          <div>
-                            <span className="font-bold text-white text-base block">
-                              {pedido.cliente?.nombre_empresa || pedido.cliente?.nombre_cliente || `Pedido #${pedido.id}`}
-                            </span>
-                            {pedido.cliente?.nombre_empresa && pedido.cliente?.nombre_cliente && (
-                              <span className="text-xs text-slate-400 block font-medium">
-                                {pedido.cliente.nombre_cliente} • #{pedido.id}
-                              </span>
-                            )}
-                            {(!pedido.cliente?.nombre_empresa || !pedido.cliente?.nombre_cliente) && (
-                              <span className="text-xs text-slate-500 font-mono block">
-                                #{pedido.id}
-                              </span>
-                            )}
-                          </div>
+                      {/* Imagen en el centro grande */}
+                      <div className="w-full relative rounded-xl overflow-hidden bg-slate-950 border border-slate-800 flex items-center justify-center">
+                        <ImagePedido
+                          url={coverUrl}
+                          size="full"
+                          alt={`Portada ${pedido.codigo}`}
+                          onClick={() => handleOpenImagesModal(pedido)}
+                          title={coverUrl ? "Ver o editar imágenes del pedido" : "Agregar imágenes"}
+                          className="w-full h-48 sm:h-60 rounded-xl"
+                          imgClassName="object-contain w-full p-1"
+                        />
+                      </div>
+
+                      {/* Info del pedido: Empresa + Cliente (izq) y Prioridad + Estado (der) */}
+                      <div className="flex items-start justify-between gap-3 pt-1">
+                        <div className="flex flex-col min-w-0 flex-1">
+                          <span className="font-bold text-white text-base sm:text-lg tracking-tight truncate">
+                            {pedido.cliente?.nombre_empresa || pedido.cliente?.nombre_cliente || `Pedido #${pedido.id}`}
+                          </span>
+                          <span className="text-xs text-slate-400 font-medium truncate mt-0.5">
+                            {pedido.cliente?.nombre_empresa && pedido.cliente?.nombre_cliente
+                              ? `${pedido.cliente.nombre_cliente} • #${pedido.id}`
+                              : `#${pedido.id}`}
+                          </span>
                         </div>
-                        <div className="flex flex-col items-end gap-1">
-                          <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-extrabold capitalize ${getPriorityBadgeClass(pedido.prioridad)}`}>
+                        <div className="flex flex-col items-end gap-1.5 shrink-0">
+                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded text-[10px] font-extrabold capitalize ${getPriorityBadgeClass(pedido.prioridad)}`}>
                             {pedido.prioridad}
                           </span>
                           <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wide ${getStatusBadgeClass(pedido.estado)}`}>
@@ -1162,19 +1141,24 @@ export default function PedidosPage() {
                       </div>
 
                       {/* Productos */}
-                      <div className="space-y-1">
-                        <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Productos</span>
+                      <div className="space-y-1.5 pt-2 border-t border-slate-800">
+                        <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">PRODUCTOS</span>
                         {pedido.productos && pedido.productos.length > 0 ? (
-                          <div className="flex flex-wrap gap-1.5">
+                          <div className="flex flex-col gap-1.5">
                             {pedido.productos.map((prod) => {
                               const qty = (prod as any).pivot?.cantidad
                               return (
-                                <span
+                                <div
                                   key={prod.id}
-                                  className="bg-slate-950 border border-slate-800 text-slate-200 text-xs px-2.5 py-1 rounded-lg font-medium shadow-sm"
+                                  className="bg-slate-950 border border-slate-800 text-slate-200 text-xs px-3 py-2 rounded-xl font-medium shadow-sm flex items-center justify-between"
                                 >
-                                  {prod.nombre} {qty ? `(x${qty})` : ''}
-                                </span>
+                                  <span className="truncate">{prod.nombre}</span>
+                                  {qty && (
+                                    <span className="text-slate-400 text-[11px] font-mono shrink-0 ml-2">
+                                      (x{qty})
+                                    </span>
+                                  )}
+                                </div>
                               )
                             })}
                           </div>
@@ -1183,10 +1167,10 @@ export default function PedidosPage() {
                         )}
                       </div>
 
-                      {/* Detalles breves: Fecha, Precio, Registrador */}
-                      <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-850 text-xs">
+                      {/* Detalles breves: Fecha, Registrador, Precio */}
+                      <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-800 text-xs">
                         <div>
-                          <span className="text-slate-500 block mb-0.5">Fecha Creación</span>
+                          <span className="text-slate-500 block text-[11px] font-medium mb-0.5">Fecha Creación</span>
                           <span className="text-slate-300 font-medium">
                             {pedido.created_at ? (
                               new Date(pedido.created_at).toLocaleDateString('es-ES', {
@@ -1200,23 +1184,27 @@ export default function PedidosPage() {
                           </span>
                         </div>
                         <div>
-                          <span className="text-slate-500 block mb-0.5">Precio</span>
-                          <span className="font-bold text-white">
-                            {pedido.precio !== null && pedido.precio !== undefined ? (
-                              `$ ${parseFloat(pedido.precio.toString()).toLocaleString('es-AR', { minimumFractionDigits: 2 })}`
-                            ) : (
-                              'Sin precio'
-                            )}
+                          <span className="text-slate-500 block text-[11px] font-medium mb-0.5">Registrado por</span>
+                          <span className="text-slate-400 font-medium truncate block">
+                            {pedido.user?.name || 'Desconocido'}
                           </span>
                         </div>
-                        <div>
-                          <span className="text-slate-500 block mb-0.5">Registrado por</span>
-                          <span className="text-slate-400">{pedido.user?.name || 'Desconocido'}</span>
-                        </div>
+                        {!isOperario && (
+                          <div className="col-span-2 pt-1 border-t border-slate-850 flex justify-between items-center">
+                            <span className="text-slate-500 text-[11px] font-medium">Precio Total</span>
+                            <span className="font-bold text-emerald-400 text-sm">
+                              {pedido.precio !== null && pedido.precio !== undefined ? (
+                                `$ ${parseFloat(pedido.precio.toString()).toLocaleString('es-AR', { minimumFractionDigits: 2 })}`
+                              ) : (
+                                'Sin precio'
+                              )}
+                            </span>
+                          </div>
+                        )}
                       </div>
 
                       {/* Barra de Acciones */}
-                      <div className="flex flex-wrap items-center justify-end gap-2 pt-3 border-t border-slate-800">
+                      <div className="flex flex-wrap items-center justify-end gap-2 pt-2 border-t border-slate-800">
                         {pedido.estado === 'pendiente' && (
                           <button
                             onClick={async () => {
@@ -1240,18 +1228,20 @@ export default function PedidosPage() {
                         )}
                         <button
                           onClick={() => handleOpenViewModal(pedido)}
-                          className="text-blue-400 hover:text-blue-300 p-2 bg-slate-950 border border-slate-800 hover:bg-blue-500/10 rounded-lg transition text-xs flex items-center gap-1 font-semibold"
+                          className="text-slate-200 hover:text-white px-3 py-1.5 bg-slate-950 border border-slate-800 hover:bg-slate-800 rounded-xl transition text-xs flex items-center gap-1.5 font-semibold"
                           title="Ver detalles del pedido"
                         >
-                          👁️ <span className="text-[11px]">Ver</span>
+                          👁️ <span className="text-xs">Ver</span>
                         </button>
-                        <button
-                          onClick={() => handleDelete(pedido.id)}
-                          className="text-rose-400 hover:text-rose-300 p-2 bg-slate-950 border border-slate-800 hover:bg-rose-500/10 rounded-lg transition text-xs flex items-center gap-1 font-semibold"
-                          title="Dar de baja pedido"
-                        >
-                          🗑️
-                        </button>
+                        {!isOperario && (
+                          <button
+                            onClick={() => handleDelete(pedido.id)}
+                            className="text-rose-400 hover:text-rose-300 p-2 bg-slate-950 border border-slate-800 hover:bg-rose-500/10 rounded-xl transition text-xs flex items-center gap-1 font-semibold"
+                            title="Dar de baja pedido"
+                          >
+                            🗑️
+                          </button>
+                        )}
                       </div>
                     </div>
                   )
@@ -1279,9 +1269,11 @@ export default function PedidosPage() {
                       <th onClick={() => handleSort('created_at')} className="px-6 py-4 cursor-pointer hover:text-white transition text-left">
                         Fecha Creación {sortField === 'created_at' || sortField === 'fecha_entrega' ? (sortDirection === 'asc' ? ' ▲' : ' ▼') : ''}
                       </th>
-                      <th onClick={() => handleSort('precio')} className="px-6 py-4 text-right cursor-pointer hover:text-white transition">
-                        Precio {sortField === 'precio' ? (sortDirection === 'asc' ? ' ▲' : ' ▼') : ''}
-                      </th>
+                      {!isOperario && (
+                        <th onClick={() => handleSort('precio')} className="px-6 py-4 text-right cursor-pointer hover:text-white transition">
+                          Precio {sortField === 'precio' ? (sortDirection === 'asc' ? ' ▲' : ' ▼') : ''}
+                        </th>
+                      )}
                       <th onClick={() => handleSort('user')} className="px-6 py-4 cursor-pointer hover:text-white transition text-left">
                         Registrado por {sortField === 'user' ? (sortDirection === 'asc' ? ' ▲' : ' ▼') : ''}
                       </th>
@@ -1393,13 +1385,15 @@ export default function PedidosPage() {
                               <span className="text-slate-600 italic">-</span>
                             )}
                           </td>
-                          <td className="px-6 py-4 text-right text-xs font-semibold text-white">
-                            {pedido.precio !== null && pedido.precio !== undefined ? (
-                              `$ ${parseFloat(pedido.precio.toString()).toLocaleString('es-AR', { minimumFractionDigits: 2 })}`
-                            ) : (
-                              <span className="text-slate-600 italic">-</span>
-                            )}
-                          </td>
+                          {!isOperario && (
+                            <td className="px-6 py-4 text-right text-xs font-semibold text-white">
+                              {pedido.precio !== null && pedido.precio !== undefined ? (
+                                `$ ${parseFloat(pedido.precio.toString()).toLocaleString('es-AR', { minimumFractionDigits: 2 })}`
+                              ) : (
+                                <span className="text-slate-600 italic">-</span>
+                              )}
+                            </td>
+                          )}
                           <td className="px-6 py-4 text-xs text-slate-400">{pedido.user?.name || 'Desconocido'}</td>
                           <td className="px-6 py-4 text-right">
                             <div className="flex justify-end gap-2.5">
@@ -1431,13 +1425,15 @@ export default function PedidosPage() {
                               >
                                 👁️
                               </button>
-                              <button
-                                onClick={() => handleDelete(pedido.id)}
-                                className="text-rose-400 hover:text-rose-300 p-1 hover:bg-rose-500/10 rounded transition"
-                                title="Dar de baja pedido"
-                              >
-                                🗑️
-                              </button>
+                              {!isOperario && (
+                                <button
+                                  onClick={() => handleDelete(pedido.id)}
+                                  className="text-rose-400 hover:text-rose-300 p-1 hover:bg-rose-500/10 rounded transition"
+                                  title="Dar de baja pedido"
+                                >
+                                  🗑️
+                                </button>
+                              )}
                             </div>
                           </td>
                         </tr>

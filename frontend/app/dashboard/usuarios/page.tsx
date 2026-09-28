@@ -18,6 +18,12 @@ import {
   type CreateUserInput,
   type UpdateUserInput
 } from '@/lib/users'
+import {
+  fetchCategorias,
+  type Categoria,
+  toggleSelected
+} from '@/lib/entities/categorias'
+import ButtonCategoryAdd from '@/components/ButtonCategoryAdd/ButtonCategoryAdd'
 
 function getInitials(name: string) {
   if (!name) return '?'
@@ -34,6 +40,7 @@ export default function UsuariosPage() {
 
   const [users, setUsers] = useState<UserManagementItem[]>([])
   const [roles, setRoles] = useState<Role[]>([])
+  const [availableCategorias, setAvailableCategorias] = useState<Categoria[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [successMessage, setSuccessMessage] = useState('')
@@ -62,6 +69,7 @@ export default function UsuariosPage() {
     email: '',
     password: '',
     role_id: 0,
+    categoria_ids: [],
   })
 
   const [editForm, setEditForm] = useState<UpdateUserInput>({
@@ -70,24 +78,27 @@ export default function UsuariosPage() {
   })
 
   const [newRoleId, setNewRoleId] = useState<number>(0)
+  const [selectedCategoriaIds, setSelectedCategoriaIds] = useState<number[]>([])
   const [newPassword, setNewPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [submitting, setSubmitting] = useState(false)
 
-  // Cargar usuarios y roles
+  // Cargar usuarios, roles y categorías
   const loadData = async () => {
     setLoading(true)
     setError('')
     try {
-      const [usersData, rolesData] = await Promise.all([
+      const [usersData, rolesData, catsData] = await Promise.all([
         fetchAdminUsers({
           search: searchQuery || undefined,
           role_id: selectedRoleFilter !== '' ? Number(selectedRoleFilter) : undefined,
         }),
         fetchRoles(),
+        fetchCategorias().catch(() => []),
       ])
       setUsers(usersData)
       setRoles(rolesData)
+      setAvailableCategorias(catsData)
 
       // Set default role_id if available
       if (rolesData.length > 0 && createForm.role_id === 0) {
@@ -117,7 +128,7 @@ export default function UsuariosPage() {
   // Handlers para Crear Usuario
   const handleOpenCreateModal = () => {
     const defaultRoleId = roles.length > 0 ? roles[0].id : 0
-    setCreateForm({ name: '', email: '', password: '', role_id: defaultRoleId })
+    setCreateForm({ name: '', email: '', password: '', role_id: defaultRoleId, categoria_ids: [] })
     setError('')
     setIsCreateModalOpen(true)
   }
@@ -163,10 +174,11 @@ export default function UsuariosPage() {
     }
   }
 
-  // Handlers para Cambiar Rol
+  // Handlers para Cambiar Rol y Categorías
   const handleOpenRoleModal = (user: UserManagementItem) => {
     setSelectedUser(user)
     setNewRoleId(user.role_id)
+    setSelectedCategoriaIds(user.categoria_ids || user.categorias?.map(c => c.id) || [])
     setError('')
     setIsRoleModalOpen(true)
   }
@@ -177,12 +189,15 @@ export default function UsuariosPage() {
     setSubmitting(true)
     setError('')
     try {
-      const updated = await changeUserRole(selectedUser.id, newRoleId)
-      showNotification(`Rol de "${updated.name}" cambiado a "${updated.role_label}".`)
+      const updated = await updateUser(selectedUser.id, {
+        role_id: newRoleId,
+        categoria_ids: selectedCategoriaIds
+      })
+      showNotification(`Rol y categorías de "${updated.name}" actualizados correctamente.`)
       setIsRoleModalOpen(false)
       loadData()
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Error al cambiar el rol')
+      setError(err instanceof Error ? err.message : 'Error al cambiar el rol y categorías')
     } finally {
       setSubmitting(false)
     }
@@ -373,16 +388,27 @@ export default function UsuariosPage() {
                         </td>
 
                         <td className="py-4 px-6">
-                          <span
-                            className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-semibold tracking-wide border shadow-sm"
-                            style={{
-                              backgroundColor: `${roleColor}15`,
-                              borderColor: `${roleColor}40`,
-                              color: roleColor,
-                            }}
-                          >
-                            {u.role_label}
-                          </span>
+                          <div className="space-y-1">
+                            <span
+                              className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-semibold tracking-wide border shadow-sm"
+                              style={{
+                                backgroundColor: `${roleColor}15`,
+                                borderColor: `${roleColor}40`,
+                                color: roleColor,
+                              }}
+                            >
+                              {u.role_label}
+                            </span>
+                            {u.categorias && u.categorias.length > 0 && (
+                              <div className="flex flex-wrap items-center gap-1">
+                                {u.categorias.map((cat) => (
+                                  <span key={cat.id} className="bg-purple-950/60 text-purple-300 border border-purple-800/60 text-[10px] font-semibold px-2 py-0.5 rounded-full">
+                                    🏷️ {cat.nombre}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+                          </div>
                         </td>
 
                         <td className="py-4 px-6 text-slate-400 text-xs">
@@ -395,10 +421,10 @@ export default function UsuariosPage() {
 
                         <td className="py-4 px-6 text-right">
                           <div className="flex items-center justify-end gap-1">
-                            {/* Cambiar Rol rápido */}
+                            {/* Cambiar Rol y Categorías rápido */}
                             <button
                               onClick={() => handleOpenRoleModal(u)}
-                              title="Gestionar Rol"
+                              title="Gestionar Rol y Categorías"
                               className="p-2 text-slate-400 hover:text-amber-400 hover:bg-amber-400/10 rounded-lg transition"
                             >
                               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -603,7 +629,7 @@ export default function UsuariosPage() {
           </div>
         </Modal>
 
-        {/* MODAL: Cambiar Rol Rápidamente */}
+        {/* MODAL: Cambiar Rol y Categorías Rápidamente */}
         <Modal isOpen={isRoleModalOpen} onClose={() => setIsRoleModalOpen(false)}>
           <div className="p-6">
             <div className="flex items-center gap-3 mb-4">
@@ -613,7 +639,7 @@ export default function UsuariosPage() {
                 </svg>
               </div>
               <div>
-                <h2 className="text-lg font-bold text-white">Gestionar Rol de Usuario</h2>
+                <h2 className="text-lg font-bold text-white">Gestionar Rol y Categorías</h2>
                 <p className="text-xs text-slate-400">{selectedUser?.name} ({selectedUser?.email})</p>
               </div>
             </div>
@@ -624,7 +650,7 @@ export default function UsuariosPage() {
               </div>
             )}
 
-            <form onSubmit={handleChangeRole} className="space-y-4">
+            <form onSubmit={handleChangeRole} className="space-y-5">
               <div>
                 <label className="block text-xs font-semibold text-slate-300 mb-1">Seleccionar Nuevo Rol</label>
                 <select
@@ -640,6 +666,27 @@ export default function UsuariosPage() {
                 </select>
               </div>
 
+              {/* Selector de Categorías con el mismo diseño que etapas */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-2 flex justify-between items-center">
+                  <span>Categorías Asignadas</span>
+                  <span className="text-[10px] text-slate-500">Filtrará las etapas visibles para este usuario</span>
+                </label>
+                {availableCategorias.length === 0 ? (
+                  <p className="text-xs text-slate-500 italic py-1">Cargando categorías...</p>
+                ) : (
+                  <div className="flex flex-wrap gap-2 max-h-48 overflow-y-auto pr-1">
+                    {availableCategorias.map((cat) =>
+                      <ButtonCategoryAdd
+                        key={cat.id}
+                        label={cat.nombre}
+                        selected={selectedCategoriaIds.includes(cat.id)}
+                        onToggle={() => setSelectedCategoriaIds(prev => toggleSelected(prev, cat.id))} />
+                    )}
+                  </div>
+                )}
+              </div>
+
               <div className="flex justify-end gap-3 pt-4 border-t border-slate-800">
                 <button
                   type="button"
@@ -653,7 +700,7 @@ export default function UsuariosPage() {
                   disabled={submitting}
                   className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-semibold text-sm rounded-xl transition disabled:opacity-50"
                 >
-                  {submitting ? 'Actualizando...' : 'Actualizar Rol'}
+                  {submitting ? 'Guardando...' : 'Guardar Cambios'}
                 </button>
               </div>
             </form>
