@@ -13,6 +13,9 @@ import { fetchEtapas, topologicalSortEtapas, type Etapa } from '@/lib/entities/e
 import { fetchResponsablesEtapas, assignTask, type ResponsableEtapa } from '@/lib/responsable_etapas'
 import { completeOperarioTask } from '@/lib/operario_tasks'
 import { getStoredUser } from '@/lib/auth'
+import SubtitleH2 from './Titles/SubtitleH2'
+import SelectStatus from './SelectFilter/SelectStatus'
+import { PEDIDO_STATE_OPTIONS } from '@/lib/order-status'
 
 export interface PedidoDetailModalProps {
   pedido: Pedido | null
@@ -295,7 +298,7 @@ export default function PedidoDetailModal({
       )}
 
       {/* Contenedor con Scroll de toda la Segunda Parte */}
-      <div className="flex-1 overflow-y-auto p-6 space-y-6 min-h-0 text-slate-300">
+      <div className="flex-1 overflow-y-auto px-4 py-6 md:p-6 space-y-6 min-h-0 text-slate-300">
         {/* Notificación rápida */}
         {notification && (
           <div className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 px-4 py-2 rounded-xl text-xs font-semibold text-center animate-in fade-in">
@@ -314,51 +317,23 @@ export default function PedidoDetailModal({
           {/* Fila Superior: Título + Estado a la izquierda, Acciones a la derecha */}
           <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 pr-8">
             <div className="text-left space-y-1.5 min-w-0">
-              <div className="flex flex-wrap items-center gap-3">
-                <h2 className="text-2xl font-bold text-white tracking-tight flex items-center gap-2">
-                  <span>📋</span>
-                  <span>
-                    {currentPedido.cliente?.nombre_empresa || currentPedido.cliente?.nombre_cliente || `Pedido #${currentPedido.id}`}
-                  </span>
+              <div className="flex flex-wrap items-center gap-2 md:gap-3">
+                <div className='flex flex-row items-center gap-2'>
+                  <SubtitleH2 title={`📋 ${currentPedido.cliente?.nombre_empresa}`} />
                   <span className="text-xs font-mono font-normal text-slate-400 bg-slate-900 border border-slate-800 px-2 py-0.5 rounded-md">
                     #{currentPedido.id}
                   </span>
-                </h2>
+                </div>
                 {/* Estado del Pedido Selector */}
                 <div className="flex items-center gap-1.5 bg-slate-950 border border-slate-800 rounded-xl px-3 py-1 shadow-inner">
                   <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
                     Estado:
                   </span>
-                  <select
+                  <SelectStatus
                     value={currentPedido.estado}
-                    onChange={(e) => handleStatusChange(e.target.value)}
-                    className="bg-transparent text-xs font-bold text-blue-400 focus:outline-none cursor-pointer pr-1"
-                  >
-                    <option value="pendiente" className="bg-slate-900 text-white">
-                      Pendiente
-                    </option>
-                    <option value="listo_para_produccion" className="bg-slate-900 text-white">
-                      Listo para producción
-                    </option>
-                    <option value="en_progreso" className="bg-slate-900 text-white">
-                      En Progreso
-                    </option>
-                    <option value="completado" className="bg-slate-900 text-white">
-                      Completado
-                    </option>
-                    <option value="completado_pd" className="bg-slate-900 text-white">
-                      Completado - pendiente de pago (PD)
-                    </option>
-                    <option value="enviado" className="bg-slate-900 text-white">
-                      Enviado
-                    </option>
-                    <option value="enviado_faltante" className="bg-slate-900 text-white">
-                      Enviado con faltante
-                    </option>
-                    <option value="cancelado" className="bg-slate-900 text-white">
-                      Cancelado
-                    </option>
-                  </select>
+                    onChange={handleStatusChange}
+                    options={PEDIDO_STATE_OPTIONS}
+                  />
                 </div>
               </div>
 

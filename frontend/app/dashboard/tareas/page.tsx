@@ -217,7 +217,7 @@ export default function TareasPage() {
                       {task.pedido?.cliente?.nombre_empresa || task.pedido?.cliente?.nombre_cliente || 'N/A'}
                     </span>
                     <span className="text-xs text-slate-400 font-semibold">
-                      {task.created_at ? new Date(task.created_at).toLocaleDateString('es-ES') : '-'}
+                      {(task.pedido?.created_at || task.created_at) ? new Date(task.pedido?.created_at || task.created_at).toLocaleDateString('es-ES') : '-'}
                     </span>
                   </div>
                   <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-extrabold uppercase tracking-wide ${getStatusBadgeClass(task.estado)}`}>
@@ -321,7 +321,7 @@ export default function TareasPage() {
                         {task.pedido?.cliente?.nombre_empresa || task.pedido?.cliente?.nombre_cliente || 'N/A'}
                       </td>
                       <td className="px-6 py-4 text-sm font-semibold text-slate-300">
-                        {task.created_at ? new Date(task.created_at).toLocaleDateString('es-ES') : '-'}
+                        {(task.pedido?.created_at || task.created_at) ? new Date(task.pedido?.created_at || task.created_at).toLocaleDateString('es-ES') : '-'}
                       </td>
                       <td className="px-6 py-4">
                         <span className="font-bold text-white text-base block">{task.etapa?.nombre}</span>
@@ -443,7 +443,7 @@ export default function TareasPage() {
                       {task.pedido?.cliente?.nombre_empresa || task.pedido?.cliente?.nombre_cliente || 'N/A'}
                     </span>
                     <span className="text-xs text-slate-400 font-semibold">
-                      {task.created_at ? new Date(task.created_at).toLocaleDateString('es-ES') : '-'}
+                      {(task.pedido?.created_at || task.created_at) ? new Date(task.pedido?.created_at || task.created_at).toLocaleDateString('es-ES') : '-'}
                     </span>
                   </div>
                   <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-extrabold uppercase tracking-wide bg-rose-500/10 text-rose-400 border border-rose-500/20">
@@ -513,7 +513,7 @@ export default function TareasPage() {
                         {task.pedido?.cliente?.nombre_empresa || task.pedido?.cliente?.nombre_cliente || 'N/A'}
                       </td>
                       <td className="px-6 py-4 text-sm font-semibold text-slate-300">
-                        {task.created_at ? new Date(task.created_at).toLocaleDateString('es-ES') : '-'}
+                        {(task.pedido?.created_at || task.created_at) ? new Date(task.pedido?.created_at || task.created_at).toLocaleDateString('es-ES') : '-'}
                       </td>
                       <td className="px-6 py-4">
                         <span className="font-bold text-white text-base block">{task.etapa?.nombre}</span>
@@ -695,9 +695,9 @@ export default function TareasPage() {
                   <p className="text-sm text-slate-300 mt-1">
                     Empresa: <span className="text-white font-bold">{viewingTask.pedido?.cliente?.nombre_empresa || viewingTask.pedido?.cliente?.nombre_cliente || 'N/A'}</span>
                   </p>
-                  {viewingTask.created_at && (
+                  {(viewingTask.pedido?.created_at || viewingTask.created_at) && (
                     <p className="text-sm text-slate-400 mt-1">
-                      Fecha de Creación: <span className="text-slate-200 font-semibold">{new Date(viewingTask.created_at).toLocaleDateString('es-ES')}</span>
+                      Fecha del Pedido: <span className="text-slate-200 font-semibold">{new Date(viewingTask.pedido?.created_at || viewingTask.created_at).toLocaleDateString('es-ES')}</span>
                     </p>
                   )}
                 </div>
