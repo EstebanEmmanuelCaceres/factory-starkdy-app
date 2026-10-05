@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import Modal from '@/components/Modal'
+import { Modal } from '@/components/Modal/Modal'
 import {
   type Pedido,
   type ComentarioPedido,
@@ -16,6 +16,10 @@ import { getStoredUser } from '@/lib/auth'
 import SubtitleH2 from './Titles/SubtitleH2'
 import SelectStatus from './SelectFilter/SelectStatus'
 import { PEDIDO_STATE_OPTIONS } from '@/lib/order-status'
+import { useModalContext } from '@/components/Modal/context/ModalContext'
+import ClientDetailModal, { CLIENT_DETAIL_MODAL_ID } from '@/components/ClientDetailModal'
+
+const PEDIDO_DETAIL_MODAL_ID = 'pedido-detail'
 
 export interface PedidoDetailModalProps {
   pedido: Pedido | null
@@ -54,6 +58,26 @@ export default function PedidoDetailModal({
   const [notification, setNotification] = useState('')
   const [error, setError] = useState('')
   const [completingTaskId, setCompletingTaskId] = useState<number | null>(null)
+
+  // Pila de modales: el detalle del pedido y, encima, el del cliente
+  const { open: openModal, close: closeModal } = useModalContext()
+  const [clientIdForModal, setClientIdForModal] = useState<number | null>(null)
+
+  // El padre controla isOpen; lo reflejamos en la pila del context.
+  // Al cerrar el pedido también se cierra el modal de cliente que tenga encima.
+  useEffect(() => {
+    if (!isOpen) return
+    openModal(PEDIDO_DETAIL_MODAL_ID)
+    return () => closeModal(PEDIDO_DETAIL_MODAL_ID)
+  }, [isOpen, openModal, closeModal])
+
+  const handleOpenClientModal = () => {
+    const clienteId = currentPedido?.cliente_id ?? currentPedido?.cliente?.id
+    if (clienteId) {
+      setClientIdForModal(clienteId)
+      openModal(CLIENT_DETAIL_MODAL_ID)
+    }
+  }
 
   // Sincronizar estado cuando cambia la prop 'pedido' u 'open'
   useEffect(() => {
@@ -261,7 +285,7 @@ export default function PedidoDetailModal({
 
   return (
     <Modal
-      isOpen={isOpen}
+      id={PEDIDO_DETAIL_MODAL_ID}
       onClose={onClose}
       className="max-w-4xl !p-0 flex flex-col max-h-[90vh] overflow-hidden"
     >
@@ -319,7 +343,14 @@ export default function PedidoDetailModal({
             <div className="text-left space-y-1.5 min-w-0">
               <div className="flex flex-wrap items-center gap-2 md:gap-3">
                 <div className='flex flex-row items-center gap-2'>
-                  <SubtitleH2 title={`📋 ${currentPedido.cliente?.nombre_empresa}`} />
+                  <button
+                    type="button"
+                    onClick={handleOpenClientModal}
+                    className="group text-left flex items-center gap-2 hover:opacity-80 transition cursor-pointer"
+                    title="Ver ficha completa del cliente"
+                  >
+                    <SubtitleH2 title={`📋 ${currentPedido.cliente?.nombre_empresa || currentPedido.cliente?.nombre_cliente}`} />
+                  </button>
                   <span className="text-xs font-mono font-normal text-slate-400 bg-slate-900 border border-slate-800 px-2 py-0.5 rounded-md">
                     #{currentPedido.id}
                   </span>
@@ -339,12 +370,16 @@ export default function PedidoDetailModal({
 
               <p className="text-xs text-slate-400">
                 Cliente:{' '}
-                <span className="text-slate-200 font-bold">
-                  {currentPedido.cliente?.nombre_cliente || 'N/A'}
-                </span>{' '}
-                {currentPedido.cliente?.nombre_empresa && currentPedido.cliente?.nombre_cliente
-                  ? `(${currentPedido.cliente.nombre_empresa})`
-                  : ''}
+                <button
+                  type="button"
+                  onClick={handleOpenClientModal}
+                  className="text-blue-400 font-bold hover:underline cursor-pointer transition inline-flex items-center gap-1"
+                >
+                  {currentPedido.cliente?.nombre_cliente || currentPedido.cliente?.nombre_empresa || 'N/A'}
+                  {currentPedido.cliente?.nombre_empresa && currentPedido.cliente?.nombre_cliente
+                    ? ` (${currentPedido.cliente.nombre_empresa})`
+                    : ''}
+                </button>
               </p>
             </div>
 
@@ -814,6 +849,9 @@ export default function PedidoDetailModal({
           </div>
         </div>
       </div>
+
+      {/* Modal de Cliente, se apila encima del pedido */}
+      <ClientDetailModal clienteId={clientIdForModal} />
     </Modal>
   )
 }

@@ -1,8 +1,9 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useModalContext } from '@/components/Modal/context/ModalContext'
+import { Modal } from '@/components/Modal/Modal'
 import RoleGuard from '@/components/RoleGuard'
-import Modal from '@/components/Modal'
 import TasksByCategoryBox from '@/components/TasksByCategoryBox'
 import Pagination from '@/components/Pagination'
 import {
@@ -19,6 +20,8 @@ export default function TareasPage() {
   const [operarios, setOperarios] = useState<User[]>([])
   const [selectedUserId, setSelectedUserId] = useState<number | null>(null)
   const [currentUser, setCurrentUser] = useState<User | null>(null)
+  const { setState } = useModalContext();
+
 
   const [loading, setLoading] = useState(true)
   const [actionLoading, setActionLoading] = useState<number | null>(null)
@@ -133,6 +136,10 @@ export default function TareasPage() {
       setActionLoading(null)
     }
   }
+  const handleOpenTaskDetail = (task: ResponsableEtapa) => {
+    setViewingTask(task);
+    setState(true);
+  };
 
   const handleOpenCompleteModal = (task: ResponsableEtapa) => {
     setCompletingTask(task)
@@ -255,7 +262,7 @@ export default function TareasPage() {
 
                 <div className="flex flex-wrap items-center justify-end gap-2 pt-2 border-t border-slate-800">
                   <button
-                    onClick={() => setViewingTask(task)}
+                    onClick={() => handleOpenTaskDetail(task)}
                     className="bg-slate-800 hover:bg-slate-700 text-blue-400 text-xs font-bold px-3 py-2 rounded-xl border border-slate-700 transition"
                   >
                     👁️ Ver
@@ -482,7 +489,7 @@ export default function TareasPage() {
                 <div className="flex items-center justify-between pt-2 border-t border-slate-800">
                   <span className="text-[11px] text-rose-300/80 italic">Requiere etapas previas</span>
                   <button
-                    onClick={() => setViewingTask(task)}
+                    onClick={() => handleOpenTaskDetail(task)}
                     className="bg-slate-800 hover:bg-slate-700 text-blue-400 text-xs font-bold px-3 py-2 rounded-xl border border-slate-700 transition"
                   >
                     👁️ Ver Detalle
@@ -669,7 +676,7 @@ export default function TareasPage() {
           const isBlocked = viewingTask.estado === 'bloqueada'
 
           return (
-            <Modal isOpen={!!viewingTask} onClose={() => setViewingTask(null)} className="max-w-xl p-6">
+            <Modal>
               {/* Header del Modal */}
               <div className="flex items-center justify-between border-b border-slate-800 pb-4 mb-4 pr-10">
                 <div className="flex items-center gap-3">
@@ -717,14 +724,6 @@ export default function TareasPage() {
 
               {/* Acciones del Modal */}
               <div className="mt-6 pt-4 border-t border-slate-800 flex items-center justify-between gap-4">
-                <button
-                  type="button"
-                  onClick={() => setViewingTask(null)}
-                  className="px-5 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-sm font-bold rounded-xl transition"
-                >
-                  Cerrar
-                </button>
-
                 {viewingTask.estado === 'bloqueada' ? (
                   <button
                     disabled
@@ -790,7 +789,7 @@ export default function TareasPage() {
 
         {/* Modal de Confirmación para Completar */}
         {completingTask && (
-          <Modal isOpen={!!completingTask} onClose={() => setCompletingTask(null)} className="max-w-md p-6 text-left">
+          <Modal>
             <h2 className="text-xl font-bold text-white mb-2">Completar Tarea</h2>
             <p className="text-sm text-slate-300 mb-6">
               Estás a punto de completar la etapa <span className="text-white font-bold">{completingTask.etapa?.nombre}</span> para el pedido <span className="text-white font-bold">{completingTask.pedido?.cliente?.nombre_empresa || completingTask.pedido?.cliente?.nombre_cliente || `#${completingTask.pedido?.id}`}</span>. ¿Deseas confirmar la finalización?
