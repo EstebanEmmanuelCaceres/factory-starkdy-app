@@ -968,7 +968,7 @@ export default function PedidosPage() {
       return 0
     })
 
-  const ITEMS_PER_PAGE = 10
+  const ITEMS_PER_PAGE = 25
   const totalPages = Math.ceil(filteredAndSortedPedidos.length / ITEMS_PER_PAGE)
   const displayedPedidos = filteredAndSortedPedidos.slice(
     (currentPage - 1) * ITEMS_PER_PAGE,
