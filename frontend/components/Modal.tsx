@@ -44,7 +44,7 @@ export default function Modal({
       className={`fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/70 backdrop-blur-sm p-4 overflow-y-auto ${containerClassName}`}
     >
       <div
-        className={`bg-slate-900 border border-slate-800 rounded-2xl w-full lg:w-1/2 max-h-[90vh] shadow-2xl relative my-auto animate-in fade-in zoom-in-95 duration-150 overflow-y-auto text-slate-300 ${className}`}
+        className={`bg-slate-900 border border-slate-800 rounded-2xl w-full lg:w-[80%] max-h-[90vh] shadow-2xl relative my-auto animate-in fade-in zoom-in-95 duration-150 overflow-y-auto text-slate-300 ${className}`}
         onClick={(e) => e.stopPropagation()}
       >
         {onClose && !hideCloseButton && (

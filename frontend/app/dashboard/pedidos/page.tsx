@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import RoleGuard from '@/components/RoleGuard'
 import OrderImageGallery from '@/components/OrderImageGallery'
 import Modal from '@/components/Modal'
@@ -115,7 +115,8 @@ export default function PedidosPage() {
   })
 
   // Ordenamiento
-  const [sortField, setSortField] = useState<string | null>(null)
+  // Por defecto: fecha de creación ascendente (el primero creado arriba, el último al final)
+  const [sortField, setSortField] = useState<string | null>('created_at')
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
 
   // Paginación
@@ -155,36 +156,46 @@ export default function PedidosPage() {
     observaciones: ''
   })
 
+  // Último texto buscado en el backend y id del último pedido de datos (para ignorar respuestas viejas)
+  const lastSearchRef = useRef('')
+  const requestIdRef = useRef(0)
+
+  const buildPedidoFilters = (search: string, priority: string, status: string) => {
+    const filters: { search?: string; prioridad?: string; estado?: string } = {}
+
+    if (search.trim()) {
+      filters.search = search.trim()
+      // Al tener búsqueda activa, el buscador queda desacoplado de los filtros de estado/prioridad
+      // Enviamos estado='todos' para que el backend consulte en todos los estados (enviados, completados, cancelados)
+      filters.estado = 'todos'
+    } else {
+      if (priority) filters.prioridad = priority
+      if (status) filters.estado = status
+    }
+
+    return filters
+  }
+
   const loadData = async (search?: string, priority?: string, status?: string) => {
+    const targetSearch = search !== undefined ? search : searchQuery
+    const targetPriority = priority !== undefined ? priority : filterPrioridad
+    const targetStatus = status !== undefined ? status : filterEstado
+
+    lastSearchRef.current = targetSearch.trim()
+    const requestId = ++requestIdRef.current
+
     setLoading(true)
     setError('')
     try {
-      const filters: { search?: string; prioridad?: string; estado?: string } = {}
-
-      const targetSearch = search !== undefined ? search : searchQuery
-
-      if (targetSearch && targetSearch.trim()) {
-        filters.search = targetSearch.trim()
-        // Al tener búsqueda activa, el buscador queda desacoplado de los filtros de estado/prioridad
-        // Enviamos estado='todos' para que el backend consulte en todos los estados (enviados, completados, cancelados)
-        filters.estado = 'todos'
-      } else {
-        const targetPriority = priority !== undefined ? priority : filterPrioridad
-        const targetStatus = status !== undefined ? status : filterEstado
-
-        if (targetPriority) filters.prioridad = targetPriority
-        if (targetStatus) filters.estado = targetStatus
-      }
-
       const [pedidosData, clientesData, productosData, usersData, stagesData] = await Promise.all([
-        fetchPedidos(filters),
+        fetchPedidos(buildPedidoFilters(targetSearch, targetPriority, targetStatus)),
         fetchClientes(),
         fetchProducts(),
         fetchUsers(),
         fetchEtapas()
       ])
 
-      setPedidos(pedidosData)
+      if (requestId === requestIdRef.current) setPedidos(pedidosData)
       setClientes(clientesData)
       setProductos(productosData)
       setOperarios(usersData)
@@ -192,9 +203,42 @@ export default function PedidosPage() {
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Error al cargar los datos')
     } finally {
-      setLoading(false)
+      if (requestId === requestIdRef.current) setLoading(false)
     }
   }
+
+  // Búsqueda liviana: solo trae pedidos (sin recargar clientes, productos, usuarios ni etapas)
+  const searchPedidos = async (search: string) => {
+    lastSearchRef.current = search.trim()
+    const requestId = ++requestIdRef.current
+
+    setLoading(true)
+    setError('')
+    try {
+      const pedidosData = await fetchPedidos(buildPedidoFilters(search, filterPrioridad, filterEstado))
+      if (requestId === requestIdRef.current) setPedidos(pedidosData)
+    } catch (err: unknown) {
+      if (requestId === requestIdRef.current) {
+        setError(err instanceof Error ? err.message : 'Error al buscar pedidos')
+      }
+    } finally {
+      if (requestId === requestIdRef.current) setLoading(false)
+    }
+  }
+
+  // Buscar en el backend automáticamente 400 ms después de la última tecla
+  useEffect(() => {
+    if (searchQuery.trim() === lastSearchRef.current) return
+
+    const timer = setTimeout(() => {
+      // Si mientras tanto ya se buscó (Enter o botón Buscar), no repetir
+      if (searchQuery.trim() === lastSearchRef.current) return
+      searchPedidos(searchQuery)
+    }, 400)
+
+    return () => clearTimeout(timer)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchQuery])
 
   const loadTaskAssignments = async (pedidoId: number) => {
     try {
@@ -1032,8 +1076,10 @@ export default function PedidosPage() {
                   placeholder="👤 Todos los Vendedores"
                 />
               )}
-              {/* Filtro de Prioridad */}
+              {/* Filtro de Prioridad (no aplica mientras hay texto en el buscador) */}
               <SelectFilter
+                disabled={!!searchQuery.trim()}
+                title={searchQuery.trim() ? 'La búsqueda incluye todas las prioridades' : undefined}
                 value={filterPrioridad}
                 onChange={(value) => {
                   setFilterPrioridad(value)
@@ -1043,8 +1089,10 @@ export default function PedidosPage() {
                 placeholder="🎯 Todas las prioridades"
               />
 
-              {/* Filtro de Estado */}
+              {/* Filtro de Estado (no aplica mientras hay texto en el buscador) */}
               <SelectFilter
+                disabled={!!searchQuery.trim()}
+                title={searchQuery.trim() ? 'La búsqueda incluye todos los estados' : undefined}
                 value={filterEstado}
                 onChange={(value) => {
                   setFilterEstado(value)

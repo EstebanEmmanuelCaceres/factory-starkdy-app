@@ -122,23 +122,44 @@ class OperarioTaskController extends Controller
     }
 
     /**
-     * Marcar una tarea asignada como "en_progreso".
+     * Puede operar la tarea: admin/encargado/supervisor, quien la tiene asignada,
+     * o un usuario con alguna de las categorías de la etapa (misma regla que el listado).
+     */
+    private function puedeOperarTarea(?User $user, ResponsableEtapa $task): bool
+    {
+        if (!$user) {
+            return false;
+        }
+
+        if ($user->isAdminOrEncargado() || (int) $task->user_id === (int) $user->id) {
+            return true;
+        }
+
+        $userCategoryIds = $user->categorias()->pluck('categorias.id')->toArray();
+        if (empty($userCategoryIds)) {
+            return false;
+        }
+
+        return $task->etapaProducto()
+            ->whereHas('etapa.categorias', function ($q) use ($userCategoryIds) {
+                $q->whereIn('categorias.id', $userCategoryIds);
+            })
+            ->exists();
+    }
+
+    /**
+     * Marcar una tarea como "en_progreso".
      */
     public function start($id): JsonResponse
     {
+        /** @var User|null $user */
         $user = Auth::user();
-        if ($user && ($user->isAdmin() || $user->isEncargado() || $user->isSupervisor())) {
-            $task = ResponsableEtapa::find($id);
-        } else {
-            $task = ResponsableEtapa::where('id', $id)
-                ->where('user_id', $user?->id)
-                ->first();
-        }
+        $task = ResponsableEtapa::find($id);
 
-        if (!$task) {
+        if (!$task || !$this->puedeOperarTarea($user, $task)) {
             return response()->json([
                 'status' => 'error',
-                'message' => 'Tarea no encontrada o no está asignada a tu usuario'
+                'message' => 'Tarea no encontrada o no corresponde a tus categorías'
             ], 404);
         }
 
@@ -164,7 +185,8 @@ class OperarioTaskController extends Controller
             'fecha_inicio' => now(),
         ];
 
-        if (empty($task->user_id) && $user) {
+        // El operario que la toma queda como responsable (los encargados no se la quedan al operar)
+        if ($user && (empty($task->user_id) || !$user->isAdminOrEncargado())) {
             $updateData['user_id'] = $user->id;
         }
 
@@ -217,7 +239,8 @@ class OperarioTaskController extends Controller
             'fecha_fin' => now(),
         ];
 
-        if (empty($task->user_id) && $user) {
+        // Quien la completa queda como responsable, así aparece en su historial
+        if ($user && (empty($task->user_id) || !$user->isAdminOrEncargado())) {
             $updateData['user_id'] = $user->id;
         }
 
@@ -273,12 +296,14 @@ class OperarioTaskController extends Controller
      */
     public function cancel($id): JsonResponse
     {
+        /** @var User|null $user */
+        $user = Auth::user();
         $task = ResponsableEtapa::find($id);
 
-        if (!$task) {
+        if (!$task || !$this->puedeOperarTarea($user, $task)) {
             return response()->json([
                 'status' => 'error',
-                'message' => 'Tarea no encontrada'
+                'message' => 'Tarea no encontrada o no corresponde a tus categorías'
             ], 404);
         }
 
