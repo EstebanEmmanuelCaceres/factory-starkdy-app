@@ -1,0 +1,20 @@
+# Solo para desarrollo local: frontend con recarga automática (hot-reload).
+# Se suma encima de docker-compose.yml; producción no lo usa.
+#
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build frontend
+#
+services:
+  frontend:
+    build:
+      target: dev
+    environment:
+      - NODE_ENV=development
+      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://localhost:8000/api}
+      # Docker en Windows no avisa los cambios de archivos del volumen; con polling Next los detecta igual
+      - WATCHPACK_POLLING=true
+    volumes:
+      # El código se monta desde tu PC, así cada cambio se ve al guardar
+      - ./frontend:/app
+      # node_modules y .next quedan dentro del contenedor (no se pisan con los de Windows)
+      - /app/node_modules
+      - /app/.next

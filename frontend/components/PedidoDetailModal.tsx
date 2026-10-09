@@ -381,6 +381,13 @@ export default function PedidoDetailModal({
                     : ''}
                 </button>
               </p>
+
+              <p className="text-xs text-slate-400">
+                Vendedor:{' '}
+                <span className="text-slate-200 font-bold">
+                  {currentPedido.user?.name || 'Sin asignar'}
+                </span>
+              </p>
             </div>
 
             {/* Botones de acción derecha: Editar Pedido, Galería */}

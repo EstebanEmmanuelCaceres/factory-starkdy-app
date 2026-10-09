@@ -288,13 +288,17 @@ export default function DashboardPage() {
     return sum + monthPayments.reduce((s, pago) => s + Number(pago.monto), 0)
   }, 0)
 
-  const getCommissionRate = (totalCobrado: number): number => {
-    if (totalCobrado >= 51_000_000) return 0.04
-    if (totalCobrado >= 40_000_000) return 0.03
+  // Escala: hasta 39M → 2% · 40M a 50M → 3% · 51M en adelante → 4%
+  const getCommissionRate = (totalAcumulado: number): number => {
+    if (totalAcumulado >= 51_000_000) return 0.04
+    if (totalAcumulado >= 40_000_000) return 0.03
     return 0.02
   }
 
-  const commissionRate = getCommissionRate(totalCobradoMes)
+  // El porcentaje lo define el total acumulado del período (plata cobrada + plata por cobrar),
+  // pero la comisión se paga solo sobre lo cobrado
+  const totalAcumuladoComision = adminTotalCobrado + adminTotalPorCobrar
+  const commissionRate = getCommissionRate(totalAcumuladoComision)
   const comisionPercentageText = `${(commissionRate * 100).toFixed(0)}%`
   const comisionMes = showDateFilter ? totalCobradoMes * commissionRate : 0
 
@@ -478,7 +482,7 @@ export default function DashboardPage() {
                           Comisión ({comisionPercentageText})
                         </span>
                         <span className="block text-[10px] text-slate-400">
-                          Escala: 0-39M (2%) • 40-50M (3%) • 51M+ (4%)
+                          Escala s/ total acumulado: 0-39M (2%) • 40-50M (3%) • 51M+ (4%)
                         </span>
                       </div>
                     </div>
@@ -597,7 +601,7 @@ export default function DashboardPage() {
                           Comisión ({comisionPercentageText})
                         </span>
                         <span className="block text-[10px] text-slate-400">
-                          Escala: 0-39M (2%) • 40-50M (3%) • 51M+ (4%)
+                          Escala s/ total acumulado: 0-39M (2%) • 40-50M (3%) • 51M+ (4%)
                         </span>
                       </div>
                     </div>
