@@ -472,10 +472,13 @@ export default function EditPedidoModal({
                             <span className="text-[10px] text-slate-400 font-semibold">Cant:</span>
                             <input
                               type="number"
-                              min="1"
-                              value={formData.productQuantities[prod.id] || 1}
-                              onChange={(e) => handleProductQuantityChange(prod.id, parseInt(e.target.value) || 1)}
-                              className="w-14 bg-slate-900 border border-slate-800 rounded px-1.5 py-0.5 text-xs text-white focus:outline-none focus:border-blue-500 text-center"
+                              min={1}
+                              // Vacío muestra el placeholder "1"; al guardar, vacío se envía como 1
+                              value={formData.productQuantities[prod.id] || ''}
+                              placeholder="1"
+                              onFocus={(e) => e.target.select()}
+                              onChange={(e) => handleProductQuantityChange(prod.id, parseInt(e.target.value) || 0)}
+                              className="w-14 placeholder:text-slate-500 bg-slate-900 border border-slate-800 rounded px-1.5 py-0.5 text-xs text-white focus:outline-none focus:border-blue-500 text-center"
                             />
                           </div>
                         )}

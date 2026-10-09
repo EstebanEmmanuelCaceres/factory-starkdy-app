@@ -396,7 +396,8 @@ export default function PedidosPage() {
       delete updatedQuantities[productId]
       setLocalEtapas((stages) => stages.filter((s) => s.producto_id !== productId))
     } else {
-      updatedQuantities[productId] = 1
+      // Sin cantidad: el input muestra el placeholder "1" y al guardar se envía 1
+      updatedQuantities[productId] = 0
       try {
         const productStages = await fetchEtapas({ producto_id: productId })
         setLocalEtapas((prevEtapas) => {
@@ -2193,10 +2194,13 @@ export default function PedidosPage() {
                                   <span className="text-[10px] text-slate-500 uppercase font-semibold">Cant:</span>
                                   <input
                                     type="number"
-                                    min="1"
-                                    value={formData.productQuantities[prod.id] || 1}
-                                    onChange={(e) => handleProductQuantityChange(prod.id, parseInt(e.target.value) || 1)}
-                                    className="w-16 bg-slate-950 border border-slate-800 rounded px-1.5 py-0.5 text-xs text-white focus:outline-none focus:border-blue-500 text-center"
+                                    min={1}
+                                    // Vacío muestra el placeholder "1"; al guardar, vacío se envía como 1
+                                    value={formData.productQuantities[prod.id] || ''}
+                                    placeholder="1"
+                                    onFocus={(e) => e.target.select()}
+                                    onChange={(e) => handleProductQuantityChange(prod.id, parseInt(e.target.value) || 0)}
+                                    className="w-16 placeholder:text-slate-500 bg-slate-950 border border-slate-800 rounded px-1.5 py-0.5 text-xs text-white focus:outline-none focus:border-blue-500 text-center"
                                   />
                                 </div>
                               )}

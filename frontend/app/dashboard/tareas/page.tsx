@@ -14,14 +14,40 @@ import {
 } from '@/lib/operario_tasks'
 import { assignTask, type ResponsableEtapa } from '@/lib/responsable_etapas'
 import { getStoredUser, fetchUsers, type User } from '@/lib/auth'
+import { type Pedido } from '@/lib/pedidos'
+import PedidoDetailModal from '@/components/PedidoDetailModal'
+
+const COMPLETE_TASK_MODAL_ID = 'tarea-completar'
+
+// Fecha de creación que se muestra en la tabla: la del pedido, o la de la tarea si no la tiene
+const getTaskCreatedAt = (t: ResponsableEtapa) => new Date(t.pedido?.created_at || t.created_at).getTime() || 0
+
+// Minúsculas y sin tildes, para que "diseno" encuentre "Diseño"
+const normalizeText = (text: string) =>
+  text.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
+
+// Busca en empresa, cliente, N° / código de pedido, producto y etapa
+const taskMatchesSearch = (t: ResponsableEtapa, query: string) => {
+  const q = normalizeText(query.trim().replace(/^#/, ''))
+  if (!q) return true
+
+  const campos = [
+    t.pedido?.cliente?.nombre_empresa,
+    t.pedido?.cliente?.nombre_cliente,
+    t.pedido?.id?.toString(),
+    t.pedido?.codigo,
+    t.etapa?.producto?.nombre,
+    t.etapa?.nombre,
+  ]
+  return campos.some((campo) => campo && normalizeText(campo).includes(q))
+}
 
 export default function TareasPage() {
   const [tasks, setTasks] = useState<ResponsableEtapa[]>([])
   const [operarios, setOperarios] = useState<User[]>([])
   const [selectedUserId, setSelectedUserId] = useState<number | null>(null)
   const [currentUser, setCurrentUser] = useState<User | null>(null)
-  const { setState } = useModalContext();
-
+  const { open: openModal, close: closeModal } = useModalContext()
 
   const [loading, setLoading] = useState(true)
   const [actionLoading, setActionLoading] = useState<number | null>(null)
@@ -35,7 +61,15 @@ export default function TareasPage() {
 
   // Modales
   const [completingTask, setCompletingTask] = useState<ResponsableEtapa | null>(null)
-  const [viewingTask, setViewingTask] = useState<ResponsableEtapa | null>(null)
+  const [selectedPedido, setSelectedPedido] = useState<Pedido | null>(null)
+
+  // Buscador de tareas (filtra en el navegador, sin pedir nada al backend)
+  const [searchQuery, setSearchQuery] = useState('')
+
+  const handleSearchChange = (value: string) => {
+    setSearchQuery(value)
+    setActivePage(1)
+  }
 
   const loadData = async (overrideUserId?: number | null) => {
     setLoading(true)
@@ -61,7 +95,12 @@ export default function TareasPage() {
       }
 
       const tasksData = await fetchOperarioTasks(targetUserId ? { user_id: targetUserId } : undefined)
-      setTasks(tasksData.filter(t => t.estado !== 'completado' && !isPendingOrderTask(t)))
+      setTasks(
+        tasksData
+          .filter(t => t.estado !== 'completado' && !isPendingOrderTask(t))
+          // De la más vieja a la más nueva según la fecha de creación
+          .sort((a, b) => getTaskCreatedAt(a) - getTaskCreatedAt(b) || a.id - b.id)
+      )
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Error al cargar las tareas')
     } finally {
@@ -136,13 +175,25 @@ export default function TareasPage() {
       setActionLoading(null)
     }
   }
-  const handleOpenTaskDetail = (task: ResponsableEtapa) => {
-    setViewingTask(task);
-    setState(true);
-  };
+  // Al hacer clic en la fila/tarjeta se abre el panel del pedido de esa tarea
+  const handleOpenPedido = (task: ResponsableEtapa) => {
+    if (task.pedido) setSelectedPedido(task.pedido)
+  }
+
+  const handleClosePedido = () => {
+    setSelectedPedido(null)
+    // Desde el panel se pueden completar etapas: refrescar las tareas al cerrarlo
+    loadData()
+  }
 
   const handleOpenCompleteModal = (task: ResponsableEtapa) => {
     setCompletingTask(task)
+    openModal(COMPLETE_TASK_MODAL_ID)
+  }
+
+  const handleCloseCompleteModal = () => {
+    setCompletingTask(null)
+    closeModal(COMPLETE_TASK_MODAL_ID)
   }
 
   const handleCompleteSubmit = async (e: React.FormEvent) => {
@@ -152,7 +203,7 @@ export default function TareasPage() {
     setError('')
     try {
       await completeOperarioTask(completingTask.id)
-      setCompletingTask(null)
+      handleCloseCompleteModal()
       showNotification('Tarea completada con éxito.')
       await loadData()
     } catch (err: unknown) {
@@ -192,7 +243,10 @@ export default function TareasPage() {
   }
 
   // Filtrado de tareas
-  const activeTasks = tasks.filter(t => t.estado === 'pendiente' || t.estado === 'en_progreso')
+  // El buscador solo filtra las Pendientes activas; las Bloqueadas se muestran todas
+  const activeTasks = tasks.filter(
+    t => (t.estado === 'pendiente' || t.estado === 'en_progreso') && taskMatchesSearch(t, searchQuery)
+  )
   const blockedTasks = tasks.filter(t => t.estado === 'bloqueada')
 
   const visibleActiveTasks = activeTasks.slice((activePage - 1) * PAGE_SIZE, activePage * PAGE_SIZE)
@@ -200,24 +254,65 @@ export default function TareasPage() {
 
   const isManager = currentUser && ['admin', 'supervisor', 'encargado'].includes(currentUser.role)
 
+  // Buscador de tareas: filtra solo las Pendientes activas.
+  // Se dibuja en dos lugares (uno visible por tamaño de pantalla); ambos comparten el mismo estado.
+  const renderSearchInput = (visibilityClass: string) => (
+    <div className={`relative ${visibilityClass}`}>
+      <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500 text-sm pointer-events-none">🔍</span>
+      <input
+        type="text"
+        value={searchQuery}
+        onChange={(e) => handleSearchChange(e.target.value)}
+        placeholder="Buscar por empresa, cliente, N° de pedido, producto o etapa..."
+        className="w-full bg-slate-950 border border-slate-800 focus:border-blue-500 rounded-xl pl-10 pr-10 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none transition"
+      />
+      {searchQuery && (
+        <button
+          type="button"
+          onClick={() => handleSearchChange('')}
+          className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white hover:bg-slate-800 w-7 h-7 rounded-lg flex items-center justify-center transition"
+          title="Limpiar búsqueda"
+          aria-label="Limpiar búsqueda"
+        >
+          ✕
+        </button>
+      )}
+    </div>
+  )
+
+  const searchText = searchQuery.trim()
+
   const renderActiveSection = () => (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="space-y-3">
         <h2 className="text-xl font-bold text-blue-400 flex items-center gap-2">
           <span>⚡</span> Pendientes Activas ({activeTasks.length})
         </h2>
+        {/* Mobile y tablet: buscador debajo del título */}
+        {renderSearchInput('lg:hidden')}
       </div>
 
       {activeTasks.length === 0 ? (
-        <div className="bg-slate-900/50 border border-slate-800/80 rounded-xl p-6 text-sm text-slate-500 italic text-center">
-          No hay tareas activas pendientes.
+        <div className="bg-slate-900/50 border border-slate-800/80 rounded-xl overflow-hidden">
+          {/* Desktop: el buscador sigue visible aunque no haya resultados */}
+          <div className="hidden lg:block p-4 border-b border-slate-800/80">
+            {renderSearchInput('')}
+          </div>
+          <div className="p-6 text-sm text-slate-500 italic text-center">
+            {searchText ? `No hay tareas activas que coincidan con "${searchText}".` : 'No hay tareas activas pendientes.'}
+          </div>
         </div>
       ) : (
         <>
           {/* MOBILE CARDS */}
           <div className="md:hidden space-y-3">
             {visibleActiveTasks.map((task) => (
-              <div key={task.id} className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-3 shadow-xl text-left">
+              <div
+                key={task.id}
+                onClick={() => handleOpenPedido(task)}
+                title="Ver el pedido de esta tarea"
+                className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-3 shadow-xl text-left cursor-pointer hover:border-blue-500/40 transition"
+              >
                 <div className="flex items-start justify-between gap-2 border-b border-slate-800 pb-2.5">
                   <div>
                     <span className="font-bold text-white text-base block">
@@ -244,6 +339,7 @@ export default function TareasPage() {
                   {isManager ? (
                     <select
                       value={task.user_id || ''}
+                      onClick={(e) => e.stopPropagation()}
                       onChange={(e) => handleReassignUser(task, e.target.value)}
                       disabled={actionLoading === task.id}
                       className="bg-slate-950 border border-slate-800 text-xs font-bold text-blue-400 rounded-lg px-2.5 py-1.5 focus:outline-none cursor-pointer"
@@ -260,13 +356,11 @@ export default function TareasPage() {
                   )}
                 </div>
 
-                <div className="flex flex-wrap items-center justify-end gap-2 pt-2 border-t border-slate-800">
-                  <button
-                    onClick={() => handleOpenTaskDetail(task)}
-                    className="bg-slate-800 hover:bg-slate-700 text-blue-400 text-xs font-bold px-3 py-2 rounded-xl border border-slate-700 transition"
-                  >
-                    👁️ Ver
-                  </button>
+                {/* Acciones: no abren el panel del pedido */}
+                <div
+                  onClick={(e) => e.stopPropagation()}
+                  className="flex flex-wrap items-center justify-end gap-2 pt-2 border-t border-slate-800 cursor-default"
+                >
                   {task.estado === 'en_progreso' ? (
                     <>
                       <button
@@ -309,6 +403,10 @@ export default function TareasPage() {
 
           {/* DESKTOP TABLE */}
           <div className="hidden md:block bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
+            {/* Desktop: buscador como barra superior de la tabla */}
+            <div className="hidden lg:block p-4 border-b border-slate-800">
+              {renderSearchInput('')}
+            </div>
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">
                 <thead>
@@ -323,7 +421,12 @@ export default function TareasPage() {
                 </thead>
                 <tbody className="divide-y divide-slate-800 text-base font-medium text-slate-200">
                   {visibleActiveTasks.map((task) => (
-                    <tr key={task.id} className="hover:bg-slate-800/50 transition">
+                    <tr
+                      key={task.id}
+                      onClick={() => handleOpenPedido(task)}
+                      title="Ver el pedido de esta tarea"
+                      className="hover:bg-slate-800/50 transition cursor-pointer"
+                    >
                       <td className="px-6 py-4 font-bold text-white text-base">
                         {task.pedido?.cliente?.nombre_empresa || task.pedido?.cliente?.nombre_cliente || 'N/A'}
                       </td>
@@ -340,6 +443,7 @@ export default function TareasPage() {
                         {isManager ? (
                           <select
                             value={task.user_id || ''}
+                            onClick={(e) => e.stopPropagation()}
                             onChange={(e) => handleReassignUser(task, e.target.value)}
                             disabled={actionLoading === task.id}
                             className="bg-slate-950 border border-slate-800 text-xs font-bold text-blue-400 rounded-lg px-2.5 py-1.5 focus:outline-none cursor-pointer"
@@ -360,14 +464,8 @@ export default function TareasPage() {
                           {getStatusLabel(task.estado)}
                         </span>
                       </td>
-                      <td className="px-6 py-4 text-right">
+                      <td className="px-6 py-4 text-right cursor-default" onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center justify-end gap-3">
-                          <button
-                            onClick={() => setViewingTask(task)}
-                            className="bg-slate-800 hover:bg-slate-700 text-blue-400 text-sm font-bold px-4 py-2.5 rounded-xl border border-slate-700 transition"
-                          >
-                            👁️ Ver
-                          </button>
                           {task.estado === 'en_progreso' ? (
                             <>
                               <button
@@ -443,7 +541,12 @@ export default function TareasPage() {
           {/* MOBILE CARDS */}
           <div className="md:hidden space-y-3">
             {visibleBlockedTasks.map((task) => (
-              <div key={task.id} className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-3 shadow-xl text-left opacity-90">
+              <div
+                key={task.id}
+                onClick={() => handleOpenPedido(task)}
+                title="Ver el pedido de esta tarea"
+                className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-3 shadow-xl text-left opacity-90 cursor-pointer hover:border-rose-500/40 transition"
+              >
                 <div className="flex items-start justify-between gap-2 border-b border-slate-800 pb-2.5">
                   <div>
                     <span className="font-bold text-white text-base block">
@@ -470,6 +573,7 @@ export default function TareasPage() {
                   {isManager ? (
                     <select
                       value={task.user_id || ''}
+                      onClick={(e) => e.stopPropagation()}
                       onChange={(e) => handleReassignUser(task, e.target.value)}
                       disabled={actionLoading === task.id}
                       className="bg-slate-950 border border-slate-800 text-xs font-bold text-blue-400 rounded-lg px-2.5 py-1.5 focus:outline-none cursor-pointer"
@@ -486,14 +590,8 @@ export default function TareasPage() {
                   )}
                 </div>
 
-                <div className="flex items-center justify-between pt-2 border-t border-slate-800">
+                <div className="pt-2 border-t border-slate-800">
                   <span className="text-[11px] text-rose-300/80 italic">Requiere etapas previas</span>
-                  <button
-                    onClick={() => handleOpenTaskDetail(task)}
-                    className="bg-slate-800 hover:bg-slate-700 text-blue-400 text-xs font-bold px-3 py-2 rounded-xl border border-slate-700 transition"
-                  >
-                    👁️ Ver Detalle
-                  </button>
                 </div>
               </div>
             ))}
@@ -515,7 +613,12 @@ export default function TareasPage() {
                 </thead>
                 <tbody className="divide-y divide-slate-800 text-base font-medium text-slate-200">
                   {visibleBlockedTasks.map((task) => (
-                    <tr key={task.id} className="hover:bg-slate-800/50 transition">
+                    <tr
+                      key={task.id}
+                      onClick={() => handleOpenPedido(task)}
+                      title="Ver el pedido de esta tarea"
+                      className="hover:bg-slate-800/50 transition cursor-pointer"
+                    >
                       <td className="px-6 py-4 font-bold text-white text-base">
                         {task.pedido?.cliente?.nombre_empresa || task.pedido?.cliente?.nombre_cliente || 'N/A'}
                       </td>
@@ -532,6 +635,7 @@ export default function TareasPage() {
                         {isManager ? (
                           <select
                             value={task.user_id || ''}
+                            onClick={(e) => e.stopPropagation()}
                             onChange={(e) => handleReassignUser(task, e.target.value)}
                             disabled={actionLoading === task.id}
                             className="bg-slate-950 border border-slate-800 text-xs font-bold text-blue-400 rounded-lg px-2.5 py-1.5 focus:outline-none cursor-pointer"
@@ -552,15 +656,8 @@ export default function TareasPage() {
                           🔒 Bloqueada
                         </span>
                       </td>
-                      <td className="px-6 py-4 text-right">
-                        <div className="flex items-center justify-end gap-3">
-                          <button
-                            onClick={() => setViewingTask(task)}
-                            className="bg-slate-800 hover:bg-slate-700 text-blue-400 text-sm font-bold px-4 py-2.5 rounded-xl border border-slate-700 transition"
-                          >
-                            👁️ Ver Detalle
-                          </button>
-                        </div>
+                      <td className="px-6 py-4 text-right text-xs text-rose-300/80 italic">
+                        Requiere etapas previas
                       </td>
                     </tr>
                   ))}
@@ -652,7 +749,7 @@ export default function TareasPage() {
               <div className="animate-spin rounded-full h-10 w-10 border-4 border-blue-500 border-t-transparent"></div>
               <span className="text-base font-semibold">Cargando tareas de producción...</span>
             </div>
-          ) : activeTasks.length === 0 && blockedTasks.length === 0 ? (
+          ) : tasks.length === 0 ? (
             <div className="bg-slate-900 border border-slate-800 rounded-2xl py-20 flex flex-col items-center justify-center text-slate-400 gap-4">
               <span className="text-5xl">🎉</span>
               <span className="text-lg font-bold text-white">¡No hay tareas asignadas pendientes!</span>
@@ -671,125 +768,17 @@ export default function TareasPage() {
           <TasksByCategoryBox />
         </div>
 
-        {/* Modal de Vista Detallada de Tarea (Tarjeta) */}
-        {viewingTask && (() => {
-          const isBlocked = viewingTask.estado === 'bloqueada'
-
-          return (
-            <Modal>
-              {/* Header del Modal */}
-              <div className="flex items-center justify-between border-b border-slate-800 pb-4 mb-4 pr-10">
-                <div className="flex items-center gap-3">
-                  <span className="text-sm font-mono font-extrabold text-white bg-slate-800 px-3 py-1 rounded-lg border border-slate-700">
-                    Pedido #{viewingTask.pedido?.id}
-                  </span>
-                  <span
-                    className={`text-xs font-extrabold uppercase tracking-wider px-3 py-1 rounded-full ${getStatusBadgeClass(viewingTask.estado)}`}
-                  >
-                    {getStatusLabel(viewingTask.estado)}
-                  </span>
-                </div>
-              </div>
-
-              {/* Contenido de la Tarjeta */}
-              <div className="space-y-4 text-left">
-                <div>
-                  <h3 className="text-2xl font-extrabold text-white tracking-tight">{viewingTask.etapa?.nombre}</h3>
-                  <p className="text-sm text-slate-300 mt-1 flex items-center gap-2">
-                    <span className="w-2 h-2 rounded-full bg-blue-500"></span>
-                    Producto: <span className="text-white font-bold">{viewingTask.etapa?.producto?.nombre || 'Producto final'}</span>
-                  </p>
-                  <p className="text-sm text-slate-300 mt-1">
-                    Empresa: <span className="text-white font-bold">{viewingTask.pedido?.cliente?.nombre_empresa || viewingTask.pedido?.cliente?.nombre_cliente || 'N/A'}</span>
-                  </p>
-                  {(viewingTask.pedido?.created_at || viewingTask.created_at) && (
-                    <p className="text-sm text-slate-400 mt-1">
-                      Fecha del Pedido: <span className="text-slate-200 font-semibold">{new Date(viewingTask.pedido?.created_at || viewingTask.created_at).toLocaleDateString('es-ES')}</span>
-                    </p>
-                  )}
-                </div>
-
-                {viewingTask.fecha_inicio && (
-                  <p className="text-xs text-amber-400 font-semibold italic">
-                    Iniciada el: {new Date(viewingTask.fecha_inicio).toLocaleString('es-ES')}
-                  </p>
-                )}
-
-                {isBlocked && (
-                  <div className="bg-rose-500/10 border border-rose-500/20 rounded-xl p-3 text-xs text-rose-300">
-                    ⚠️ <strong>Tarea Bloqueada:</strong> Esta etapa no puede iniciarse ni completarse hasta que finalicen las etapas previas del pedido.
-                  </div>
-                )}
-              </div>
-
-              {/* Acciones del Modal */}
-              <div className="mt-6 pt-4 border-t border-slate-800 flex items-center justify-between gap-4">
-                {viewingTask.estado === 'bloqueada' ? (
-                  <button
-                    disabled
-                    className="bg-rose-600/30 text-rose-300 border border-rose-500/40 text-sm font-bold px-5 py-2.5 rounded-xl cursor-not-allowed opacity-80 flex items-center gap-1"
-                  >
-                    🔒 Tarea Bloqueada
-                  </button>
-                ) : viewingTask.estado === 'pendiente' ? (
-                  <div className="flex gap-2">
-                    <button
-                      onClick={async () => {
-                        const taskId = viewingTask.id
-                        setViewingTask(null)
-                        await handleStartTask(taskId)
-                      }}
-                      disabled={actionLoading !== null}
-                      className="bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white text-sm font-extrabold px-5 py-2.5 rounded-xl transition hover:scale-[1.02] active:scale-[0.98]"
-                    >
-                      {actionLoading === viewingTask.id ? 'Iniciando...' : '🚀 Iniciar Tarea'}
-                    </button>
-                    <button
-                      onClick={() => {
-                        const t = viewingTask
-                        setViewingTask(null)
-                        handleOpenCompleteModal(t)
-                      }}
-                      disabled={actionLoading !== null}
-                      className="bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-slate-950 text-sm font-extrabold px-5 py-2.5 rounded-xl shadow-lg shadow-amber-500/20 transition hover:scale-[1.02] active:scale-[0.98]"
-                    >
-                      {actionLoading === viewingTask.id ? 'Cargando...' : '✅ Completar Tarea'}
-                    </button>
-                  </div>
-                ) : (
-                  <div className="flex gap-2">
-                    <button
-                      onClick={async () => {
-                        const taskId = viewingTask.id
-                        setViewingTask(null)
-                        await handleCancelTask(taskId)
-                      }}
-                      disabled={actionLoading !== null}
-                      className="bg-rose-600/20 hover:bg-rose-600/30 text-rose-300 border border-rose-500/30 text-sm font-bold px-4 py-2.5 rounded-xl transition"
-                    >
-                      ⏹️ Cancelar
-                    </button>
-                    <button
-                      onClick={() => {
-                        const t = viewingTask
-                        setViewingTask(null)
-                        handleOpenCompleteModal(t)
-                      }}
-                      disabled={actionLoading !== null}
-                      className="bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-slate-950 text-sm font-extrabold px-5 py-2.5 rounded-xl shadow-lg shadow-amber-500/20 transition hover:scale-[1.02] active:scale-[0.98]"
-                    >
-                      {actionLoading === viewingTask.id ? 'Cargando...' : '✅ Completar Tarea'}
-                    </button>
-                  </div>
-                )}
-              </div>
-            </Modal>
-          )
-        })()}
+        {/* Panel del pedido de la tarea (se abre al hacer clic en la fila o tarjeta) */}
+        <PedidoDetailModal
+          pedido={selectedPedido}
+          isOpen={!!selectedPedido}
+          onClose={handleClosePedido}
+          onUpdatePedido={(updated) => setSelectedPedido(updated)}
+        />
 
         {/* Modal de Confirmación para Completar */}
         {completingTask && (
-          <Modal>
+          <Modal id={COMPLETE_TASK_MODAL_ID} onClose={handleCloseCompleteModal} className="max-w-md">
             <h2 className="text-xl font-bold text-white mb-2">Completar Tarea</h2>
             <p className="text-sm text-slate-300 mb-6">
               Estás a punto de completar la etapa <span className="text-white font-bold">{completingTask.etapa?.nombre}</span> para el pedido <span className="text-white font-bold">{completingTask.pedido?.cliente?.nombre_empresa || completingTask.pedido?.cliente?.nombre_cliente || `#${completingTask.pedido?.id}`}</span>. ¿Deseas confirmar la finalización?
@@ -798,7 +787,7 @@ export default function TareasPage() {
               <div className="flex items-center justify-end gap-3">
                 <button
                   type="button"
-                  onClick={() => setCompletingTask(null)}
+                  onClick={handleCloseCompleteModal}
                   className="px-5 py-2.5 rounded-xl text-sm font-bold text-slate-400 hover:text-white hover:bg-slate-800 transition"
                 >
                   Cancelar
