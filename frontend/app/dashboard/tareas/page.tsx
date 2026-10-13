@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { useModalContext } from '@/components/Modal/context/ModalContext'
 import { Modal } from '@/components/Modal/Modal'
 import RoleGuard from '@/components/RoleGuard'
@@ -62,6 +62,7 @@ export default function TareasPage() {
   // Modales
   const [completingTask, setCompletingTask] = useState<ResponsableEtapa | null>(null)
   const [selectedPedido, setSelectedPedido] = useState<Pedido | null>(null)
+  const orderChangedRef = useRef(false)
 
   // Buscador de tareas (filtra en el navegador, sin pedir nada al backend)
   const [searchQuery, setSearchQuery] = useState('')
@@ -71,11 +72,18 @@ export default function TareasPage() {
     setActivePage(1)
   }
 
-  const loadData = async (overrideUserId?: number | null) => {
-    setLoading(true)
+  const loadData = async (
+    overrideUserId?: number | null,
+    options?: { silent?: boolean; resetPagination?: boolean }
+  ) => {
+    const { silent = false, resetPagination = true } = options || {}
+
+    if (!silent) setLoading(true)
     setError('')
-    setActivePage(1)
-    setBlockedPage(1)
+    if (resetPagination) {
+      setActivePage(1)
+      setBlockedPage(1)
+    }
     try {
       const user = getStoredUser()
       setCurrentUser(user)
@@ -104,7 +112,7 @@ export default function TareasPage() {
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Error al cargar las tareas')
     } finally {
-      setLoading(false)
+      if (!silent) setLoading(false)
     }
   }
 
@@ -177,13 +185,18 @@ export default function TareasPage() {
   }
   // Al hacer clic en la fila/tarjeta se abre el panel del pedido de esa tarea
   const handleOpenPedido = (task: ResponsableEtapa) => {
+    orderChangedRef.current = false
     if (task.pedido) setSelectedPedido(task.pedido)
   }
 
   const handleClosePedido = () => {
     setSelectedPedido(null)
-    // Desde el panel se pueden completar etapas: refrescar las tareas al cerrarlo
-    loadData()
+    // Solo si se modificó algo dentro del modal (ej. completó etapa) se refrescan las tareas,
+    // de forma silenciosa en segundo plano y manteniendo la página actual.
+    if (orderChangedRef.current) {
+      loadData(undefined, { silent: true, resetPagination: false })
+      orderChangedRef.current = false
+    }
   }
 
   const handleOpenCompleteModal = (task: ResponsableEtapa) => {
@@ -773,7 +786,10 @@ export default function TareasPage() {
           pedido={selectedPedido}
           isOpen={!!selectedPedido}
           onClose={handleClosePedido}
-          onUpdatePedido={(updated) => setSelectedPedido(updated)}
+          onUpdatePedido={(updated) => {
+            orderChangedRef.current = true
+            setSelectedPedido(updated)
+          }}
         />
 
         {/* Modal de Confirmación para Completar */}
