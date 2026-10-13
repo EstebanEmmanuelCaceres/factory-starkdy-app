@@ -111,12 +111,12 @@ a {
   text-decoration: none;
 }
 
-button {
+/* button {
   cursor: pointer;
   border: none;
   background: none;
   font-family: inherit;
-}
+} */
 
 input,
 select,

@@ -80,7 +80,7 @@ export const Modal = ({
             style={usesStack ? { zIndex: BASE_Z_INDEX + level(id) * 10 } : undefined}
             onClick={closeModal}
         >
-            <div className={`modal bg-slate-900 border border-slate-800 rounded-2xl w-full lg:w-4xl max-h-[90vh] shadow-2xl relative my-auto animate-in fade-in zoom-in-95 duration-150 overflow-y-auto text-slate-300 max-w-4xl flex flex-col overflow-hidden p-6 ${className}`} onClick={handleClick} ref={modalRef}>
+            <div className={`modal bg-slate-900 border border-slate-800 rounded-2xl w-full max-h-[90vh] shadow-2xl relative my-auto animate-in fade-in zoom-in-95 duration-150 overflow-y-auto text-slate-300 flex flex-col overflow-hidden p-6 ${className}`} onClick={handleClick} ref={modalRef}>
                 <button
                     type="button"
                     onClick={closeModal}
