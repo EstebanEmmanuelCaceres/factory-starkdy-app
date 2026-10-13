@@ -98,6 +98,7 @@ Route::middleware('auth:sanctum')->group(function () {
     // ── Pedidos ───────────────────────────────────────────────────
     Route::get('pedidos', [PedidoController::class, 'index']);
     Route::post('pedidos', [PedidoController::class, 'store']);
+    Route::get('pedidos/completados-por-cobrar', [PedidoController::class, 'completadosPorCobrar']);
     Route::get('pedidos/{id}', [PedidoController::class, 'show']);
     Route::patch('pedidos/{id}', [PedidoController::class, 'update']);
     Route::delete('pedidos/{id}', [PedidoController::class, 'destroy']);

@@ -7,7 +7,14 @@ import PedidoDetailModal from '@/components/PedidoDetailModal'
 import EditPedidoModal from '@/components/EditPedidoModal'
 import OrderImageGallery from '@/components/OrderImageGallery'
 import { fetchUsers, getStoredUser, type User } from '@/lib/auth'
-import { fetchPedidos, updatePedido, createPedidoComentario, type Pedido, type PedidoFilters } from '@/lib/pedidos'
+import {
+  fetchPedidos,
+  updatePedido,
+  createPedidoComentario,
+  fetchCompletadosPorCobrar,
+  type Pedido,
+  type PedidoFilters
+} from '@/lib/pedidos'
 import PendingDesignsCard from '@/components/PendingDesignsCard'
 import PaymentModal from '@/components/PaymentModal'
 
@@ -29,6 +36,8 @@ export default function DashboardPage() {
   const [isPaymentsModalOpen, setIsPaymentsModalOpen] = useState(false)
   const [nuevoComentario, setNuevoComentario] = useState('')
   const [isSubmittingComment, setIsSubmittingComment] = useState(false)
+  const [completedUnpaidPedidos, setCompletedUnpaidPedidos] = useState<Pedido[]>([])
+  const [loadingUnpaid, setLoadingUnpaid] = useState(true)
 
   // Meses y Años para el filtro de comisiones
   const monthsList = [
@@ -75,11 +84,24 @@ export default function DashboardPage() {
 
   const isFirstRender = useRef(true)
 
+  const loadCompletadosPorCobrar = async () => {
+    setLoadingUnpaid(true)
+    try {
+      const data = await fetchCompletadosPorCobrar()
+      setCompletedUnpaidPedidos(data)
+    } catch (err: unknown) {
+      console.error('Error al cargar pedidos completados por cobrar:', err)
+    } finally {
+      setLoadingUnpaid(false)
+    }
+  }
+
   const loadData = async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true)
     else {
       setLoadingUsers(true)
       setLoadingPedidos(true)
+      setLoadingUnpaid(true)
     }
     setError('')
 
@@ -91,14 +113,19 @@ export default function DashboardPage() {
         const usersData = await fetchUsers()
         setUsers(usersData)
       }
-      const pedidosData = await fetchPedidos(filters)
+      const [pedidosData, unpaidData] = await Promise.all([
+        fetchPedidos(filters),
+        fetchCompletadosPorCobrar().catch(() => [])
+      ])
       setPedidos(pedidosData)
+      setCompletedUnpaidPedidos(unpaidData)
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Error al cargar los datos'
       setError(msg)
     } finally {
       setLoadingUsers(false)
       setLoadingPedidos(false)
+      setLoadingUnpaid(false)
       setRefreshing(false)
     }
   }
@@ -166,13 +193,13 @@ export default function DashboardPage() {
 
   const searchFilteredPedidos = filters.search?.trim()
     ? scopedPedidos.filter((p) => {
-        const q = filters.search!.toLowerCase().trim()
-        const matchCode = (p.codigo || '').toLowerCase().includes(q)
-        const matchClientName = (p.cliente?.nombre_cliente || '').toLowerCase().includes(q)
-        const matchEmpresa = (p.cliente?.nombre_empresa || '').toLowerCase().includes(q)
-        const matchEmail = (p.cliente?.email || '').toLowerCase().includes(q)
-        return matchCode || matchClientName || matchEmpresa || matchEmail
-      })
+      const q = filters.search!.toLowerCase().trim()
+      const matchCode = (p.codigo || '').toLowerCase().includes(q)
+      const matchClientName = (p.cliente?.nombre_cliente || '').toLowerCase().includes(q)
+      const matchEmpresa = (p.cliente?.nombre_empresa || '').toLowerCase().includes(q)
+      const matchEmail = (p.cliente?.email || '').toLowerCase().includes(q)
+      return matchCode || matchClientName || matchEmpresa || matchEmail
+    })
     : scopedPedidos
 
   const sortedPedidos = [...searchFilteredPedidos].sort((a, b) => {
@@ -195,15 +222,17 @@ export default function DashboardPage() {
     return 0
   })
 
-  // Pedidos completados en fabricación con saldo pendiente de cobro
-  const completedUnpaidPedidos = scopedPedidos.filter((p) => {
-    if (p.estado !== 'completado') return false
+  // Helper para saldo pendiente de un pedido
+  const getPendingBalance = (p: Pedido) => {
+    if (p.saldo_pendiente !== undefined && p.saldo_pendiente !== null) {
+      return Number(p.saldo_pendiente)
+    }
     const precio = Number(p.precio) || 0
     const paidAmount = p.pagos
-      ? p.pagos.filter(pay => pay.estado === 'pagado').reduce((s, pay) => s + Number(pay.monto), 0)
+      ? p.pagos.filter((pay: any) => pay.estado === 'pagado').reduce((s: number, pay: any) => s + Number(pay.monto), 0)
       : (p.pago && p.pago.estado === 'pagado' ? Number(p.pago.monto) : 0)
-    return (precio - paidAmount) > 0
-  })
+    return Math.max(0, precio - paidAmount)
+  }
 
   // Cálculos de cobros y totales acumulados
   const totalCobrado = scopedPedidos.reduce((sum, p) => {
@@ -462,8 +491,8 @@ export default function DashboardPage() {
                     {selectedVendedorName
                       ? `Pedidos de ${selectedVendedorName} ${selectedCommissionMonth === 0 ? '(Todos los meses)' : `en ${monthsList.find(m => m.value === selectedCommissionMonth)?.label} ${selectedCommissionYear}`}`
                       : (selectedCommissionMonth === 0
-                          ? `Suma total de ${adminFilteredPedidos.length} pedidos registrados`
-                          : `Suma total de pedidos en ${monthsList.find(m => m.value === selectedCommissionMonth)?.label} ${selectedCommissionYear}`)}
+                        ? `Suma total de ${adminFilteredPedidos.length} pedidos registrados`
+                        : `Suma total de pedidos en ${monthsList.find(m => m.value === selectedCommissionMonth)?.label} ${selectedCommissionYear}`)}
                   </span>
                 </div>
               </div>
@@ -671,7 +700,7 @@ export default function DashboardPage() {
         )}
 
         {/* Grid de Tablas: Pedidos Actuales + Completados por Cobrar */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
           {/* Tabla de Pedidos Actuales con Filtros integrados */}
           <div className={`${hasRightColumnContent ? 'lg:col-span-7' : 'lg:col-span-12'} bg-slate-900 border border-slate-800 rounded-2xl shadow-xl overflow-hidden flex flex-col justify-between`}>
             {/* Cabecera y Filtros Integrados */}
@@ -1058,172 +1087,190 @@ export default function DashboardPage() {
                 />
               )}
 
-            {/* Tabla Adyacente: Completados por Cobrar (Solo visible para roles con módulo financiero) */}
-            {!isEncargado && (
-              <div className="bg-slate-900 border border-slate-800 rounded-2xl shadow-xl overflow-hidden flex flex-col">
-                <div className="border-b border-slate-800 p-5 bg-slate-950/40">
-                  <h2 className="text-base font-bold text-white flex items-center gap-2">
-                    <span>⚠️</span> Completados por Cobrar
-                  </h2>
-                  <p className="text-xs text-slate-400 mt-0.5">
-                    Clientes con fabricación terminada y saldo pendiente
-                  </p>
-                </div>
-
-                <div className="p-0 flex-grow">
-                  {loadingPedidos ? (
-                    <div className="py-20 flex flex-col items-center justify-center text-slate-400 gap-3">
-                      <div className="animate-spin rounded-full h-8 w-8 border-2 border-blue-500 border-t-transparent"></div>
-                      <span className="text-sm">Cargando...</span>
-                    </div>
-                  ) : completedUnpaidPedidos.length === 0 ? (
-                    <div className="py-20 flex flex-col items-center justify-center text-slate-500 gap-3 px-4 text-center">
-                      <span className="text-4xl">🎉</span>
-                      <span className="text-xs font-medium text-slate-400">
-                        No hay clientes con pedidos completados pendientes de cobro
-                      </span>
-                    </div>
-                  ) : (
+              {/* Tabla Adyacente: Completados por Cobrar (Solo visible para roles con módulo financiero) */}
+              {!isEncargado && (
+                <div className="bg-slate-900 border border-slate-800 rounded-2xl shadow-xl overflow-hidden flex flex-col">
+                  <div className="border-b border-slate-800 p-5 bg-slate-950/40 flex items-center justify-between">
                     <div>
-                      {/* VISTA EN TARJETAS PARA MOBILE (< md) CON LÍMITE DE 5 POR PÁGINA */}
-                      <div className="md:hidden space-y-3 p-3">
-                        <div className="max-h-[380px] overflow-y-auto space-y-2.5 pr-1">
-                          {completedUnpaidPedidos
-                            .slice((mobileUnpaidPage - 1) * 5, mobileUnpaidPage * 5)
-                            .map((pedido) => {
-                              const precio = Number(pedido.precio) || 0
-                              const paidAmount = pedido.pagos
-                                ? pedido.pagos.filter((pay: any) => pay.estado === 'pagado').reduce((s: number, pay: any) => s + Number(pay.monto), 0)
-                                : (pedido.pago && pedido.pago.estado === 'pagado' ? Number(pedido.pago.monto) : 0)
-                              const pending = Math.max(0, precio - paidAmount)
+                      <h2 className="text-base font-bold text-white flex items-center gap-2">
+                        <span>⚠️</span> Completados por Cobrar
+                        {completedUnpaidPedidos.length > 0 && (
+                          <span className="bg-amber-500/20 text-amber-300 text-xs font-extrabold px-2 py-0.5 rounded-full border border-amber-500/30">
+                            {completedUnpaidPedidos.length}
+                          </span>
+                        )}
+                      </h2>
+                      <p className="text-xs text-slate-400 mt-0.5">
+                        Clientes con fabricación terminada y saldo pendiente
+                      </p>
+                    </div>
+                    <button
+                      onClick={loadCompletadosPorCobrar}
+                      disabled={loadingUnpaid}
+                      className="text-xs text-slate-400 hover:text-white p-1 rounded transition cursor-pointer"
+                      title="Actualizar completados por cobrar"
+                    >
+                      🔄
+                    </button>
+                  </div>
 
-                              return (
-                                <div
-                                  key={pedido.id}
-                                  className="bg-slate-950/60 border border-slate-800/90 rounded-xl p-3.5 space-y-2 shadow-md text-left cursor-pointer hover:border-slate-700 transition"
-                                  onClick={() => setSelectedPedidoForCommentModal(pedido)}
+                  <div className="p-0 flex-grow">
+                    {loadingUnpaid ? (
+                      <div className="py-20 flex flex-col items-center justify-center text-slate-400 gap-3">
+                        <div className="animate-spin rounded-full h-8 w-8 border-2 border-blue-500 border-t-transparent"></div>
+                        <span className="text-sm">Cargando completados por cobrar...</span>
+                      </div>
+                    ) : completedUnpaidPedidos.length === 0 ? (
+                      <div className="py-20 flex flex-col items-center justify-center text-slate-500 gap-3 px-4 text-center">
+                        <span className="text-4xl">🎉</span>
+                        <span className="text-xs font-medium text-slate-400">
+                          No hay clientes con pedidos completados pendientes de cobro
+                        </span>
+                      </div>
+                    ) : (
+                      <div>
+                        {/* VISTA EN TARJETAS PARA MOBILE (< md) CON LÍMITE DE 5 POR PÁGINA */}
+                        <div className="md:hidden space-y-3 p-3">
+                          <div className="max-h-[380px] overflow-y-auto space-y-2.5 pr-1">
+                            {completedUnpaidPedidos
+                              .slice((mobileUnpaidPage - 1) * 5, mobileUnpaidPage * 5)
+                              .map((pedido) => {
+                                const pending = getPendingBalance(pedido)
+
+                                return (
+                                  <div
+                                    key={pedido.id}
+                                    className="bg-slate-950/60 border border-slate-800/90 rounded-xl p-3.5 space-y-2 shadow-md text-left cursor-pointer hover:border-slate-700 transition"
+                                    onClick={() => setSelectedPedidoForCommentModal(pedido)}
+                                  >
+                                    <div className="flex items-start justify-between gap-2">
+                                      <div>
+                                        <div className="flex items-center gap-1.5">
+                                          <span className="text-xs font-mono font-bold text-blue-400">#{pedido.codigo}</span>
+                                          <span className={`text-[9px] font-extrabold px-1.5 py-0.2 rounded uppercase ${getStatusBadgeClass(pedido.estado)}`}>
+                                            {getStatusLabel(pedido.estado)}
+                                          </span>
+                                        </div>
+                                        <h3 className="font-bold text-white text-sm leading-tight mt-1">
+                                          {pedido.cliente?.nombre_cliente || 'Sin cliente'}
+                                        </h3>
+                                        <span className="text-xs text-slate-400 block">{pedido.cliente?.nombre_empresa || 'Empresa'}</span>
+                                      </div>
+                                      <div className="text-right">
+                                        <span className="text-[10px] text-slate-400 block">Saldo Pendiente</span>
+                                        <span className="font-bold text-amber-400 font-mono text-sm block">
+                                          {formatCurrency(pending)}
+                                        </span>
+                                      </div>
+                                    </div>
+
+                                    <div className="pt-2 border-t border-slate-800/80 flex items-center justify-end">
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation()
+                                          setSelectedPedidoForPayments(pedido)
+                                          setIsPaymentsModalOpen(true)
+                                        }}
+                                        className="inline-flex items-center gap-1 bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition shadow-sm"
+                                      >
+                                        💵 Cobrar
+                                      </button>
+                                    </div>
+                                  </div>
+                                )
+                              })}
+                          </div>
+
+                          {/* Controles de Paginación Mobile */}
+                          {completedUnpaidPedidos.length > 5 && (
+                            <div className="flex items-center justify-between border-t border-slate-800/80 pt-3 text-xs">
+                              <span className="text-slate-400 font-medium text-[11px]">
+                                {((mobileUnpaidPage - 1) * 5) + 1} - {Math.min(mobileUnpaidPage * 5, completedUnpaidPedidos.length)} de {completedUnpaidPedidos.length}
+                              </span>
+                              <div className="flex items-center gap-1.5">
+                                <button
+                                  disabled={mobileUnpaidPage === 1}
+                                  onClick={() => setMobileUnpaidPage(prev => Math.max(1, prev - 1))}
+                                  className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 disabled:opacity-30 rounded text-slate-200 font-bold transition"
                                 >
-                                  <div className="flex items-start justify-between gap-2">
-                                    <div>
-                                      <h3 className="font-bold text-white text-sm leading-tight mt-0.5">
-                                        {pedido.cliente?.nombre_cliente || 'Sin cliente'}
-                                      </h3>
-                                      <span className="text-xs text-slate-400 block">{pedido.cliente?.nombre_empresa || 'Empresa'}</span>
-                                    </div>
-                                    <div className="text-right">
-                                      <span className="text-[10px] text-slate-400 block">Saldo Pendiente</span>
-                                      <span className="font-bold text-amber-400 font-mono text-sm block">
-                                        {formatCurrency(pending)}
-                                      </span>
-                                    </div>
-                                  </div>
-
-                                  <div className="pt-2 border-t border-slate-800/80 flex justify-end">
-                                    <button
-                                      onClick={(e) => {
-                                        e.stopPropagation()
-                                        setSelectedPedidoForCommentModal(pedido)
-                                      }}
-                                      className="inline-flex items-center gap-1 bg-blue-600/20 hover:bg-blue-600/40 text-blue-300 border border-blue-500/30 px-3 py-1 rounded text-xs font-semibold transition w-full justify-center"
-                                    >
-                                      💬 Ver / Comentar
-                                    </button>
-                                  </div>
-                                </div>
-                              )
-                            })}
+                                  Anterior
+                                </button>
+                                <span className="text-slate-300 font-bold font-mono text-[11px] px-1">
+                                  {mobileUnpaidPage} / {Math.ceil(completedUnpaidPedidos.length / 5)}
+                                </span>
+                                <button
+                                  disabled={mobileUnpaidPage >= Math.ceil(completedUnpaidPedidos.length / 5)}
+                                  onClick={() => setMobileUnpaidPage(prev => Math.min(Math.ceil(completedUnpaidPedidos.length / 5), prev + 1))}
+                                  className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 disabled:opacity-30 rounded text-slate-200 font-bold transition"
+                                >
+                                  Siguiente
+                                </button>
+                              </div>
+                            </div>
+                          )}
                         </div>
 
-                        {/* Controles de Paginación Mobile */}
-                        {completedUnpaidPedidos.length > 5 && (
-                          <div className="flex items-center justify-between border-t border-slate-800/80 pt-3 text-xs">
-                            <span className="text-slate-400 font-medium text-[11px]">
-                              {((mobileUnpaidPage - 1) * 5) + 1} - {Math.min(mobileUnpaidPage * 5, completedUnpaidPedidos.length)} de {completedUnpaidPedidos.length}
-                            </span>
-                            <div className="flex items-center gap-1.5">
-                              <button
-                                disabled={mobileUnpaidPage === 1}
-                                onClick={() => setMobileUnpaidPage(prev => Math.max(1, prev - 1))}
-                                className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 disabled:opacity-30 rounded text-slate-200 font-bold transition"
-                              >
-                                Anterior
-                              </button>
-                              <span className="text-slate-300 font-bold font-mono text-[11px] px-1">
-                                {mobileUnpaidPage} / {Math.ceil(completedUnpaidPedidos.length / 5)}
-                              </span>
-                              <button
-                                disabled={mobileUnpaidPage >= Math.ceil(completedUnpaidPedidos.length / 5)}
-                                onClick={() => setMobileUnpaidPage(prev => Math.min(Math.ceil(completedUnpaidPedidos.length / 5), prev + 1))}
-                                className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 disabled:opacity-30 rounded text-slate-200 font-bold transition"
-                              >
-                                Siguiente
-                              </button>
-                            </div>
-                          </div>
-                        )}
-                      </div>
+                        {/* VISTA EN TABLA PARA ESCRITORIO (hidden md:block) */}
+                        <div className="hidden md:block overflow-x-auto">
+                          <table className="w-full text-left border-collapse">
+                            <thead>
+                              <tr className="border-b border-slate-800 bg-slate-950/40 text-slate-400 font-semibold text-xs uppercase tracking-wider">
+                                <th className="px-4 py-3">Cliente / Empresa</th>
+                                <th className="px-4 py-3 text-right">Saldo Pendiente</th>
+                                <th className="px-4 py-3 text-center">Acciones</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-800 text-sm">
+                              {completedUnpaidPedidos.map((pedido) => {
+                                const pending = getPendingBalance(pedido)
 
-                      {/* VISTA EN TABLA PARA ESCRITORIO (hidden md:block) */}
-                      <div className="hidden md:block overflow-x-auto">
-                        <table className="w-full text-left border-collapse">
-                          <thead>
-                            <tr className="border-b border-slate-800 bg-slate-950/40 text-slate-400 font-semibold text-xs uppercase tracking-wider">
-                              <th className="px-4 py-3">Cliente / Empresa</th>
-                              <th className="px-4 py-3 text-right">Saldo Pendiente</th>
-                              <th className="px-4 py-3 text-center">Acción</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-slate-800 text-sm">
-                            {completedUnpaidPedidos.map((pedido) => {
-                              const precio = Number(pedido.precio) || 0
-                              const paidAmount = pedido.pagos
-                                ? pedido.pagos.filter((pay: any) => pay.estado === 'pagado').reduce((s: number, pay: any) => s + Number(pay.monto), 0)
-                                : (pedido.pago && pedido.pago.estado === 'pagado' ? Number(pedido.pago.monto) : 0)
-                              const pending = Math.max(0, precio - paidAmount)
-
-                              return (
-                                <tr
-                                  key={pedido.id}
-                                  className="hover:bg-slate-800/40 text-slate-300 transition duration-150 cursor-pointer"
-                                  onClick={() => setSelectedPedidoForCommentModal(pedido)}
-                                >
-                                  <td className="px-4 py-3">
-                                    <div className="flex flex-col">
-                                      <span className="font-semibold text-white text-xs">{pedido.cliente?.nombre_cliente || 'Sin cliente'}</span>
-                                      <span className="text-[11px] text-slate-400">{pedido.cliente?.nombre_empresa || 'Empresa'}</span>
-                                    </div>
-                                  </td>
-                                  <td className="px-4 py-3 text-right">
-                                    <span className="font-bold text-amber-400 font-mono text-xs">
-                                      {formatCurrency(pending)}
-                                    </span>
-                                  </td>
-                                  <td className="px-4 py-3 text-center">
-                                    <button
-                                      onClick={(e) => {
-                                        e.stopPropagation()
-                                        setSelectedPedidoForCommentModal(pedido)
-                                      }}
-                                      className="inline-flex items-center gap-1 bg-blue-600/20 hover:bg-blue-600/40 text-blue-300 border border-blue-500/30 px-2.5 py-1 rounded text-xs font-semibold transition"
-                                      title="Ver pedido y comentar"
-                                    >
-                                      💬 Ver / Comentar
-                                    </button>
-                                  </td>
-                                </tr>
-                              )
-                            })}
-                          </tbody>
-                        </table>
+                                return (
+                                  <tr
+                                    key={pedido.id}
+                                    className="hover:bg-slate-800/40 text-slate-300 transition duration-150 cursor-pointer"
+                                    onClick={() => setSelectedPedidoForCommentModal(pedido)}
+                                  >
+                                    <td className="px-4 py-3">
+                                      <div className="flex flex-col">
+                                        <span className="text-[10px] text-blue-400 font-mono">#{pedido.codigo}</span>
+                                        <span className="font-semibold text-white text-xs">{pedido.cliente?.nombre_cliente || 'Sin cliente'}</span>
+                                        <span className="text-[11px] text-slate-400">{pedido.cliente?.nombre_empresa || 'Empresa'}</span>
+                                      </div>
+                                    </td>
+                                    <td className="px-4 py-3 text-right">
+                                      <span className="font-bold text-amber-400 font-mono text-xs">
+                                        {formatCurrency(pending)}
+                                      </span>
+                                    </td>
+                                    <td className="px-4 py-3 text-center">
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation()
+                                          setSelectedPedidoForPayments(pedido)
+                                          setIsPaymentsModalOpen(true)
+                                        }}
+                                        className="inline-flex items-center gap-1 bg-emerald-600/20 hover:bg-emerald-600/40 text-emerald-300 border border-emerald-500/30 px-3 py-1.5 rounded-lg text-xs font-bold transition shadow-sm"
+                                        title="Cargar cobro a este pedido"
+                                      >
+                                        💵 Cobrar
+                                      </button>
+                                    </td>
+                                  </tr>
+                                )
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
                       </div>
-                    </div>
-                  )}
+                    )}
+                  </div>
                 </div>
-              </div>
-            )}
-          </div>
-        )}
-      </div>
+              )}
+            </div>
+          )}
+        </div>
 
         {/* Modal de Detalle Completo del Pedido */}
         <PedidoDetailModal
@@ -1233,6 +1280,7 @@ export default function DashboardPage() {
           onUpdatePedido={(updated) => {
             setSelectedPedidoForCommentModal(updated)
             setPedidos((prev) => prev.map((item) => (item.id === updated.id ? updated : item)))
+            loadCompletadosPorCobrar()
           }}
           onOpenEdit={(pedidoToEdit) => {
             setSelectedPedidoForEdit(pedidoToEdit)
@@ -1255,6 +1303,7 @@ export default function DashboardPage() {
           onPedidoUpdated={(updatedPedido) => {
             setSelectedPedidoForEdit(null)
             fetchPedidos(filters).then(setPedidos).catch(console.error)
+            loadCompletadosPorCobrar()
             if (selectedPedidoForCommentModal && selectedPedidoForCommentModal.id === updatedPedido.id) {
               setSelectedPedidoForCommentModal(updatedPedido)
             }
@@ -1271,7 +1320,8 @@ export default function DashboardPage() {
             setSelectedPedidoForPayments(null)
           }}
           onPaymentUpdated={(updatedPedido) => {
-            fetchPedidos().then(setPedidos).catch(console.error)
+            fetchPedidos(filters).then(setPedidos).catch(console.error)
+            loadCompletadosPorCobrar()
             if (updatedPedido && selectedPedidoForCommentModal?.id === updatedPedido.id) {
               setSelectedPedidoForCommentModal(updatedPedido)
             }
