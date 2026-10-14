@@ -77,8 +77,8 @@ const NAV_SECTIONS = [
       { id: 'pedidos', label: 'Pedidos', href: '/dashboard/pedidos', Icon: Icons.orders, available: true, roles: ['admin', 'supervisor', 'encargado', 'vendedor', 'disenador', 'disenadora', 'operario', 'operator'] },
       { id: 'usuarios', label: 'Usuarios', href: '/dashboard/usuarios', Icon: Icons.users, available: true, roles: ['admin'] },
       { id: 'saldos', label: 'Saldos Pendientes', href: '/dashboard/saldos', Icon: Icons.saldos, available: true, roles: ['vendedor', 'disenador', 'disenadora'] },
-      { id: 'tareas', label: 'Mis Tareas', href: '/dashboard/tareas', Icon: Icons.orders, available: true, roles: ['operario', 'admin', 'supervisor', 'encargado'] },
-      { id: 'historial', label: 'Historial de Producción', href: '/dashboard/historial', Icon: Icons.orders, available: true, roles: ['operario', 'admin', 'supervisor', 'encargado'] }
+      { id: 'tareas', label: 'Mis Tareas', href: '/dashboard/tareas', Icon: Icons.orders, available: true, roles: ['operario', 'operator', 'admin', 'supervisor', 'encargado', 'disenador', 'disenadora'] },
+      { id: 'historial', label: 'Historial de Producción', href: '/dashboard/historial', Icon: Icons.orders, available: true, roles: ['operario', 'operator', 'admin', 'supervisor', 'encargado', 'disenador', 'disenadora'] }
     ]
   }
 ]

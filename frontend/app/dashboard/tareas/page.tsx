@@ -694,7 +694,7 @@ export default function TareasPage() {
   )
 
   return (
-    <RoleGuard allowedRoles={['admin', 'supervisor', 'encargado', 'operario']}>
+    <RoleGuard allowedRoles={['admin', 'supervisor', 'encargado', 'operario', 'operator', 'disenador', 'disenadora']}>
       <main className="page-content p-6 max-w-7xl mx-auto text-white">
         {/* Notificaciones */}
         {successMessage && (

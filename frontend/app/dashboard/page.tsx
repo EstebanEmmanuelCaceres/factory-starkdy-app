@@ -1234,8 +1234,8 @@ export default function DashboardPage() {
                                     <td className="px-4 py-3">
                                       <div className="flex flex-col">
                                         <span className="text-[10px] text-blue-400 font-mono">#{pedido.codigo}</span>
-                                        <span className="font-semibold text-white text-xs">{pedido.cliente?.nombre_cliente || 'Sin cliente'}</span>
-                                        <span className="text-[11px] text-slate-400">{pedido.cliente?.nombre_empresa || 'Empresa'}</span>
+                                        <span className="text-[11px] text-slate-400">{pedido.cliente?.nombre_cliente || 'Sin cliente'}</span>
+                                        <span className="font-semibold text-white text-xs">{pedido.cliente?.nombre_empresa || 'Empresa'}</span>
                                       </div>
                                     </td>
                                     <td className="px-4 py-3 text-right">
