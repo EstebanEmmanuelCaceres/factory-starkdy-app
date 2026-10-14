@@ -5,9 +5,11 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Pedido;
 use App\Models\PedidoImagen;
+use App\Models\ResponsableEtapa;
 use App\Services\LocalStorageService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 
 class PedidoImagenController extends Controller
@@ -73,6 +75,7 @@ class PedidoImagenController extends Controller
             ], 422);
         }
 
+        $teniaImagenes = $pedido->imagenes()->exists();
         $hasPrincipal = $pedido->imagenes()->where('es_principal', true)->exists();
         $maxOrden = $pedido->imagenes()->max('orden') ?? 0;
 
@@ -168,11 +171,55 @@ class PedidoImagenController extends Controller
             ], 400);
         }
 
+        // Con la primera foto el diseño queda listo: el pedido pasa a producción
+        if (!$teniaImagenes) {
+            $this->marcarDisenoCompletado($pedido);
+        }
+
         return response()->json([
             'status' => 'success',
             'message' => count($createdImages) . ' imagen(es) agregada(s) correctamente',
             'data' => $pedido->fresh()->imagenes
         ], 201);
+    }
+
+    /**
+     * Pasa el pedido de 'pendiente' a 'listo_para_produccion' y completa la etapa de diseño
+     * de cada producto (o su primera etapa si el producto no tiene diseño).
+     */
+    private function marcarDisenoCompletado(Pedido $pedido): void
+    {
+        DB::transaction(function () use ($pedido) {
+            if ($pedido->estado === 'pendiente') {
+                $pedido->estado = 'listo_para_produccion';
+            }
+
+            $tareas = ResponsableEtapa::with('etapaProducto.etapa')
+                ->where('pedido_id', $pedido->id)
+                ->where('estado', '!=', 'completado')
+                ->get()
+                ->filter(fn($tarea) => $tarea->etapaProducto !== null);
+
+            foreach ($tareas->groupBy(fn($tarea) => $tarea->etapaProducto->producto_id) as $tareasProducto) {
+                $tareasDiseno = $tareasProducto->filter(function ($tarea) {
+                    $ep = $tarea->etapaProducto;
+                    $nombre = mb_strtolower($ep->etapa->nombre ?? '');
+                    return (int) $ep->etapa_id === 5 || str_contains($nombre, 'diseño') || str_contains($nombre, 'diseno');
+                });
+
+                $aCompletar = $tareasDiseno->isNotEmpty()
+                    ? $tareasDiseno
+                    : $tareasProducto->sortBy(fn($tarea) => $tarea->etapaProducto->orden)->take(1);
+
+                foreach ($aCompletar as $tarea) {
+                    $tarea->update([
+                        'estado' => 'completado',
+                        'fecha_inicio' => $tarea->fecha_inicio ?? now(),
+                        'fecha_fin' => now(),
+                    ]);
+                }
+            }
+        });
     }
 
     /**

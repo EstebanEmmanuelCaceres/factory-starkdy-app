@@ -176,3 +176,8 @@ export async function createPedidoComentario(pedidoId: number, cuerpo: string): 
   const { data } = await api.post<{ status: string; data: ComentarioPedido }>(`/pedidos/${pedidoId}/comentarios`, { cuerpo })
   return data.data
 }
+
+export async function fetchCompletadosPorCobrar(): Promise<Pedido[]> {
+  const { data } = await api.get<{ status: string; data: Pedido[] }>('/pedidos/completados-por-cobrar')
+  return data.data
+}
