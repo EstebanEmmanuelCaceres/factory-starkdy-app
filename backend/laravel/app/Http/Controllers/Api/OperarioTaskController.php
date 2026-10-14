@@ -23,7 +23,12 @@ class OperarioTaskController extends Controller
 
         $query = ResponsableEtapa::with([
             'pedido.cliente',
-            'etapaProducto.producto',
+            'pedido.imagenes',
+            'pedido.imagenPrincipal',
+            'pedido.productos.imagenes',
+            'pedido.productos.imagenPrincipal',
+            'etapaProducto.producto.imagenes',
+            'etapaProducto.producto.imagenPrincipal',
             'etapaProducto.etapa.categorias',
             'etapaProducto.dependencias.etapa',
             'user'
