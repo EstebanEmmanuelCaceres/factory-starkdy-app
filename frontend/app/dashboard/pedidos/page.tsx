@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import RoleGuard from '@/components/RoleGuard'
 import OrderImageGallery from '@/components/OrderImageGallery'
 import Modal from '@/components/Modal'
@@ -115,7 +115,8 @@ export default function PedidosPage() {
   })
 
   // Ordenamiento
-  const [sortField, setSortField] = useState<string | null>(null)
+  // Por defecto: fecha de creación ascendente (el primero creado arriba, el último al final)
+  const [sortField, setSortField] = useState<string | null>('created_at')
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
 
   // Paginación
@@ -155,36 +156,46 @@ export default function PedidosPage() {
     observaciones: ''
   })
 
+  // Último texto buscado en el backend y id del último pedido de datos (para ignorar respuestas viejas)
+  const lastSearchRef = useRef('')
+  const requestIdRef = useRef(0)
+
+  const buildPedidoFilters = (search: string, priority: string, status: string) => {
+    const filters: { search?: string; prioridad?: string; estado?: string } = {}
+
+    if (search.trim()) {
+      filters.search = search.trim()
+      // Al tener búsqueda activa, el buscador queda desacoplado de los filtros de estado/prioridad
+      // Enviamos estado='todos' para que el backend consulte en todos los estados (enviados, completados, cancelados)
+      filters.estado = 'todos'
+    } else {
+      if (priority) filters.prioridad = priority
+      if (status) filters.estado = status
+    }
+
+    return filters
+  }
+
   const loadData = async (search?: string, priority?: string, status?: string) => {
+    const targetSearch = search !== undefined ? search : searchQuery
+    const targetPriority = priority !== undefined ? priority : filterPrioridad
+    const targetStatus = status !== undefined ? status : filterEstado
+
+    lastSearchRef.current = targetSearch.trim()
+    const requestId = ++requestIdRef.current
+
     setLoading(true)
     setError('')
     try {
-      const filters: { search?: string; prioridad?: string; estado?: string } = {}
-
-      const targetSearch = search !== undefined ? search : searchQuery
-
-      if (targetSearch && targetSearch.trim()) {
-        filters.search = targetSearch.trim()
-        // Al tener búsqueda activa, el buscador queda desacoplado de los filtros de estado/prioridad
-        // Enviamos estado='todos' para que el backend consulte en todos los estados (enviados, completados, cancelados)
-        filters.estado = 'todos'
-      } else {
-        const targetPriority = priority !== undefined ? priority : filterPrioridad
-        const targetStatus = status !== undefined ? status : filterEstado
-
-        if (targetPriority) filters.prioridad = targetPriority
-        if (targetStatus) filters.estado = targetStatus
-      }
-
       const [pedidosData, clientesData, productosData, usersData, stagesData] = await Promise.all([
-        fetchPedidos(filters),
+        fetchPedidos(buildPedidoFilters(targetSearch, targetPriority, targetStatus)),
         fetchClientes(),
         fetchProducts(),
         fetchUsers(),
         fetchEtapas()
       ])
 
-      setPedidos(pedidosData)
+      if (requestId === requestIdRef.current) setPedidos(pedidosData)
       setClientes(clientesData)
       setProductos(productosData)
       setOperarios(usersData)
@@ -192,9 +203,42 @@ export default function PedidosPage() {
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Error al cargar los datos')
     } finally {
-      setLoading(false)
+      if (requestId === requestIdRef.current) setLoading(false)
     }
   }
+
+  // Búsqueda liviana: solo trae pedidos (sin recargar clientes, productos, usuarios ni etapas)
+  const searchPedidos = async (search: string) => {
+    lastSearchRef.current = search.trim()
+    const requestId = ++requestIdRef.current
+
+    setLoading(true)
+    setError('')
+    try {
+      const pedidosData = await fetchPedidos(buildPedidoFilters(search, filterPrioridad, filterEstado))
+      if (requestId === requestIdRef.current) setPedidos(pedidosData)
+    } catch (err: unknown) {
+      if (requestId === requestIdRef.current) {
+        setError(err instanceof Error ? err.message : 'Error al buscar pedidos')
+      }
+    } finally {
+      if (requestId === requestIdRef.current) setLoading(false)
+    }
+  }
+
+  // Buscar en el backend automáticamente 400 ms después de la última tecla
+  useEffect(() => {
+    if (searchQuery.trim() === lastSearchRef.current) return
+
+    const timer = setTimeout(() => {
+      // Si mientras tanto ya se buscó (Enter o botón Buscar), no repetir
+      if (searchQuery.trim() === lastSearchRef.current) return
+      searchPedidos(searchQuery)
+    }, 400)
+
+    return () => clearTimeout(timer)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchQuery])
 
   const loadTaskAssignments = async (pedidoId: number) => {
     try {
@@ -924,7 +968,7 @@ export default function PedidosPage() {
       return 0
     })
 
-  const ITEMS_PER_PAGE = 10
+  const ITEMS_PER_PAGE = 25
   const totalPages = Math.ceil(filteredAndSortedPedidos.length / ITEMS_PER_PAGE)
   const displayedPedidos = filteredAndSortedPedidos.slice(
     (currentPage - 1) * ITEMS_PER_PAGE,
@@ -1032,8 +1076,10 @@ export default function PedidosPage() {
                   placeholder="👤 Todos los Vendedores"
                 />
               )}
-              {/* Filtro de Prioridad */}
+              {/* Filtro de Prioridad (no aplica mientras hay texto en el buscador) */}
               <SelectFilter
+                disabled={!!searchQuery.trim()}
+                title={searchQuery.trim() ? 'La búsqueda incluye todas las prioridades' : undefined}
                 value={filterPrioridad}
                 onChange={(value) => {
                   setFilterPrioridad(value)
@@ -1043,8 +1089,10 @@ export default function PedidosPage() {
                 placeholder="🎯 Todas las prioridades"
               />
 
-              {/* Filtro de Estado */}
+              {/* Filtro de Estado (no aplica mientras hay texto en el buscador) */}
               <SelectFilter
+                disabled={!!searchQuery.trim()}
+                title={searchQuery.trim() ? 'La búsqueda incluye todos los estados' : undefined}
                 value={filterEstado}
                 onChange={(value) => {
                   setFilterEstado(value)
@@ -2206,87 +2254,6 @@ export default function PedidosPage() {
                     </div>
                   )}
                 </div>
-
-                {/* Etapas de Fabricación por Producto */}
-                {/* {formData.selectedProductIds.length > 0 && currentUser?.role !== 'vendedor' && (
-                    <div className="border-t border-slate-800 pt-4 mt-4 space-y-3">
-                      <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                        Etapas de Fabricación y Asignación de Operarios
-                      </h3>
-                      <p className="text-[11px] text-slate-500">
-                        Se muestran las etapas de fabricación preconfiguradas para los productos seleccionados. Puede asignar el operario responsable de cada etapa.
-                      </p>
-                      <div className="space-y-4 max-h-[300px] overflow-y-auto bg-slate-950/60 p-3 rounded-lg border border-slate-800">
-                        {formData.selectedProductIds.map((prodId) => {
-                          const product = productos.find(p => p.id === prodId)
-                          const productStages = topologicalSortEtapas(
-                            localEtapas.filter(s => s.producto_id === prodId)
-                          )
-
-                          return (
-                            <div key={prodId} className="space-y-2 bg-slate-900/60 p-3 rounded-lg border border-slate-800/40">
-                              <div className="flex items-center justify-between border-b border-slate-850 pb-1.5">
-                                <span className="text-xs font-bold uppercase tracking-wider text-blue-400">
-                                  {product?.nombre}
-                                </span>
-                                <span className="text-[10px] bg-slate-850 text-slate-400 px-2 py-0.5 rounded-full">
-                                  {productStages.length} {productStages.length === 1 ? 'etapa' : 'etapas'}
-                                </span>
-                              </div>
-
-                              {productStages.length === 0 ? (
-                                <div className="flex flex-col sm:flex-row items-center justify-between gap-2 py-2">
-                                  <span className="text-xs text-slate-500 italic">No hay etapas configuradas.</span>
-                                </div>
-                              ) : (
-                                <div className="space-y-1.5 py-1">
-                                  {productStages.map((stage) => {
-                                    const stageIdOrTempId = stage.id || stage.temp_id
-                                    const stageKey = stageIdOrTempId.toString()
-                                    return (
-                                      <div key={stageKey} className="flex items-center justify-between text-xs bg-slate-950 border border-slate-850/60 p-2 rounded-lg">
-                                        <div>
-                                          <span className="font-semibold block text-slate-200">{stage.orden}. {stage.nombre}</span>
-                                        </div>
-
-                                        {currentUser && ['admin', 'encargado'].includes(currentUser.role) ? (
-                                          <select
-                                            value={localAssignments[stageKey] || ''}
-                                            onChange={(e) => handleAssignTask(stageIdOrTempId, e.target.value)}
-                                            className="bg-slate-900 border border-slate-800 rounded px-2.5 py-1 text-xs text-white focus:outline-none focus:border-blue-500 transition"
-                                          >
-                                            <option value="">Sin Asignar</option>
-                                            {operarios.map((op) => (
-                                              <option key={op.id} value={op.id}>
-                                                {op.name}
-                                              </option>
-                                            ))}
-                                          </select>
-                                        ) : (
-                                          (() => {
-                                            const assignedOp = operarios.find(o => o.id === localAssignments[stageKey])
-                                            return assignedOp ? (
-                                              <span className="text-slate-400 text-xs italic">
-                                                Asignado: {assignedOp.name}
-                                              </span>
-                                            ) : (
-                                              <span className="text-slate-500 text-xs italic">
-                                                Sin asignar
-                                              </span>
-                                            )
-                                          })()
-                                        )}
-                                      </div>
-                                    )
-                                  })}
-                                </div>
-                              )}
-                            </div>
-                          )
-                        })}
-                      </div>
-                    </div>
-                  )} */}
 
                 <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-800 mt-6">
                   <button

@@ -13,6 +13,9 @@ import { fetchEtapas, topologicalSortEtapas, type Etapa } from '@/lib/entities/e
 import { fetchResponsablesEtapas, assignTask, type ResponsableEtapa } from '@/lib/responsable_etapas'
 import { completeOperarioTask } from '@/lib/operario_tasks'
 import { getStoredUser } from '@/lib/auth'
+import SubtitleH2 from './Titles/SubtitleH2'
+import SelectStatus from './SelectFilter/SelectStatus'
+import { PEDIDO_STATE_OPTIONS } from '@/lib/order-status'
 
 export interface PedidoDetailModalProps {
   pedido: Pedido | null
@@ -260,11 +263,11 @@ export default function PedidoDetailModal({
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      className="max-w-4xl !p-0 flex flex-col max-h-[90vh] overflow-hidden"
+      className="max-w-[90%] !p-0 flex flex-col max-h-[90vh] overflow-hidden"
     >
       {/* Header de Imagen / Portada */}
       {coverUrl && (
-        <div className="relative h-64 sm:h-80 md:h-[420px] min-h-[280px] sm:min-h-[350px] md:min-h-[420px] bg-slate-950/90 border-b border-slate-800/80 flex items-center justify-center overflow-hidden rounded-t-2xl group flex-shrink-0">
+        <div className="relative h-64 sm:h-56 min-h-[280px] bg-slate-950/90 border-b border-slate-800/80 flex items-center justify-center overflow-hidden rounded-t-2xl group flex-shrink-0">
           <div
             className="absolute inset-0 bg-cover bg-center opacity-25 blur-2xl scale-110 pointer-events-none"
             style={{ backgroundImage: `url(${coverUrl})` }}
@@ -274,10 +277,6 @@ export default function PedidoDetailModal({
             src={coverUrl}
             alt={`Portada Pedido #${currentPedido.id}`}
             className="relative z-10 max-h-full max-w-full object-contain p-4 transition duration-200"
-          // onError={(e) => {
-          //   ; (e.target as HTMLImageElement).src =
-          //     "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200' viewBox='0 0 200 200'><rect width='200' height='200' fill='%230f172a'/><text x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' fill='%2364748b' font-family='sans-serif' font-size='13'>Imagen no disponible</text></svg>"
-          // }}
           />
 
           {onOpenGallery && (
@@ -295,7 +294,7 @@ export default function PedidoDetailModal({
       )}
 
       {/* Contenedor con Scroll de toda la Segunda Parte */}
-      <div className="flex-1 overflow-y-auto p-6 space-y-6 min-h-0 text-slate-300">
+      <div className="flex-1 overflow-y-auto px-4 py-6 md:p-6 space-y-6 min-h-0 text-slate-300">
         {/* Notificación rápida */}
         {notification && (
           <div className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 px-4 py-2 rounded-xl text-xs font-semibold text-center animate-in fade-in">
@@ -311,70 +310,40 @@ export default function PedidoDetailModal({
 
         {/* Header del Modal */}
         <div className="border-b border-slate-800 pb-4 space-y-4">
-          {/* Fila Superior: Título + Estado a la izquierda, Acciones a la derecha */}
-          <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 pr-8">
-            <div className="text-left space-y-1.5 min-w-0">
-              <div className="flex flex-wrap items-center gap-3">
-                <h2 className="text-2xl font-bold text-white tracking-tight flex items-center gap-2">
-                  <span>📋</span>
-                  <span>
-                    {currentPedido.cliente?.nombre_empresa || currentPedido.cliente?.nombre_cliente || `Pedido #${currentPedido.id}`}
-                  </span>
-                  <span className="text-xs font-mono font-normal text-slate-400 bg-slate-900 border border-slate-800 px-2 py-0.5 rounded-md">
-                    #{currentPedido.id}
-                  </span>
-                </h2>
-                {/* Estado del Pedido Selector */}
-                <div className="flex items-center gap-1.5 bg-slate-950 border border-slate-800 rounded-xl px-3 py-1 shadow-inner">
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                    Estado:
-                  </span>
-                  <select
-                    value={currentPedido.estado}
-                    onChange={(e) => handleStatusChange(e.target.value)}
-                    className="bg-transparent text-xs font-bold text-blue-400 focus:outline-none cursor-pointer pr-1"
-                  >
-                    <option value="pendiente" className="bg-slate-900 text-white">
-                      Pendiente
-                    </option>
-                    <option value="listo_para_produccion" className="bg-slate-900 text-white">
-                      Listo para producción
-                    </option>
-                    <option value="en_progreso" className="bg-slate-900 text-white">
-                      En Progreso
-                    </option>
-                    <option value="completado" className="bg-slate-900 text-white">
-                      Completado
-                    </option>
-                    <option value="completado_pd" className="bg-slate-900 text-white">
-                      Completado - pendiente de pago (PD)
-                    </option>
-                    <option value="enviado" className="bg-slate-900 text-white">
-                      Enviado
-                    </option>
-                    <option value="enviado_faltante" className="bg-slate-900 text-white">
-                      Enviado con faltante
-                    </option>
-                    <option value="cancelado" className="bg-slate-900 text-white">
-                      Cancelado
-                    </option>
-                  </select>
-                </div>
-              </div>
-
-              <p className="text-xs text-slate-400">
-                Cliente:{' '}
-                <span className="text-slate-200 font-bold">
-                  {currentPedido.cliente?.nombre_cliente || 'N/A'}
-                </span>{' '}
-                {currentPedido.cliente?.nombre_empresa && currentPedido.cliente?.nombre_cliente
-                  ? `(${currentPedido.cliente.nombre_empresa})`
-                  : ''}
-              </p>
+          <div className="grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_auto] lg:grid-cols-[auto_auto_minmax(0,1fr)] items-center gap-x-4 gap-y-2 pr-8 text-left">
+            {/* Título */}
+            <div className="flex flex-row items-center gap-2 min-w-0 sm:col-start-1 sm:row-start-1">
+              <SubtitleH2 title={`📋 ${currentPedido.cliente?.nombre_empresa}`} />
+              <span className="text-xs font-mono font-normal text-slate-400 bg-slate-900 border border-slate-800 px-2 py-0.5 rounded-md">
+                #{currentPedido.id}
+              </span>
             </div>
 
-            {/* Botones de acción derecha: Editar Pedido, Galería */}
-            <div className="flex flex-wrap items-center gap-2.5 shrink-0 self-end sm:self-start">
+            {/* Estado del pedido */}
+            <div className="flex w-fit items-center gap-1.5 bg-slate-950 border border-slate-800 rounded-xl px-3 py-1 shadow-inner justify-self-start sm:col-start-2 sm:row-start-2 sm:justify-self-end lg:col-start-2 lg:row-start-1 lg:justify-self-start">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                Estado:
+              </span>
+              <SelectStatus
+                value={currentPedido.estado}
+                onChange={handleStatusChange}
+                options={PEDIDO_STATE_OPTIONS}
+              />
+            </div>
+
+            {/* Cliente */}
+            <p className="text-xs text-slate-400 min-w-0 sm:col-start-1 sm:row-start-2 lg:col-span-3">
+              Cliente:{' '}
+              <span className="text-slate-200 font-bold">
+                {currentPedido.cliente?.nombre_cliente || 'N/A'}
+              </span>{' '}
+              {currentPedido.cliente?.nombre_empresa && currentPedido.cliente?.nombre_cliente
+                ? `(${currentPedido.cliente.nombre_empresa})`
+                : ''}
+            </p>
+
+            {/* Botones de acción: Editar Pedido, Galería */}
+            <div className="flex flex-wrap items-center gap-2.5 justify-self-end sm:col-start-2 sm:row-start-1 lg:col-start-3">
               {onOpenEdit && isAuthorizedRole && !isOperario && (
                 <button
                   type="button"
@@ -475,13 +444,15 @@ export default function PedidoDetailModal({
                 <h3 className="text-sm font-bold text-white flex items-center gap-2">
                   <span>📝</span> Descripción
                 </h3>
-                <button
-                  type="button"
-                  onClick={() => setIsEditCommentActive(!isEditCommentActive)}
-                  className="text-xs bg-slate-800 hover:bg-slate-700 hover:text-white text-slate-300 px-2 py-1 rounded transition font-semibold"
-                >
-                  {isEditCommentActive ? 'Cancelar' : 'Editar'}
-                </button>
+                {!isEditCommentActive && (
+                  <button
+                    type="button"
+                    onClick={() => setIsEditCommentActive(true)}
+                    className="text-xs bg-slate-800 hover:bg-slate-700 hover:text-white text-slate-300 px-2 py-1 rounded transition font-semibold"
+                  >
+                    Editar
+                  </button>
+                )}
               </div>
 
               {isEditCommentActive ? (
@@ -499,6 +470,17 @@ export default function PedidoDetailModal({
                       className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded text-xs font-semibold"
                     >
                       Guardar
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        // Descartar lo escrito y volver a la descripción guardada
+                        setTempComentario(currentPedido.comentario || '')
+                        setIsEditCommentActive(false)
+                      }}
+                      className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 hover:text-white text-slate-300 rounded text-xs font-semibold transition"
+                    >
+                      Cancelar
                     </button>
                   </div>
                 </div>
