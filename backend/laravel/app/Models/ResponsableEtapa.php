@@ -157,7 +157,9 @@ class ResponsableEtapa extends Model
             }
         }
 
-        self::checkAndCompletePedidoIfAllTasksDone($pedidoId);
+        // No se fuerza el estado del pedido a 'completado' acá: este método corre en cada consulta/guardado
+        // del pedido y pisaría el estado elegido a mano. El pase automático lo hace el observer 'updated'
+        // solo cuando una etapa cambia de estado.
     }
 
     /**

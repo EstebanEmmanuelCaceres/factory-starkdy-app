@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import Modal from '@/components/Modal'
+import { Modal } from '@/components/Modal/Modal'
 import {
   type Pedido,
   type ComentarioPedido,
@@ -16,6 +16,10 @@ import { getStoredUser } from '@/lib/auth'
 import SubtitleH2 from './Titles/SubtitleH2'
 import SelectStatus from './SelectFilter/SelectStatus'
 import { PEDIDO_STATE_OPTIONS } from '@/lib/order-status'
+import { useModalContext } from '@/components/Modal/context/ModalContext'
+import ClientDetailModal, { CLIENT_DETAIL_MODAL_ID } from '@/components/ClientDetailModal'
+
+const PEDIDO_DETAIL_MODAL_ID = 'pedido-detail'
 
 export interface PedidoDetailModalProps {
   pedido: Pedido | null
@@ -54,6 +58,26 @@ export default function PedidoDetailModal({
   const [notification, setNotification] = useState('')
   const [error, setError] = useState('')
   const [completingTaskId, setCompletingTaskId] = useState<number | null>(null)
+
+  // Pila de modales: el detalle del pedido y, encima, el del cliente
+  const { open: openModal, close: closeModal } = useModalContext()
+  const [clientIdForModal, setClientIdForModal] = useState<number | null>(null)
+
+  // El padre controla isOpen; lo reflejamos en la pila del context.
+  // Al cerrar el pedido también se cierra el modal de cliente que tenga encima.
+  useEffect(() => {
+    if (!isOpen) return
+    openModal(PEDIDO_DETAIL_MODAL_ID)
+    return () => closeModal(PEDIDO_DETAIL_MODAL_ID)
+  }, [isOpen, openModal, closeModal])
+
+  const handleOpenClientModal = () => {
+    const clienteId = currentPedido?.cliente_id ?? currentPedido?.cliente?.id
+    if (clienteId) {
+      setClientIdForModal(clienteId)
+      openModal(CLIENT_DETAIL_MODAL_ID)
+    }
+  }
 
   // Sincronizar estado cuando cambia la prop 'pedido' u 'open'
   useEffect(() => {
@@ -261,7 +285,7 @@ export default function PedidoDetailModal({
 
   return (
     <Modal
-      isOpen={isOpen}
+      id={PEDIDO_DETAIL_MODAL_ID}
       onClose={onClose}
       className="max-w-[90%] !p-0 flex flex-col max-h-[90vh] overflow-hidden"
     >
@@ -310,40 +334,60 @@ export default function PedidoDetailModal({
 
         {/* Header del Modal */}
         <div className="border-b border-slate-800 pb-4 space-y-4">
-          <div className="grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_auto] lg:grid-cols-[auto_auto_minmax(0,1fr)] items-center gap-x-4 gap-y-2 pr-8 text-left">
-            {/* Título */}
-            <div className="flex flex-row items-center gap-2 min-w-0 sm:col-start-1 sm:row-start-1">
-              <SubtitleH2 title={`📋 ${currentPedido.cliente?.nombre_empresa}`} />
-              <span className="text-xs font-mono font-normal text-slate-400 bg-slate-900 border border-slate-800 px-2 py-0.5 rounded-md">
-                #{currentPedido.id}
-              </span>
+          {/* Fila Superior: Título + Estado a la izquierda, Acciones a la derecha */}
+          <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 pr-8">
+            <div className="text-left space-y-1.5 min-w-0">
+              <div className="flex flex-wrap items-center gap-2 md:gap-3">
+                <div className='flex flex-row items-center gap-2'>
+                  <button
+                    type="button"
+                    onClick={handleOpenClientModal}
+                    className="group text-left flex items-center gap-2 hover:opacity-80 transition cursor-pointer"
+                    title="Ver ficha completa del cliente"
+                  >
+                    <SubtitleH2 title={`📋 ${currentPedido.cliente?.nombre_empresa || currentPedido.cliente?.nombre_cliente}`} />
+                  </button>
+                  <span className="text-xs font-mono font-normal text-slate-400 bg-slate-900 border border-slate-800 px-2 py-0.5 rounded-md">
+                    #{currentPedido.id}
+                  </span>
+                </div>
+                {/* Estado del Pedido Selector */}
+                <div className="flex items-center gap-1.5 bg-slate-950 border border-slate-800 rounded-xl px-3 py-1 shadow-inner">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                    Estado:
+                  </span>
+                  <SelectStatus
+                    value={currentPedido.estado}
+                    onChange={handleStatusChange}
+                    options={PEDIDO_STATE_OPTIONS}
+                  />
+                </div>
+              </div>
+
+              <p className="text-xs text-slate-400">
+                Cliente:{' '}
+                <button
+                  type="button"
+                  onClick={handleOpenClientModal}
+                  className="text-blue-400 font-bold hover:underline cursor-pointer transition inline-flex items-center gap-1"
+                >
+                  {currentPedido.cliente?.nombre_cliente || currentPedido.cliente?.nombre_empresa || 'N/A'}
+                  {currentPedido.cliente?.nombre_empresa && currentPedido.cliente?.nombre_cliente
+                    ? ` (${currentPedido.cliente.nombre_empresa})`
+                    : ''}
+                </button>
+              </p>
+
+              <p className="text-xs text-slate-400">
+                Vendedor:{' '}
+                <span className="text-slate-200 font-bold">
+                  {currentPedido.user?.name || 'Sin asignar'}
+                </span>
+              </p>
             </div>
 
-            {/* Estado del pedido */}
-            <div className="flex w-fit items-center gap-1.5 bg-slate-950 border border-slate-800 rounded-xl px-3 py-1 shadow-inner justify-self-start sm:col-start-2 sm:row-start-2 sm:justify-self-end lg:col-start-2 lg:row-start-1 lg:justify-self-start">
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                Estado:
-              </span>
-              <SelectStatus
-                value={currentPedido.estado}
-                onChange={handleStatusChange}
-                options={PEDIDO_STATE_OPTIONS}
-              />
-            </div>
-
-            {/* Cliente */}
-            <p className="text-xs text-slate-400 min-w-0 sm:col-start-1 sm:row-start-2 lg:col-span-3">
-              Cliente:{' '}
-              <span className="text-slate-200 font-bold">
-                {currentPedido.cliente?.nombre_cliente || 'N/A'}
-              </span>{' '}
-              {currentPedido.cliente?.nombre_empresa && currentPedido.cliente?.nombre_cliente
-                ? `(${currentPedido.cliente.nombre_empresa})`
-                : ''}
-            </p>
-
-            {/* Botones de acción: Editar Pedido, Galería */}
-            <div className="flex flex-wrap items-center gap-2.5 justify-self-end sm:col-start-2 sm:row-start-1 lg:col-start-3">
+            {/* Botones de acción derecha: Editar Pedido, Galería */}
+            <div className="flex flex-wrap items-center gap-2.5 shrink-0 self-end sm:self-start">
               {onOpenEdit && isAuthorizedRole && !isOperario && (
                 <button
                   type="button"
@@ -821,6 +865,9 @@ export default function PedidoDetailModal({
           </div>
         </div>
       </div>
+
+      {/* Modal de Cliente, se apila encima del pedido */}
+      <ClientDetailModal clienteId={clientIdForModal} />
     </Modal>
   )
 }

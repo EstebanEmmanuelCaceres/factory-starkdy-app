@@ -641,4 +641,41 @@ class PedidoController extends Controller
             'data' => $comentario->load('user')
         ], 201);
     }
+
+    /**
+     * Obtener pedidos completados con saldo pendiente de cobro.
+     */
+    public function completadosPorCobrar(): JsonResponse
+    {
+        $currentUser = auth()->user();
+
+        $query = Pedido::select('id', 'cliente_id', 'user_id', 'codigo', 'prioridad', 'precio', 'created_at', 'updated_at')
+            ->with([
+                'cliente:id,nombre_empresa,nombre_cliente,telefono,email',
+                'user:id,name',
+                'pago',
+                'pagos',
+                'comentarios:id,pedido_id,user_id,cuerpo,created_at,updated_at',
+                'comentarios.user:id,name'
+            ])
+            ->whereHas('ultimoEstado', function ($q) {
+                $q->whereIn('estado', ['completado', 'completado_pd']);
+            });
+
+        // Restricción por rol: si es vendedor, solo sus pedidos
+        if ($currentUser && $currentUser->role?->slug === 'vendedor') {
+            $query->where('user_id', $currentUser->id);
+        }
+
+        $pedidos = $query->latest()->get()->filter(function ($pedido) {
+            $precio = (float) ($pedido->precio ?? 0);
+            $paid = $pedido->pagos ? (float) $pedido->pagos->where('estado', 'pagado')->sum('monto') : 0.0;
+            return ($precio - $paid) > 0.001;
+        })->values();
+
+        return response()->json([
+            'status' => 'success',
+            'data' => $pedidos
+        ]);
+    }
 }
