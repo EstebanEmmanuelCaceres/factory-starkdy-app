@@ -53,7 +53,6 @@ export default function PedidoDetailModal({
   const [tempComentario, setTempComentario] = useState('')
   const [nuevoComentario, setNuevoComentario] = useState('')
   const [isSubmittingComment, setIsSubmittingComment] = useState(false)
-  const [verTodosProductos, setVerTodosProductos] = useState(false)
   const [openAccordions, setOpenAccordions] = useState<Record<number, boolean>>({})
   const [notification, setNotification] = useState('')
   const [error, setError] = useState('')
@@ -252,9 +251,9 @@ export default function PedidoDetailModal({
     currentPedido.productos?.[0]?.imagen_principal?.url ||
     currentPedido.productos?.[0]?.imagenes?.[0]?.url
 
-  // Productos
+  // Productos (se muestran todos directamente)
   const pds = currentPedido.productos || []
-  const displayedProducts = verTodosProductos ? pds : pds.slice(0, 2)
+  const displayedProducts = pds
 
   // Función helper para la etapa actual de un producto
   const getProductCurrentStage = (
@@ -796,18 +795,6 @@ export default function PedidoDetailModal({
                       </div>
                     )
                   })}
-
-                  {pds.length > 2 && (
-                    <div className="flex justify-center pt-2">
-                      <button
-                        type="button"
-                        onClick={() => setVerTodosProductos(!verTodosProductos)}
-                        className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-blue-400 hover:text-blue-300 text-xs font-bold rounded-lg transition"
-                      >
-                        {verTodosProductos ? 'Mostrar menos 🔼' : 'Ver todos los productos 🔽'}
-                      </button>
-                    </div>
-                  )}
                 </div>
               )}
             </div>

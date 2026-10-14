@@ -20,7 +20,10 @@ class ResponsableEtapaController extends Controller
     {
         $query = ResponsableEtapa::with([
             'pedido.cliente',
-            'etapaProducto.producto',
+            'pedido.imagenes',
+            'pedido.imagenPrincipal',
+            'etapaProducto.producto.imagenes',
+            'etapaProducto.producto.imagenPrincipal',
             'etapaProducto.etapa',
             'user'
         ]);
