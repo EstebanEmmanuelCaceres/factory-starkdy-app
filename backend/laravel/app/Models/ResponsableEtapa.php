@@ -80,37 +80,6 @@ class ResponsableEtapa extends Model
                 }
             }
         });
-
-        static::created(function ($task) {
-            self::logStateChange($task, null, $task->estado, 'Creación automática/manual de tarea');
-        });
-
-        static::updating(function ($task) {
-            if ($task->isDirty('estado')) {
-                self::logStateChange($task, $task->getOriginal('estado'), $task->estado, 'Cambio de estado');
-            }
-        });
-
-        static::updated(function ($task) {
-            if ($task->wasChanged('estado')) {
-                if ($task->estado === 'completado') {
-                    self::unblockDependentTasks($task);
-                }
-                self::checkAndCompletePedidoIfAllTasksDone($task->pedido_id);
-            }
-        });
-    }
-
-    public static function logStateChange($task, $estadoAnterior, $estadoNuevo, $observacion = null)
-    {
-        \DB::table('etapa_historial_estado')->insert([
-            'responsable_etapa_id' => $task->id,
-            'user_id' => \Auth::id() ?? $task->pedido->user_id ?? 1,
-            'estado_anterior' => $estadoAnterior,
-            'estado_nuevo' => $estadoNuevo,
-            'observacion' => $observacion,
-            'created_at' => now(),
-        ]);
     }
 
     public function isBlockedByDependencies(): bool
@@ -133,65 +102,6 @@ class ResponsableEtapa extends Model
 
         if ($this->estado === 'bloqueada') {
             $this->update(['estado' => 'pendiente']);
-        }
-
-        return false;
-    }
-
-    public static function unblockDependentTasks($task)
-    {
-        self::unblockAllSatisfiedTasksForPedido($task->pedido_id);
-    }
-
-    public static function unblockAllSatisfiedTasksForPedido($pedidoId)
-    {
-        $blockedTasks = self::where('pedido_id', $pedidoId)
-            ->where('estado', 'bloqueada')
-            ->get();
-
-        foreach ($blockedTasks as $bTask) {
-            if (!$bTask->isBlockedByDependencies()) {
-                $bTask->update([
-                    'estado' => 'pendiente'
-                ]);
-            }
-        }
-
-        // No se fuerza el estado del pedido a 'completado' acá: este método corre en cada consulta/guardado
-        // del pedido y pisaría el estado elegido a mano. El pase automático lo hace el observer 'updated'
-        // solo cuando una etapa cambia de estado.
-    }
-
-    /**
-     * Verifica si todas las etapas/tareas de todos los productos del pedido están completadas.
-     * Si es así, cambia automáticamente el estado del pedido a 'completado'.
-     */
-    public static function checkAndCompletePedidoIfAllTasksDone($pedidoId): bool
-    {
-        if (!$pedidoId) return false;
-
-        $totalTasks = self::where('pedido_id', $pedidoId)->count();
-        if ($totalTasks === 0) return false;
-
-        $incompleteTasks = self::where('pedido_id', $pedidoId)
-            ->where('estado', '!=', 'completado')
-            ->count();
-
-        $pedido = Pedido::find($pedidoId);
-        if (!$pedido) return false;
-
-        if ($incompleteTasks === 0) {
-            if (!in_array($pedido->estado, ['completado', 'completado_pd', 'enviado', 'enviado_faltante', 'cancelado'])) {
-                $pedido->estado = 'completado';
-                $pedido->save();
-                return true;
-            }
-        } else {
-            if ($pedido->estado === 'completado') {
-                $pedido->estado = 'en_produccion';
-                $pedido->save();
-                return true;
-            }
         }
 
         return false;

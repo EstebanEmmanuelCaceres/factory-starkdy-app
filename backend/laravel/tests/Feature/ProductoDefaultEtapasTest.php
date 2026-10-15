@@ -101,10 +101,10 @@ class ProductoDefaultEtapasTest extends TestCase
         $this->assertEquals('bloqueada', $tareaProduccion->estado, 'Producción debe estar bloqueada.');
         $this->assertEquals('bloqueada', $tareaFinalizado->estado, 'Finalizado debe estar bloqueado.');
 
+        $workflowService = app(\App\Services\PedidoWorkflowService::class);
+
         // 2. Marcar diseño como completado
-        $tareaDiseno->update(['estado' => 'completado']);
-        ResponsableEtapa::logStateChange($tareaDiseno, 'pendiente', 'completado', 'Diseño completado');
-        ResponsableEtapa::unblockDependentTasks($tareaDiseno);
+        $workflowService->completarTarea($tareaDiseno, null, 'Diseño completado');
 
         $tareaProduccion->refresh();
         $tareaFinalizado->refresh();
@@ -113,15 +113,13 @@ class ProductoDefaultEtapasTest extends TestCase
         $this->assertEquals('bloqueada', $tareaFinalizado->estado, 'Finalizado aún debe seguir bloqueado.');
 
         // 3. Marcar producción como completada
-        $tareaProduccion->update(['estado' => 'completado']);
-        ResponsableEtapa::logStateChange($tareaProduccion, 'pendiente', 'completado', 'Producción completada');
-        ResponsableEtapa::unblockDependentTasks($tareaProduccion);
+        $workflowService->completarTarea($tareaProduccion, null, 'Producción completada');
 
         $tareaFinalizado->refresh();
         $this->assertEquals('pendiente', $tareaFinalizado->estado, 'Finalizado debe desbloquearse (pendiente).');
 
         // 4. Marcar la última tarea (finalizado) como completada y verificar que el pedido pasa a "completado"
-        $tareaFinalizado->update(['estado' => 'completado']);
+        $workflowService->completarTarea($tareaFinalizado, null, 'Finalizado completado');
         $pedido->refresh();
         $this->assertEquals('completado', $pedido->estado, 'El pedido debe marcarse como completado cuando todas las tareas de sus productos finalizaron.');
     }

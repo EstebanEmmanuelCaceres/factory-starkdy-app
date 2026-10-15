@@ -16,9 +16,17 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Auth;
+use App\Services\PedidoWorkflowService;
 
 class PedidoController extends Controller
 {
+    protected PedidoWorkflowService $workflowService;
+
+    public function __construct(PedidoWorkflowService $workflowService)
+    {
+        $this->workflowService = $workflowService;
+    }
+
     /**
      * Display a listing of the resource.
      */
@@ -322,7 +330,7 @@ class PedidoController extends Controller
      */
     public function show($id): JsonResponse
     {
-        ResponsableEtapa::unblockAllSatisfiedTasksForPedido($id);
+        $this->workflowService->desbloquearTareasSatisfechas($id);
 
         $pedido = Pedido::with([
             'cliente',
@@ -440,7 +448,7 @@ class PedidoController extends Controller
             $pedido->productos()->sync($syncData);
         }
         $this->syncEtapasYAsignaciones($pedido, $request);
-        ResponsableEtapa::unblockAllSatisfiedTasksForPedido($pedido->id);
+        $this->workflowService->desbloquearTareasSatisfechas($pedido->id);
 
         $pedido->refresh();
         $pedido->load(['cliente', 'user', 'productos', 'pago', 'pagos', 'ultimoEstado']);
