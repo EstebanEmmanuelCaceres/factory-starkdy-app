@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\ResponsableEtapa;
 use App\Models\EtapaProducto;
 use App\Models\User;
+use App\Services\PedidoWorkflowService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Validator;
@@ -13,6 +14,13 @@ use Illuminate\Http\JsonResponse;
 
 class OperarioTaskController extends Controller
 {
+    protected PedidoWorkflowService $workflowService;
+
+    public function __construct(PedidoWorkflowService $workflowService)
+    {
+        $this->workflowService = $workflowService;
+    }
+
     /**
      * Listar tareas pendientes asignadas al operario autenticado.
      */
@@ -185,17 +193,10 @@ class OperarioTaskController extends Controller
             ], 422);
         }
 
-        $updateData = [
-            'estado' => 'en_progreso',
-            'fecha_inicio' => now(),
-        ];
-
         // El operario que la toma queda como responsable (los encargados no se la quedan al operar)
-        if ($user && (empty($task->user_id) || !$user->isAdminOrEncargado())) {
-            $updateData['user_id'] = $user->id;
-        }
+        $assignedUserId = ($user && (empty($task->user_id) || !$user->isAdminOrEncargado())) ? $user->id : null;
 
-        $task->update($updateData);
+        $task = $this->workflowService->iniciarTarea($task, $assignedUserId);
 
         return response()->json([
             'status' => 'success',
@@ -236,20 +237,10 @@ class OperarioTaskController extends Controller
             ], 422);
         }
 
-        $fechaInicio = $task->fecha_inicio ?? now();
-
-        $updateData = [
-            'estado' => 'completado',
-            'fecha_inicio' => $fechaInicio,
-            'fecha_fin' => now(),
-        ];
-
         // Quien la completa queda como responsable, así aparece en su historial
-        if ($user && (empty($task->user_id) || !$user->isAdminOrEncargado())) {
-            $updateData['user_id'] = $user->id;
-        }
+        $assignedUserId = ($user && (empty($task->user_id) || !$user->isAdminOrEncargado())) ? $user->id : null;
 
-        $task->update($updateData);
+        $task = $this->workflowService->completarTarea($task, $assignedUserId, 'Tarea completada por operario');
 
         return response()->json([
             'status' => 'success',

@@ -173,53 +173,17 @@ class PedidoImagenController extends Controller
 
         // Con la primera foto el diseño queda listo: el pedido pasa a producción
         if (!$teniaImagenes) {
-            $this->marcarDisenoCompletado($pedido);
+            if ($pedido->estado === 'pendiente') {
+                $pedido->estado = 'listo_para_produccion';
+                $pedido->save();
+            }
         }
 
         return response()->json([
             'status' => 'success',
             'message' => count($createdImages) . ' imagen(es) agregada(s) correctamente',
             'data' => $pedido->fresh()->imagenes
-        ], 201);
-    }
-
-    /**
-     * Pasa el pedido de 'pendiente' a 'listo_para_produccion' y completa la etapa de diseño
-     * de cada producto (o su primera etapa si el producto no tiene diseño).
-     */
-    private function marcarDisenoCompletado(Pedido $pedido): void
-    {
-        DB::transaction(function () use ($pedido) {
-            if ($pedido->estado === 'pendiente') {
-                $pedido->estado = 'listo_para_produccion';
-            }
-
-            $tareas = ResponsableEtapa::with('etapaProducto.etapa')
-                ->where('pedido_id', $pedido->id)
-                ->where('estado', '!=', 'completado')
-                ->get()
-                ->filter(fn($tarea) => $tarea->etapaProducto !== null);
-
-            foreach ($tareas->groupBy(fn($tarea) => $tarea->etapaProducto->producto_id) as $tareasProducto) {
-                $tareasDiseno = $tareasProducto->filter(function ($tarea) {
-                    $ep = $tarea->etapaProducto;
-                    $nombre = mb_strtolower($ep->etapa->nombre ?? '');
-                    return (int) $ep->etapa_id === 5 || str_contains($nombre, 'diseño') || str_contains($nombre, 'diseno');
-                });
-
-                $aCompletar = $tareasDiseno->isNotEmpty()
-                    ? $tareasDiseno
-                    : $tareasProducto->sortBy(fn($tarea) => $tarea->etapaProducto->orden)->take(1);
-
-                foreach ($aCompletar as $tarea) {
-                    $tarea->update([
-                        'estado' => 'completado',
-                        'fecha_inicio' => $tarea->fecha_inicio ?? now(),
-                        'fecha_fin' => now(),
-                    ]);
-                }
-            }
-        });
+        ], 200);
     }
 
     /**
