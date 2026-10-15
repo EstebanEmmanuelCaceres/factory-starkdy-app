@@ -37,6 +37,30 @@ import {
 import SelectFilter from '@/components/SelectFilter/SelectFilter'
 import { PRIORITY_OPTIONS, PEDIDO_STATE_OPTIONS } from '@/lib/order-status'
 import ImagePedido from '@/components/ImagePedido/ImagePedido'
+import PedidoThumbnail from '@/components/PedidoThumbnail'
+
+// Portada del pedido: imagen principal, o la primera del pedido, o la de sus productos
+const getPedidoCoverUrl = (pedido: Pedido) =>
+  pedido.imagen_principal?.url ||
+  pedido.imagenes?.find((img) => img.es_principal)?.url ||
+  pedido.imagenes?.[0]?.url ||
+  pedido.productos?.find((prod) => prod.imagen_principal?.url)?.imagen_principal?.url ||
+  pedido.productos?.[0]?.imagen_principal?.url ||
+  pedido.productos?.[0]?.imagenes?.[0]?.url ||
+  null
+
+// Fecha corta sin año, por ejemplo "10 sept"
+const formatFechaCorta = (dateVal?: string | null) => {
+  if (!dateVal) return null
+  const d = new Date(dateVal)
+  if (isNaN(d.getTime())) return null
+  return d.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })
+}
+
+// Padding de las celdas de la tabla de escritorio (un poco más de aire en pantallas grandes)
+const CELL_FIRST = 'pl-4 pr-3 2xl:pl-5 2xl:pr-4 py-3'
+const CELL_MID = 'px-3 2xl:px-4 py-3'
+const CELL_LAST = 'pl-3 pr-4 2xl:pl-4 2xl:pr-5 py-3'
 
 export default function PedidosPage() {
   const [pedidos, setPedidos] = useState<Pedido[]>([])
@@ -134,6 +158,10 @@ export default function PedidosPage() {
       setSortDirection('asc')
     }
   }
+
+  // Flecha de orden para los encabezados de la tabla
+  const sortArrow = (...fields: string[]) =>
+    sortField && fields.includes(sortField) ? (sortDirection === 'asc' ? ' ▲' : ' ▼') : ''
 
   const [clientSearchText, setClientSearchText] = useState('')
   const [isClientDropdownOpen, setIsClientDropdownOpen] = useState(false)
@@ -1221,15 +1249,7 @@ export default function PedidosPage() {
                         <div>
                           <span className="text-slate-500 block text-[11px] font-medium mb-0.5">Fecha Creación</span>
                           <span className="text-slate-300 font-medium">
-                            {pedido.created_at ? (
-                              new Date(pedido.created_at).toLocaleDateString('es-ES', {
-                                year: 'numeric',
-                                month: 'short',
-                                day: 'numeric'
-                              })
-                            ) : (
-                              '-'
-                            )}
+                            {formatFechaCorta(pedido.created_at) || '-'}
                           </span>
                         </div>
                         <div>
@@ -1301,43 +1321,34 @@ export default function PedidosPage() {
               <div className="hidden md:block overflow-x-auto">
                 <table className="w-full text-left border-collapse">
                   <thead>
-                    <tr className="border-b border-slate-800 bg-slate-950/40 text-slate-400 font-semibold text-xs uppercase tracking-wider select-none">
-                      <th className="px-6 py-4">Portada</th>
-                      <th onClick={() => handleSort('cliente')} className="px-6 py-4 cursor-pointer hover:text-white transition text-left">
-                        Empresa / Cliente {sortField === 'cliente' ? (sortDirection === 'asc' ? ' ▲' : ' ▼') : ''}
+                    <tr className="border-b border-slate-800 bg-slate-950/40 text-slate-400 font-semibold text-xs uppercase tracking-wider select-none whitespace-nowrap">
+                      <th onClick={() => handleSort('cliente')} className={`${CELL_FIRST} cursor-pointer hover:text-white transition`}>
+                        Empresa / Cliente{sortArrow('cliente')}
                       </th>
-                      <th onClick={() => handleSort('productos')} className="px-6 py-4 text-center cursor-pointer hover:text-white transition">
-                        Productos {sortField === 'productos' ? (sortDirection === 'asc' ? ' ▲' : ' ▼') : ''}
+                      <th onClick={() => handleSort('productos')} className={`${CELL_MID} cursor-pointer hover:text-white transition`}>
+                        Productos{sortArrow('productos')}
                       </th>
-                      <th onClick={() => handleSort('prioridad')} className="px-6 py-4 cursor-pointer hover:text-white transition text-left">
-                        Prioridad {sortField === 'prioridad' ? (sortDirection === 'asc' ? ' ▲' : ' ▼') : ''}
+                      <th onClick={() => handleSort('estado')} className={`${CELL_MID} cursor-pointer hover:text-white transition`}>
+                        Estado{sortArrow('estado')}
                       </th>
-                      <th onClick={() => handleSort('estado')} className="px-6 py-4 cursor-pointer hover:text-white transition text-left">
-                        Estado {sortField === 'estado' ? (sortDirection === 'asc' ? ' ▲' : ' ▼') : ''}
-                      </th>
-                      <th onClick={() => handleSort('created_at')} className="px-6 py-4 cursor-pointer hover:text-white transition text-left">
-                        Fecha Creación {sortField === 'created_at' || sortField === 'fecha_entrega' ? (sortDirection === 'asc' ? ' ▲' : ' ▼') : ''}
+                      <th onClick={() => handleSort('created_at')} className={`${CELL_MID} cursor-pointer hover:text-white transition`}>
+                        Fecha{sortArrow('created_at', 'fecha_entrega')}
                       </th>
                       {!isOperario && (
-                        <th onClick={() => handleSort('precio')} className="px-6 py-4 text-right cursor-pointer hover:text-white transition">
-                          Precio {sortField === 'precio' ? (sortDirection === 'asc' ? ' ▲' : ' ▼') : ''}
+                        <th onClick={() => handleSort('precio')} className={`${CELL_MID} text-right cursor-pointer hover:text-white transition`}>
+                          Precio{sortArrow('precio')}
                         </th>
                       )}
-                      <th onClick={() => handleSort('user')} className="px-6 py-4 cursor-pointer hover:text-white transition text-left">
-                        Registrado por {sortField === 'user' ? (sortDirection === 'asc' ? ' ▲' : ' ▼') : ''}
+                      <th onClick={() => handleSort('user')} className={`${CELL_MID} cursor-pointer hover:text-white transition`}>
+                        Registrado por{sortArrow('user')}
                       </th>
-                      <th className="px-6 py-4 text-right">Acciones</th>
+                      <th className={`${CELL_LAST} text-right`}>Acciones</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-800 text-sm">
+                  <tbody className="divide-y divide-slate-800">
                     {displayedPedidos.map((pedido) => {
-                      const coverUrl =
-                        pedido.imagen_principal?.url ||
-                        pedido.imagenes?.find((img) => img.es_principal)?.url ||
-                        pedido.imagenes?.[0]?.url ||
-                        pedido.productos?.find((prod) => prod.imagen_principal?.url)?.imagen_principal?.url ||
-                        pedido.productos?.[0]?.imagen_principal?.url ||
-                        pedido.productos?.[0]?.imagenes?.[0]?.url
+                      const coverUrl = getPedidoCoverUrl(pedido)
+                      const fecha = formatFechaCorta(pedido.created_at)
 
                       return (
                         <tr
@@ -1345,107 +1356,65 @@ export default function PedidosPage() {
                           onClick={(e) => handleRowClick(e, pedido)}
                           className="hover:bg-slate-800/40 text-slate-300 transition duration-100 cursor-pointer"
                         >
-                          <td className="px-6 py-4">
-                            {coverUrl ? (
-                              <div
-                                data-prevent-row-click="true"
+                          {/* Miniatura (abre las imágenes del pedido) + empresa / cliente */}
+                          <td className={CELL_FIRST}>
+                            <div className="flex items-center gap-3 2xl:gap-4">
+                              <PedidoThumbnail
+                                url={coverUrl}
+                                alt={`Portada ${pedido.codigo}`}
+                                className="w-24 h-14 2xl:w-28 2xl:h-16"
                                 onClick={() => handleOpenImagesModal(pedido)}
-                                className="w-10 h-10 rounded-lg overflow-hidden border border-slate-700 bg-slate-950 relative flex items-center justify-center group shadow cursor-pointer hover:border-amber-500/80 transition duration-150"
-                                title="Ver o editar imágenes de portada del pedido"
-                              >
-                                {/* eslint-disable-next-line @next/next/no-img-element */}
-                                <img
-                                  src={coverUrl}
-                                  alt={`Portada ${pedido.codigo}`}
-                                  className="w-full h-full object-cover group-hover:scale-110 transition duration-200"
-                                />
-                              </div>
-                            ) : (
-                              <div
-                                data-prevent-row-click="true"
-                                onClick={() => handleOpenImagesModal(pedido)}
-                                className="w-10 h-10 rounded-lg border border-slate-800/80 bg-slate-950/50 flex items-center justify-center text-slate-600 text-xs cursor-pointer hover:border-slate-700 hover:text-slate-400 transition"
-                                title="Sin imagen - Hacer clic para agregar"
-                              >
-                                📷
-                              </div>
-                            )}
-                          </td>
-                          <td className="px-6 py-4">
-                            <div className="flex flex-col">
-                              <span className="font-semibold text-white text-sm">
-                                {pedido.cliente?.nombre_empresa || pedido.cliente?.nombre_cliente || `Pedido #${pedido.id}`}
-                              </span>
-                              {pedido.cliente?.nombre_empresa && pedido.cliente?.nombre_cliente && (
-                                <span className="text-xs text-slate-400 font-medium">
-                                  {pedido.cliente.nombre_cliente} • #{pedido.id}
+                                title={coverUrl ? 'Ver o editar imágenes del pedido' : 'Sin imagen - Hacer clic para agregar'}
+                              />
+                              <div className="min-w-[6.5rem] max-w-[14rem]">
+                                <span className="block font-bold text-white text-base leading-snug">
+                                  {pedido.cliente?.nombre_empresa || pedido.cliente?.nombre_cliente || `Pedido #${pedido.id}`}
                                 </span>
-                              )}
-                              {(!pedido.cliente?.nombre_empresa || !pedido.cliente?.nombre_cliente) && (
-                                <span className="text-xs text-slate-500 font-mono">
-                                  #{pedido.id}
-                                </span>
-                              )}
+                                {pedido.cliente?.nombre_empresa && pedido.cliente?.nombre_cliente ? (
+                                  <span className="block mt-1 text-xs font-medium text-slate-400">
+                                    {pedido.cliente.nombre_cliente} • #{pedido.id}
+                                  </span>
+                                ) : (
+                                  <span className="block mt-1 text-xs font-mono text-slate-500">#{pedido.id}</span>
+                                )}
+                              </div>
                             </div>
                           </td>
-                          <td className="px-6 py-4 max-w-xs">
+
+                          {/* Productos: hasta 2 y "+ N más" */}
+                          <td className={CELL_MID}>
                             {pedido.productos && pedido.productos.length > 0 ? (
-                              <div className="flex flex-col gap-1.5 items-stretch justify-center">
+                              <div className="flex flex-col items-start gap-1.5">
                                 {pedido.productos.slice(0, 2).map((prod) => {
                                   const qty = (prod as any).pivot?.cantidad
                                   return (
                                     <span
                                       key={prod.id}
-                                      className="bg-slate-950 border border-slate-800 text-slate-200 text-sm px-3 py-1.5 rounded-lg text-center font-medium shadow-sm transition hover:border-slate-700"
                                       title={prod.descripcion || ''}
+                                      className="inline-block max-w-[20rem] rounded-lg border border-slate-700/60 bg-slate-800/40 px-2.5 py-1 text-sm font-medium leading-snug text-slate-200"
                                     >
-                                      {prod.nombre} {qty ? `(x${qty})` : ''}
+                                      {prod.nombre}
+                                      {qty ? <> <span className="ml-0.5 whitespace-nowrap text-xs font-semibold text-slate-400">x{qty}</span></> : null}
                                     </span>
                                   )
                                 })}
                                 {pedido.productos.length > 2 && (
-                                  <span className="text-[10px] text-slate-500 font-bold text-center mt-0.5 select-none">
+                                  <span className="pl-1 text-xs font-semibold text-slate-500">
                                     + {pedido.productos.length - 2} más
                                   </span>
                                 )}
                               </div>
                             ) : (
-                              <span className="text-slate-650 italic text-xs block text-center">Ninguno</span>
+                              <span className="text-xs italic text-slate-500">Ninguno</span>
                             )}
                           </td>
-                          <td className="px-6 py-4">
-                            <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold capitalize ${getPriorityBadgeClass(pedido.prioridad)}`}>
-                              {pedido.prioridad}
-                            </span>
-                          </td>
-                          <td className="px-6 py-4">
-                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold uppercase tracking-wide ${getStatusBadgeClass(pedido.estado)}`}>
-                              {getStatusLabel(pedido.estado)}
-                            </span>
-                          </td>
-                          <td className="px-6 py-4 text-xs text-slate-400">
-                            {pedido.created_at ? (
-                              new Date(pedido.created_at).toLocaleDateString('es-ES', {
-                                year: 'numeric',
-                                month: 'short',
-                                day: 'numeric'
-                              })
-                            ) : (
-                              <span className="text-slate-600 italic">-</span>
-                            )}
-                          </td>
-                          {!isOperario && (
-                            <td className="px-6 py-4 text-right text-xs font-semibold text-white">
-                              {pedido.precio !== null && pedido.precio !== undefined ? (
-                                `$ ${parseFloat(pedido.precio.toString()).toLocaleString('es-AR', { minimumFractionDigits: 2 })}`
-                              ) : (
-                                <span className="text-slate-600 italic">-</span>
-                              )}
-                            </td>
-                          )}
-                          <td className="px-6 py-4 text-xs text-slate-400">{pedido.user?.name || 'Desconocido'}</td>
-                          <td className="px-6 py-4 text-right">
-                            <div className="flex justify-end gap-2.5">
+
+                          {/* Estado (+ botón para pasar a producción si está pendiente) */}
+                          <td className={CELL_MID}>
+                            <div className="flex flex-col items-start gap-1.5">
+                              <span className={`inline-flex items-center whitespace-nowrap px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide ${getStatusBadgeClass(pedido.estado)}`}>
+                                {getStatusLabel(pedido.estado)}
+                              </span>
                               {pedido.estado === 'pendiente' && (
                                 <button
                                   onClick={async () => {
@@ -1461,24 +1430,44 @@ export default function PedidosPage() {
                                       setError(err instanceof Error ? err.message : 'Error al enviar a producción')
                                     }
                                   }}
-                                  className="bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-500/40 text-xs px-2.5 py-1 rounded font-semibold transition flex items-center gap-1"
+                                  className="inline-flex items-center gap-1 whitespace-nowrap rounded-lg border border-cyan-500/40 bg-cyan-500/15 px-2.5 py-1 text-xs font-semibold text-cyan-300 transition hover:bg-cyan-500/25"
                                   title="Pasar pedido a 'Listo para producción'"
                                 >
                                   🚀 Habilitar Producción
                                 </button>
                               )}
+                            </div>
+                          </td>
+                          <td className={`${CELL_MID} whitespace-nowrap text-sm text-slate-300`}>
+                            {fecha || <span className="text-slate-600 italic">-</span>}
+                          </td>
+                          {!isOperario && (
+                            <td className={`${CELL_MID} whitespace-nowrap text-right text-sm font-semibold tabular-nums text-white`}>
+                              {pedido.precio !== null && pedido.precio !== undefined ? (
+                                `$ ${parseFloat(pedido.precio.toString()).toLocaleString('es-AR', { minimumFractionDigits: 2 })}`
+                              ) : (
+                                <span className="text-slate-600 italic font-normal">-</span>
+                              )}
+                            </td>
+                          )}
+                          <td className={`${CELL_MID} text-sm text-slate-400`}>{pedido.user?.name || 'Desconocido'}</td>
+
+                          <td className={CELL_LAST}>
+                            <div className="flex items-center justify-end gap-1.5">
                               <button
                                 onClick={() => handleOpenViewModal(pedido)}
-                                className="text-blue-400 hover:text-blue-300 p-1 hover:bg-blue-500/10 rounded transition"
+                                className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-blue-400 transition hover:bg-blue-500/10 hover:text-blue-300"
                                 title="Ver detalles del pedido (Trello)"
+                                aria-label="Ver detalles del pedido"
                               >
                                 👁️
                               </button>
                               {!isOperario && (
                                 <button
                                   onClick={() => handleDelete(pedido.id)}
-                                  className="text-rose-400 hover:text-rose-300 p-1 hover:bg-rose-500/10 rounded transition"
+                                  className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-rose-400 transition hover:bg-rose-500/10 hover:text-rose-300"
                                   title="Dar de baja pedido"
+                                  aria-label="Dar de baja pedido"
                                 >
                                   🗑️
                                 </button>
