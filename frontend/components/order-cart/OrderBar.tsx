@@ -8,14 +8,14 @@ export const OrderBar = ({ onChangeClient }: { onChangeClient: () => void }) => 
     const client = useWatch({ control, name: 'client' })
 
     return (
-        <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
             {/* cliente asignado */}
-            <div className="flex items-center justify-center gap-[12px] pr-[10px] pl-[14px] py-1 bg-[#0f192b] border border-[#1b263d] rounded-[12px]">
+            <div className="flex min-w-0 items-center justify-center gap-[12px] pr-[10px] pl-[14px] py-1 bg-[#0f192b] border border-[#1b263d] rounded-[12px]">
                 <div className="h-10 w-10 shrink-0 place-items-center rounded-full bg-[#193a81]  font-bold text-white grid text-[14px]">{getInitials(client?.nombre_cliente)}</div>
                 <div className="flex flex-col min-w-0 flex-1">
                     <label className="text-[10px] font-bold tracking-[.1em] uppercase text-[#8390ab]">Cliente asignado</label>
                     <p className='font-bold whitespace-nowrap overflow-hidden text-ellipsis text-[14px]' >{client?.nombre_cliente}</p>
-                    <p className='text-[#a8b3c8] text-[12px]'>{client?.nombre_empresa}</p>
+                    <p className='text-[#a8b3c8] text-[12px] truncate'>{client?.nombre_empresa}</p>
                 </div>
                 <button type="button" onClick={onChangeClient} className="shrink-0 border-0 bg-transparent px-[6px] py-2 rounded-lg text-[13px] font-semibold text-[#9db9f6] cursor-pointer">Cambiar</button>
             </div>

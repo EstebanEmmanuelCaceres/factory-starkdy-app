@@ -9,6 +9,7 @@ export interface Product {
   updated_at: string
   imagenes?: ProductImage[]
   imagen_principal?: ProductImage | null
+  precio: number | null
 }
 
 export interface CreateProductInput {

@@ -10,7 +10,7 @@ interface PaymentMethodOption {
     icon: (props: { className?: string }) => React.JSX.Element
 }
 
-const MEDIOS_PAGO: readonly PaymentMethodOption[] = [
+export const MEDIOS_PAGO: readonly PaymentMethodOption[] = [
     {
         value: 'transferencia',
         label: 'Transferencia',

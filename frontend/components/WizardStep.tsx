@@ -1,9 +1,10 @@
 import { Fragment } from "react";
 
-type WizardStep =
+export type WizardStep =
     | 'select_client'
     | 'client_confirmation'
     | 'order_details'
+    | 'order_summary'
     | 'order_confirmation';
 
 type StepStatus = 'active' | 'completed' | 'pending';
@@ -17,7 +18,7 @@ interface StepConfig {
 const STEPS: StepConfig[] = [
     { label: 'Cliente', steps: ['select_client', 'client_confirmation'] },
     { label: 'Pedido', steps: ['order_details'] },
-    { label: 'Resumen', steps: ['order_confirmation'] },
+    { label: 'Resumen', steps: ['order_summary', 'order_confirmation'] },
 ];
 
 const CIRCLE_STYLES: Record<StepStatus, string> = {

@@ -6,14 +6,20 @@ import { useModal } from './Modal/context/ModalContext'
 import { fetchClientes, type Cliente } from '@/lib/clientes'
 import { fetchProducts, type Product } from '@/lib/products'
 import { createPedido, type CreatePedidoInput, type Pedido } from '@/lib/pedidos'
-import { fetchEtapas } from '@/lib/entities/etapas'
-import { WizardStepper } from './WizardStep'
+import { WizardStepper, type WizardStep } from './WizardStep'
 import { OrderBar } from './order-cart/OrderBar'
-import { PaymentMethodField } from './order-cart/PaymentMethodField'
-import { FormProvider, useForm } from 'react-hook-form'
+import { InitialPaymentField } from './order-cart/InitialPaymentField'
+import { OrderFooterSummary } from './order-cart/OrderFooterSummary'
+import { WizardFooter, WIZARD_FOOTER_SPACE, type WizardFooterAction } from './WizardFooter'
+import { FormProvider, useFieldArray, useForm, useWatch } from 'react-hook-form'
 import { OrderFormValues, getDefaultOrderValues } from './order-cart/Types'
+import { ProductDrawer } from './order-cart/ProductDrawer'
+import { OrderSummary } from './order-cart/OrderSummary'
+import { OrderCreated } from './order-cart/OrderCreated'
+import { buildCreatePedidoPayload, generatePedidoCodigo } from './order-cart/buildPedidoPayload'
 
 export const CREATE_PEDIDO_MODAL_ID = 'create-pedido'
+const CREATE_CLIENTE_FORM_ID = 'wizard-create-cliente'
 
 export interface CreatePedidoModalProps {
   id?: string
@@ -37,12 +43,6 @@ const getPriorityBadgeClass = (priority: string) => {
   }
 }
 
-const getDefaultDeliveryDate = () => {
-  const d = new Date()
-  d.setDate(d.getDate() + 15)
-  return d.toISOString().split('T')[0]
-}
-
 export const CreatePedidoModal = ({
   id = CREATE_PEDIDO_MODAL_ID,
   clientes: propClientes,
@@ -56,32 +56,19 @@ export const CreatePedidoModal = ({
   const [productosList, setProductosList] = useState<Product[]>(propProductos || [])
 
   // Pasos del Wizard
-  const [wizardStep, setWizardStep] = useState<
-    'select_client' | 'client_confirmation' | 'order_details' | 'order_confirmation'
-  >('select_client')
+  const [wizardStep, setWizardStep] = useState<WizardStep>('select_client')
 
   // Estado del selector / registro de cliente
   const [clientMode, setClientMode] = useState<'search' | 'create'>('search')
   const [clientSearchText, setClientSearchText] = useState('')
   const [isClientDropdownOpen, setIsClientDropdownOpen] = useState(false)
   const [selectedWizardClient, setSelectedWizardClient] = useState<Cliente | null>(null)
-  const [wizardNewClient, setWizardNewClient] = useState<any | null>(null)
+  const [wizardNewClient, setWizardNewClient] = useState<CreatePedidoInput['cliente'] | null>(null)
 
-  // Datos del pedido
+  // Cliente elegido en el paso 1 y código del pedido (el resto vive en el form de RHF)
   const [formData, setFormData] = useState({
     cliente_id: '',
     codigo: '',
-    prioridad: 'normal' as 'baja' | 'normal' | 'alta' | 'critica',
-    fecha_entrega: getDefaultDeliveryDate(),
-    estado: 'pendiente',
-    selectedProductIds: [] as number[],
-    productQuantities: {} as Record<number, number>,
-    precio: '',
-    comentario: '',
-    tipo_pago: 'parcial' as 'unico' | 'parcial',
-    monto_pago_inicial: '',
-    medio_pago_inicial: 'transferencia',
-    observaciones_pago_inicial: ''
   })
 
   // Formulario de nuevo cliente rápido
@@ -99,12 +86,18 @@ export const CreatePedidoModal = ({
     observaciones: ''
   })
 
-  // Etapas de productos asociados
-  const [localEtapas, setLocalEtapas] = useState<any[]>([])
   const [productSearchQuery, setProductSearchQuery] = useState('')
   const [createdPedidoResult, setCreatedPedidoResult] = useState<Pedido | null>(null)
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
+
+  const methods = useForm<OrderFormValues>({ defaultValues: getDefaultOrderValues() })
+  const { fields: lineFields, append: appendLine, remove: removeLine } = useFieldArray({
+    control: methods.control,
+    name: 'lines',
+  })
+  const watchedLines = useWatch({ control: methods.control, name: 'lines' })
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
 
   // Sincronizar catálogos si vienen por props o cargarlos al abrir
   useEffect(() => {
@@ -130,8 +123,7 @@ export const CreatePedidoModal = ({
     if (isOpen) {
       setFormData(prev => ({
         ...prev,
-        codigo: `PD-${Date.now().toString().slice(-6)}`,
-        fecha_entrega: getDefaultDeliveryDate()
+        codigo: generatePedidoCodigo(),
       }))
     }
   }, [isOpen])
@@ -147,21 +139,11 @@ export const CreatePedidoModal = ({
     setProductSearchQuery('')
     setError('')
     setSubmitting(false)
-    setLocalEtapas([])
+    setSelectedProduct(null)
+    methods.reset(getDefaultOrderValues())
     setFormData({
       cliente_id: '',
-      codigo: `PD-${Date.now().toString().slice(-6)}`,
-      prioridad: 'normal',
-      fecha_entrega: getDefaultDeliveryDate(),
-      estado: 'pendiente',
-      selectedProductIds: [],
-      productQuantities: {},
-      precio: '',
-      comentario: '',
-      tipo_pago: 'parcial',
-      monto_pago_inicial: '',
-      medio_pago_inicial: 'transferencia',
-      observaciones_pago_inicial: ''
+      codigo: generatePedidoCodigo(),
     })
     setClienteFormData({
       nombre_cliente: '',
@@ -182,46 +164,6 @@ export const CreatePedidoModal = ({
     resetForm()
     close()
     onClose?.()
-  }
-
-  const handleProductCheckboxChange = async (productId: number) => {
-    const alreadySelected = formData.selectedProductIds.includes(productId)
-    const updatedIds = alreadySelected
-      ? formData.selectedProductIds.filter((id) => id !== productId)
-      : [...formData.selectedProductIds, productId]
-
-    const updatedQuantities = { ...formData.productQuantities }
-    if (alreadySelected) {
-      delete updatedQuantities[productId]
-      setLocalEtapas((stages) => stages.filter((s) => s.producto_id !== productId))
-    } else {
-      updatedQuantities[productId] = 0
-      try {
-        const productStages = await fetchEtapas({ producto_id: productId })
-        setLocalEtapas((prevEtapas) => {
-          const filtered = prevEtapas.filter((s) => s.producto_id !== productId)
-          return [...filtered, ...productStages]
-        })
-      } catch (err) {
-        console.error('Error al obtener etapas del producto:', err)
-      }
-    }
-
-    setFormData((prev) => ({
-      ...prev,
-      selectedProductIds: updatedIds,
-      productQuantities: updatedQuantities
-    }))
-  }
-
-  const handleProductQuantityChange = (productId: number, val: number) => {
-    setFormData((prev) => ({
-      ...prev,
-      productQuantities: {
-        ...prev.productQuantities,
-        [productId]: val
-      }
-    }))
   }
 
   const handleWizardCreateClienteSubmit = (e: React.FormEvent) => {
@@ -263,6 +205,11 @@ export const CreatePedidoModal = ({
     }
 
     setSelectedWizardClient(tempClient)
+    methods.setValue('client', {
+      id: null,
+      nombre_cliente: payload.nombre_cliente,
+      nombre_empresa: payload.nombre_empresa,
+    })
     setFormData((prev) => ({
       ...prev,
       cliente_id: 'new'
@@ -271,61 +218,14 @@ export const CreatePedidoModal = ({
     setWizardStep('order_details')
   }
 
-  const handleCreateSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
+  const handleCreatePedido = methods.handleSubmit(async (values) => {
     setError('')
-
-    if (!formData.cliente_id) {
-      setError('Falta seleccionar el cliente')
-      return
-    }
-
-    if (!formData.fecha_entrega) {
-      setError('Falta seleccionar la fecha estimada de entrega')
-      return
-    }
-
-    if (!formData.precio || isNaN(parseFloat(formData.precio))) {
-      setError('Falta ingresar el precio del pedido')
-      return
-    }
-
-    const montoInicialNum = formData.monto_pago_inicial ? parseFloat(formData.monto_pago_inicial) : 0
-    const precioNum = parseFloat(formData.precio)
-
-    if (montoInicialNum > 0 && montoInicialNum > precioNum) {
-      setError(`El pago inicial ($${montoInicialNum.toLocaleString('es-AR')}) no puede superar el precio total ($${precioNum.toLocaleString('es-AR')})`)
-      return
-    }
-
     setSubmitting(true)
     try {
-      const isNewClient = formData.cliente_id === 'new'
-      const payload: CreatePedidoInput = {
-        cliente_id: isNewClient ? null : parseInt(formData.cliente_id),
-        cliente: isNewClient ? wizardNewClient : null,
-        codigo: formData.codigo.trim() || `PD-${Date.now().toString().slice(-6)}`,
-        prioridad: formData.prioridad,
-        fecha_entrega: formData.fecha_entrega,
-        precio: precioNum,
-        comentario: formData.comentario || null,
-        tipo_pago: formData.tipo_pago,
-        monto_pago_inicial: montoInicialNum > 0 ? montoInicialNum : null,
-        medio_pago_inicial: montoInicialNum > 0 ? formData.medio_pago_inicial : null,
-        observaciones_pago_inicial: montoInicialNum > 0 ? formData.observaciones_pago_inicial : null,
-        productos: formData.selectedProductIds.map((pid) => ({
-          id: pid,
-          cantidad: formData.productQuantities[pid] || 1
-        })),
-        etapas: localEtapas.map((s, index) => ({
-          id: s.id || null,
-          temp_id: s.temp_id || null,
-          producto_id: s.producto_id,
-          nombre: s.nombre,
-          orden: index + 1
-        }))
-      }
-
+      const payload = buildCreatePedidoPayload(values, {
+        codigo: formData.codigo || generatePedidoCodigo(),
+        newClient: wizardNewClient,
+      })
       const newPedido = await createPedido(payload)
       setCreatedPedidoResult(newPedido)
       onPedidoCreated?.(newPedido)
@@ -335,15 +235,101 @@ export const CreatePedidoModal = ({
     } finally {
       setSubmitting(false)
     }
-  }
+  })
 
-  const methods = useForm<OrderFormValues>({ defaultValues: getDefaultOrderValues() })
+  const clientBlocked = Boolean(
+    selectedWizardClient?.alcanzo_limite ||
+    (Number(selectedWizardClient?.saldo || 0) > 0 &&
+      Number(selectedWizardClient?.total_pedidos || 0) >= Number(selectedWizardClient?.saldo || 0))
+  )
+
+  // Un solo footer para todo el wizard: cada etapa define sus acciones
+  const getFooter = (): { back?: WizardFooterAction; next?: WizardFooterAction; summary?: React.ReactNode } | null => {
+    switch (wizardStep) {
+      case 'select_client':
+        return clientMode === 'search'
+          ? {
+            back: { label: 'Cancelar', onClick: handleClose },
+            next: { label: 'Continuar', disabled: !formData.cliente_id || clientBlocked, onClick: () => setWizardStep('order_details') },
+          }
+          : {
+            back: { label: 'Cancelar', onClick: handleClose },
+            next: { label: 'Registrar y continuar', shortLabel: 'Registrar', type: 'submit', form: CREATE_CLIENTE_FORM_ID },
+          }
+      case 'client_confirmation':
+        return {
+          back: { label: 'Atrás', onClick: () => setWizardStep('select_client') },
+          next: { label: 'Continuar al pedido', shortLabel: 'Continuar', onClick: () => setWizardStep('order_details') },
+        }
+      case 'order_details':
+        return {
+          back: { label: 'Volver', onClick: () => setWizardStep('client_confirmation') },
+          next: {
+            label: 'Continuar al resumen',
+            shortLabel: 'Continuar',
+            disabled: watchedLines.length === 0,
+            onClick: methods.handleSubmit(() => {
+              setError('')
+              setWizardStep('order_summary')
+            }),
+          },
+          summary: <OrderFooterSummary />,
+        }
+      case 'order_summary':
+        return {
+          back: { label: 'Volver al pedido', onClick: () => setWizardStep('order_details') },
+          next: {
+            label: submitting ? 'Creando pedido…' : 'Crear pedido',
+            shortLabel: submitting ? 'Creando…' : 'Crear pedido',
+            disabled: submitting || watchedLines.length === 0,
+            onClick: handleCreatePedido,
+          },
+          summary: <OrderFooterSummary />,
+        }
+      case 'order_confirmation':
+        return {
+          next: { label: 'Finalizar', onClick: handleClose },
+        }
+      default:
+        return null
+    }
+  }
+  const footer = getFooter()
+
+  const filteredProducts = productosList.filter((p) =>
+    p.nombre.toLowerCase().includes(productSearchQuery.trim().toLowerCase())
+  )
+  const getProductName = (productId: number) =>
+    productosList.find((p) => p.id === productId)?.nombre ?? `Producto #${productId}`
 
   if (!isOpen) return null
 
   return (
-    <Modal id={id} onClose={handleClose}>
-      <FormProvider {...methods}>
+    <FormProvider {...methods}>
+      <Modal
+        id={id}
+        onClose={handleClose}
+        className="h-[90vh]"
+        bodyClassName={`[scrollbar-gutter:stable] ${footer ? WIZARD_FOOTER_SPACE : ''}`}
+        containerClassName="has-[[data-product-drawer]]:!overflow-y-hidden has-[[data-product-drawer]]:!overflow-hidden"
+        footer={
+          <>
+            {footer && (
+              <WizardFooter back={footer.back} next={footer.next}>
+                {footer.summary}
+              </WizardFooter>
+            )}
+            {selectedProduct && (
+              <ProductDrawer
+                key={selectedProduct.id}
+                product={selectedProduct}
+                onAdd={appendLine}
+                onClose={() => setSelectedProduct(null)}
+              />
+            )}
+          </>
+        }
+      >
         <div className='flex flex-wrap relative pb-4 border-b border-slate-800 w-full justify-between'>
           <h2 className="text-xl font-bold text-white">Registrar Nuevo Pedido</h2>
           <WizardStepper currentStep={wizardStep} />
@@ -569,35 +555,10 @@ export const CreatePedidoModal = ({
                   </div>
                 )}
 
-                <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-800 mt-6">
-                  <button
-                    type="button"
-                    onClick={handleClose}
-                    className="px-4 py-2 rounded-lg text-sm text-slate-400 hover:text-white hover:bg-slate-800 transition cursor-pointer"
-                  >
-                    Cancelar
-                  </button>
-                  <button
-                    type="button"
-                    disabled={
-                      !formData.cliente_id ||
-                      Boolean(
-                        selectedWizardClient?.alcanzo_limite ||
-                        (Number(selectedWizardClient?.saldo || 0) > 0 &&
-                          Number(selectedWizardClient?.total_pedidos || 0) >=
-                          Number(selectedWizardClient?.saldo || 0))
-                      )
-                    }
-                    onClick={() => setWizardStep('order_details')}
-                    className="px-4 py-2 rounded-lg text-sm bg-blue-600 hover:bg-blue-500 disabled:bg-slate-800 disabled:text-slate-500 text-white font-medium shadow transition hover:scale-[1.02] active:scale-[0.98] disabled:scale-100 cursor-pointer"
-                  >
-                    Continuar ➡️
-                  </button>
-                </div>
               </div>
             ) : (
               /* Formulario de Registro Rápido integrado */
-              <form onSubmit={handleWizardCreateClienteSubmit} className="space-y-4 text-left">
+              <form id={CREATE_CLIENTE_FORM_ID} onSubmit={handleWizardCreateClienteSubmit} className="space-y-4 text-left">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
@@ -785,21 +746,6 @@ export const CreatePedidoModal = ({
                   </div>
                 </details>
 
-                <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-800 mt-6">
-                  <button
-                    type="button"
-                    onClick={handleClose}
-                    className="px-4 py-2 rounded-lg text-sm text-slate-400 hover:text-white hover:bg-slate-800 transition cursor-pointer"
-                  >
-                    Cancelar
-                  </button>
-                  <button
-                    type="submit"
-                    className="px-4 py-2 rounded-lg text-sm bg-blue-600 hover:bg-blue-500 text-white font-medium shadow transition hover:scale-[1.02] active:scale-[0.98] cursor-pointer"
-                  >
-                    Registrar y Continuar ➡️
-                  </button>
-                </div>
               </form>
             )}
           </div>
@@ -847,422 +793,104 @@ export const CreatePedidoModal = ({
               </div>
             </div>
 
-            <div className="flex items-center justify-center gap-3 pt-6 border-t border-slate-800">
-              <button
-                type="button"
-                onClick={() => setWizardStep('select_client')}
-                className="px-4 py-2 rounded-lg text-sm text-slate-400 hover:text-white hover:bg-slate-800 transition cursor-pointer"
-              >
-                Atrás
-              </button>
-              <button
-                type="button"
-                onClick={() => setWizardStep('order_details')}
-                className="px-5 py-2 rounded-lg text-sm bg-blue-600 hover:bg-blue-500 text-white font-semibold shadow transition hover:scale-[1.02] active:scale-[0.98] cursor-pointer"
-              >
-                Continuar al Pedido ➡️
-              </button>
-            </div>
           </div>
         )}
 
         {/* Paso 2: Creación de Pedido */}
         {selectedWizardClient && wizardStep === 'order_details' && (
           <>
-            <div className='px-6 py-4 border-b border-[#1b263d]'>
+            <div className='sm:px-6 py-4 border-b border-[#1b263d]'>
               <OrderBar onChangeClient={() => setWizardStep('select_client')} />
             </div>
-            <div className="w-full flex-1 min-h-0 block lg:grid grid-cols-[minmax(0,1fr)_420px] grid-rows-[minmax(0,1fr)]">
-              <section id="products" className='w-full px-6 pb-7 overflow-auto scrollbar-thin scrollbar-thumb-slate-800 scrollbar-track-slate-900 relative'>
-                <div className="flex items-center gap-2 w-full sticky pt-5 pb-[14px] top-0 bg-slate-900 ">
-                  <input type="text" className='w-full h-[44px] rounded-[10px] border border-[#2a3a59] bg-[#08101d] text-[#e7ecf5] font-[inherit] text-[14px] outline-none transition-[border-color,box-shadow] duration-150 [color-scheme:dark] min-h-11 resize-y py-[11px] px-[14px] leading-[1.45]' placeholder="Buscar un producto..." />
+            <div className="w-full flex-none block lg:flex-1 lg:min-h-0 lg:grid grid-cols-[minmax(0,1fr)_420px] grid-rows-[minmax(0,1fr)]">
+              <section id="products" className='w-full sm:px-6 pb-7 lg:overflow-auto scrollbar-thin scrollbar-thumb-slate-800 scrollbar-track-slate-900 relative'>
+                <div className="flex items-center gap-2 w-full sticky pt-5 pb-[14px] -top-6 lg:top-0 z-20 bg-slate-900">
+                  <input type="text" value={productSearchQuery} onChange={(e) => setProductSearchQuery(e.target.value)} className='w-full h-[44px] rounded-[10px] border border-[#2a3a59] bg-[#08101d] text-[#e7ecf5] font-[inherit] text-[14px] outline-none transition-[border-color,box-shadow] duration-150 [color-scheme:dark] min-h-11 resize-y py-[11px] px-[14px] leading-[1.45]' placeholder="Buscar un producto..." />
                 </div>
                 <div className='grid grid-cols-[repeat(auto-fill,minmax(212px,1fr))] gap-[14px]'>
-                  <div className='group flex flex-col overflow-hidden rounded-[14px] border border-[#1b263d] bg-[#0f192b] text-left text-[#e7ecf5] transition duration-150 hover:-translate-y-0.5 hover:border-[#3b4f7a] hover:shadow-[0_12px_28px_rgba(0,0,0,0.35)] cursor-pointer'>
-                    {/* Imagen */}
-                    {/* Contenido */}
-                    <div className="flex flex-1 flex-col px-3.5 pb-3.5 pt-3">
-                      <p className="text-[15px] font-semibold text-[#e7ecf5]">Nombre de producto</p>
-                      <div className="flex items-center justify-between mt-5 pt-2.5">
-                        <p className="text-[15px] font-bold tabular-nums">
-                          <span className="text-xs font-medium text-[#8390ab]">desde </span>
-                          2000
-                          <span className="text-xs font-medium text-[#8390ab]"> /u</span>
-                        </p>
-                        <button
-                          type="button"
-                          className="grid size-9 shrink-0 place-items-center rounded-[10px] border border-[#2a3a59] text-[#a8b3c8] transition-colors group-hover:border-[#2563eb] group-hover:bg-[#2563eb] group-hover:text-white"
-                        >
-                          <svg viewBox="0 0 24 24" className="size-[18px] fill-none stroke-current stroke-2 [stroke-linecap:round]">
-                            <path d="M12 5v14M5 12h14" />
-                          </svg>
-                        </button>
+                  {filteredProducts.map((product) => (
+                    <div
+                      key={product.id}
+                      onClick={() => setSelectedProduct(product)}
+                      className='group flex flex-col overflow-hidden rounded-[14px] border border-[#1b263d] bg-[#0f192b] text-left text-[#e7ecf5] transition duration-150 hover:-translate-y-0.5 hover:border-[#3b4f7a] hover:shadow-[0_12px_28px_rgba(0,0,0,0.35)] cursor-pointer'
+                    >
+                      {/* Imagen */}
+                      {product.imagen_principal?.url && (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={product.imagen_principal.url} alt="" className="aspect-[4/3] w-full object-cover" />
+                      )}
+                      {/* Contenido */}
+                      <div className="flex flex-1 flex-col px-3.5 pb-3.5 pt-3">
+                        <p className="text-[15px] font-semibold text-[#e7ecf5]">{product.nombre}</p>
+                        <div className="flex items-center justify-between mt-auto pt-2.5">
+                          <p className='text-[12px] text-[#a8b3c8]'>desde ${product.precio}</p>
+                          <button
+                            type="button"
+                            aria-label={`Agregar ${product.nombre}`}
+                            className="grid size-9 shrink-0 place-items-center rounded-[10px] border border-[#2a3a59] text-[#a8b3c8] transition-colors group-hover:border-[#2563eb] group-hover:bg-[#2563eb] group-hover:text-white"
+                          >
+                            <svg viewBox="0 0 24 24" className="size-[18px] fill-none stroke-current stroke-2 [stroke-linecap:round]">
+                              <path d="M12 5v14M5 12h14" />
+                            </svg>
+                          </button>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                  <div className='group flex flex-col overflow-hidden rounded-[14px] border border-[#1b263d] bg-[#0f192b] text-left text-[#e7ecf5] transition duration-150 hover:-translate-y-0.5 hover:border-[#3b4f7a] hover:shadow-[0_12px_28px_rgba(0,0,0,0.35)] cursor-pointer'>
-                    {/* Imagen */}
-                    {/* Contenido */}
-                    <div className="flex flex-1 flex-col px-3.5 pb-3.5 pt-3">
-                      <p className="text-[15px] font-semibold text-[#e7ecf5]">Nombre de producto</p>
-                      <div className="flex items-center justify-between mt-5 pt-2.5">
-                        <p className="text-[15px] font-bold tabular-nums">
-                          <span className="text-xs font-medium text-[#8390ab]">desde </span>
-                          2000
-                          <span className="text-xs font-medium text-[#8390ab]"> /u</span>
-                        </p>
-                        <button
-                          type="button"
-                          className="grid size-9 shrink-0 place-items-center rounded-[10px] border border-[#2a3a59] text-[#a8b3c8] transition-colors group-hover:border-[#2563eb] group-hover:bg-[#2563eb] group-hover:text-white"
-                        >
-                          <svg viewBox="0 0 24 24" className="size-[18px] fill-none stroke-current stroke-2 [stroke-linecap:round]">
-                            <path d="M12 5v14M5 12h14" />
-                          </svg>
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                  <div className='group flex flex-col overflow-hidden rounded-[14px] border border-[#1b263d] bg-[#0f192b] text-left text-[#e7ecf5] transition duration-150 hover:-translate-y-0.5 hover:border-[#3b4f7a] hover:shadow-[0_12px_28px_rgba(0,0,0,0.35)] cursor-pointer'>
-                    {/* Imagen */}
-                    {/* Contenido */}
-                    <div className="flex flex-1 flex-col px-3.5 pb-3.5 pt-3">
-                      <p className="text-[15px] font-semibold text-[#e7ecf5]">Nombre de producto</p>
-                      <div className="flex items-center justify-between mt-5 pt-2.5">
-                        <p className="text-[15px] font-bold tabular-nums">
-                          <span className="text-xs font-medium text-[#8390ab]">desde </span>
-                          2000
-                          <span className="text-xs font-medium text-[#8390ab]"> /u</span>
-                        </p>
-                        <button
-                          type="button"
-                          className="grid size-9 shrink-0 place-items-center rounded-[10px] border border-[#2a3a59] text-[#a8b3c8] transition-colors group-hover:border-[#2563eb] group-hover:bg-[#2563eb] group-hover:text-white"
-                        >
-                          <svg viewBox="0 0 24 24" className="size-[18px] fill-none stroke-current stroke-2 [stroke-linecap:round]">
-                            <path d="M12 5v14M5 12h14" />
-                          </svg>
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                  <div className='group flex flex-col overflow-hidden rounded-[14px] border border-[#1b263d] bg-[#0f192b] text-left text-[#e7ecf5] transition duration-150 hover:-translate-y-0.5 hover:border-[#3b4f7a] hover:shadow-[0_12px_28px_rgba(0,0,0,0.35)] cursor-pointer'>
-                    {/* Imagen */}
-                    {/* Contenido */}
-                    <div className="flex flex-1 flex-col px-3.5 pb-3.5 pt-3">
-                      <p className="text-[15px] font-semibold text-[#e7ecf5]">Nombre de producto</p>
-                      <div className="flex items-center justify-between mt-5 pt-2.5">
-                        <p className="text-[15px] font-bold tabular-nums">
-                          <span className="text-xs font-medium text-[#8390ab]">desde </span>
-                          2000
-                          <span className="text-xs font-medium text-[#8390ab]"> /u</span>
-                        </p>
-                        <button
-                          type="button"
-                          className="grid size-9 shrink-0 place-items-center rounded-[10px] border border-[#2a3a59] text-[#a8b3c8] transition-colors group-hover:border-[#2563eb] group-hover:bg-[#2563eb] group-hover:text-white"
-                        >
-                          <svg viewBox="0 0 24 24" className="size-[18px] fill-none stroke-current stroke-2 [stroke-linecap:round]">
-                            <path d="M12 5v14M5 12h14" />
-                          </svg>
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                  <div className='group flex flex-col overflow-hidden rounded-[14px] border border-[#1b263d] bg-[#0f192b] text-left text-[#e7ecf5] transition duration-150 hover:-translate-y-0.5 hover:border-[#3b4f7a] hover:shadow-[0_12px_28px_rgba(0,0,0,0.35)] cursor-pointer'>
-                    {/* Imagen */}
-                    {/* Contenido */}
-                    <div className="flex flex-1 flex-col px-3.5 pb-3.5 pt-3">
-                      <p className="text-[15px] font-semibold text-[#e7ecf5]">Nombre de producto</p>
-                      <div className="flex items-center justify-between mt-5 pt-2.5">
-                        <p className="text-[15px] font-bold tabular-nums">
-                          <span className="text-xs font-medium text-[#8390ab]">desde </span>
-                          2000
-                          <span className="text-xs font-medium text-[#8390ab]"> /u</span>
-                        </p>
-                        <button
-                          type="button"
-                          className="grid size-9 shrink-0 place-items-center rounded-[10px] border border-[#2a3a59] text-[#a8b3c8] transition-colors group-hover:border-[#2563eb] group-hover:bg-[#2563eb] group-hover:text-white"
-                        >
-                          <svg viewBox="0 0 24 24" className="size-[18px] fill-none stroke-current stroke-2 [stroke-linecap:round]">
-                            <path d="M12 5v14M5 12h14" />
-                          </svg>
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                  <div className='group flex flex-col overflow-hidden rounded-[14px] border border-[#1b263d] bg-[#0f192b] text-left text-[#e7ecf5] transition duration-150 hover:-translate-y-0.5 hover:border-[#3b4f7a] hover:shadow-[0_12px_28px_rgba(0,0,0,0.35)] cursor-pointer'>
-                    {/* Imagen */}
-                    {/* Contenido */}
-                    <div className="flex flex-1 flex-col px-3.5 pb-3.5 pt-3">
-                      <p className="text-[15px] font-semibold text-[#e7ecf5]">Nombre de producto</p>
-                      <div className="flex items-center justify-between mt-5 pt-2.5">
-                        <p className="text-[15px] font-bold tabular-nums">
-                          <span className="text-xs font-medium text-[#8390ab]">desde </span>
-                          2000
-                          <span className="text-xs font-medium text-[#8390ab]"> /u</span>
-                        </p>
-                        <button
-                          type="button"
-                          className="grid size-9 shrink-0 place-items-center rounded-[10px] border border-[#2a3a59] text-[#a8b3c8] transition-colors group-hover:border-[#2563eb] group-hover:bg-[#2563eb] group-hover:text-white"
-                        >
-                          <svg viewBox="0 0 24 24" className="size-[18px] fill-none stroke-current stroke-2 [stroke-linecap:round]">
-                            <path d="M12 5v14M5 12h14" />
-                          </svg>
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                  <div className='group flex flex-col overflow-hidden rounded-[14px] border border-[#1b263d] bg-[#0f192b] text-left text-[#e7ecf5] transition duration-150 hover:-translate-y-0.5 hover:border-[#3b4f7a] hover:shadow-[0_12px_28px_rgba(0,0,0,0.35)] cursor-pointer'>
-                    {/* Imagen */}
-                    {/* Contenido */}
-                    <div className="flex flex-1 flex-col px-3.5 pb-3.5 pt-3">
-                      <p className="text-[15px] font-semibold text-[#e7ecf5]">Nombre de producto</p>
-                      <div className="flex items-center justify-between mt-5 pt-2.5">
-                        <p className="text-[15px] font-bold tabular-nums">
-                          <span className="text-xs font-medium text-[#8390ab]">desde </span>
-                          2000
-                          <span className="text-xs font-medium text-[#8390ab]"> /u</span>
-                        </p>
-                        <button
-                          type="button"
-                          className="grid size-9 shrink-0 place-items-center rounded-[10px] border border-[#2a3a59] text-[#a8b3c8] transition-colors group-hover:border-[#2563eb] group-hover:bg-[#2563eb] group-hover:text-white"
-                        >
-                          <svg viewBox="0 0 24 24" className="size-[18px] fill-none stroke-current stroke-2 [stroke-linecap:round]">
-                            <path d="M12 5v14M5 12h14" />
-                          </svg>
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                  <div className='group flex flex-col overflow-hidden rounded-[14px] border border-[#1b263d] bg-[#0f192b] text-left text-[#e7ecf5] transition duration-150 hover:-translate-y-0.5 hover:border-[#3b4f7a] hover:shadow-[0_12px_28px_rgba(0,0,0,0.35)] cursor-pointer'>
-                    {/* Imagen */}
-                    {/* Contenido */}
-                    <div className="flex flex-1 flex-col px-3.5 pb-3.5 pt-3">
-                      <p className="text-[15px] font-semibold text-[#e7ecf5]">Nombre de producto</p>
-                      <div className="flex items-center justify-between mt-5 pt-2.5">
-                        <p className="text-[15px] font-bold tabular-nums">
-                          <span className="text-xs font-medium text-[#8390ab]">desde </span>
-                          2000
-                          <span className="text-xs font-medium text-[#8390ab]"> /u</span>
-                        </p>
-                        <button
-                          type="button"
-                          className="grid size-9 shrink-0 place-items-center rounded-[10px] border border-[#2a3a59] text-[#a8b3c8] transition-colors group-hover:border-[#2563eb] group-hover:bg-[#2563eb] group-hover:text-white"
-                        >
-                          <svg viewBox="0 0 24 24" className="size-[18px] fill-none stroke-current stroke-2 [stroke-linecap:round]">
-                            <path d="M12 5v14M5 12h14" />
-                          </svg>
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                  <div className='group flex flex-col overflow-hidden rounded-[14px] border border-[#1b263d] bg-[#0f192b] text-left text-[#e7ecf5] transition duration-150 hover:-translate-y-0.5 hover:border-[#3b4f7a] hover:shadow-[0_12px_28px_rgba(0,0,0,0.35)] cursor-pointer'>
-                    {/* Imagen */}
-                    {/* Contenido */}
-                    <div className="flex flex-1 flex-col px-3.5 pb-3.5 pt-3">
-                      <p className="text-[15px] font-semibold text-[#e7ecf5]">Nombre de producto</p>
-                      <div className="flex items-center justify-between mt-5 pt-2.5">
-                        <p className="text-[15px] font-bold tabular-nums">
-                          <span className="text-xs font-medium text-[#8390ab]">desde </span>
-                          2000
-                          <span className="text-xs font-medium text-[#8390ab]"> /u</span>
-                        </p>
-                        <button
-                          type="button"
-                          className="grid size-9 shrink-0 place-items-center rounded-[10px] border border-[#2a3a59] text-[#a8b3c8] transition-colors group-hover:border-[#2563eb] group-hover:bg-[#2563eb] group-hover:text-white"
-                        >
-                          <svg viewBox="0 0 24 24" className="size-[18px] fill-none stroke-current stroke-2 [stroke-linecap:round]">
-                            <path d="M12 5v14M5 12h14" />
-                          </svg>
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                  <div className='group flex flex-col overflow-hidden rounded-[14px] border border-[#1b263d] bg-[#0f192b] text-left text-[#e7ecf5] transition duration-150 hover:-translate-y-0.5 hover:border-[#3b4f7a] hover:shadow-[0_12px_28px_rgba(0,0,0,0.35)] cursor-pointer'>
-                    {/* Imagen */}
-                    {/* Contenido */}
-                    <div className="flex flex-1 flex-col px-3.5 pb-3.5 pt-3">
-                      <p className="text-[15px] font-semibold text-[#e7ecf5]">Nombre de producto</p>
-                      <div className="flex items-center justify-between mt-5 pt-2.5">
-                        <p className="text-[15px] font-bold tabular-nums">
-                          <span className="text-xs font-medium text-[#8390ab]">desde </span>
-                          2000
-                          <span className="text-xs font-medium text-[#8390ab]"> /u</span>
-                        </p>
-                        <button
-                          type="button"
-                          className="grid size-9 shrink-0 place-items-center rounded-[10px] border border-[#2a3a59] text-[#a8b3c8] transition-colors group-hover:border-[#2563eb] group-hover:bg-[#2563eb] group-hover:text-white"
-                        >
-                          <svg viewBox="0 0 24 24" className="size-[18px] fill-none stroke-current stroke-2 [stroke-linecap:round]">
-                            <path d="M12 5v14M5 12h14" />
-                          </svg>
-                        </button>
-                      </div>
-                    </div>
-                  </div>
+                  ))}
                 </div>
               </section>
               {/* Panel derecho: Productos del pedido */}
-              <aside id="resume-order" className="flex flex-col pt-5 px-5 pb-6 gap-3.5 border-l border-[#1b263d]">
+              <aside id="resume-order" className="flex flex-col lg:pt-5 lg:px-5 lg:pb-6 gap-3.5 lg:border-l lg:border-[#1b263d] border-none lg:overflow-auto scrollbar-track-slate-900">
                 <div className="flex justify-between">
                   <p className="text-[12px] font-semibold tracking-[.1em] uppercase text-[#a8b3c8]">Productos del pedido</p>
-                  <span>(0)</span>
+                  <span>({lineFields.length})</span>
                 </div>
-                <div className="flex flex-col items-center gap-1.5 bg-[#0f192b] border-dashed border-[#2a3a59] border rounded-[12px] py-7 px-4 text-center text-[#8390ab] stroke-current stroke-2 fill-none">
-                  <svg data-dc-tpl="229" className="w-[26px] h-[26px]" viewBox="0 0 24 24" aria-hidden="true"><path data-dc-tpl="230" d="M3 7.5l9-4.5 9 4.5-9 4.5z"></path><path data-dc-tpl="231" d="M3 7.5v9l9 4.5 9-4.5v-9"></path><path data-dc-tpl="232" d="M12 12v9"></path></svg>
-                  <p className="text-[15px] text-[#e7ecf5]">Todavía no agregaste productos</p>
-                  <p className="text-[13px] text-[#a8b3c8]">Buscalos por nombre o tocá uno del catálogo para configurarlo.</p>
-                </div>
-                <div className='flex flex-col gap-2.5 p-3.5 border border-[#34d39947] rounded-[12px] bg-[#0a1918]'>
-                  <div className='flex items-center gap-2 text-[12px] font-bold uppercase tracking-[.08em] text-[#34d399]'>
-                    <svg data-dc-tpl="300" className="stroke-current stroke-2 fill-none w-[16px] h-[16px]" viewBox="0 0 24 24" aria-hidden="true"><rect data-dc-tpl="301" x="2.5" y="6" width="19" height="12" rx="2"></rect><circle data-dc-tpl="302" cx="12" cy="12" r="2.6"></circle><path data-dc-tpl="303" d="M6 9.5v5M18 9.5v5"></path></svg>
-                    <p>Pago inicial / adelanto</p>
-                    <p className='ml-auto text-[11px] font-semibold tracking-normal text-[#8390ab] normal-case'>Opcional</p>
+                {lineFields.length > 0 ? (
+                  <ul className="flex flex-col gap-2">
+                    {lineFields.map((line, index) => (
+                      <li key={line.id} className="flex items-center gap-3 rounded-[12px] border border-[#1b263d] bg-[#0f192b] px-3.5 py-2.5">
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-[14px] font-semibold text-[#e7ecf5]">{getProductName(line.productId)}</p>
+                          <p className="text-[12px] text-[#a8b3c8]">
+                            {line.quantity} u.{line.unitPriceOverride != null && ` · $ ${line.unitPriceOverride} c/u`}
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          aria-label="Quitar producto"
+                          onClick={() => removeLine(index)}
+                          className="grid size-8 place-items-center rounded-lg text-[#8390ab] hover:bg-[#152139] hover:text-rose-400 cursor-pointer"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <div className="flex flex-col items-center gap-1.5 bg-[#0f192b] border-dashed border-[#2a3a59] border rounded-[12px] py-7 px-4 text-center text-[#8390ab] stroke-current stroke-2 fill-none">
+                    <svg data-dc-tpl="229" className="w-[26px] h-[26px]" viewBox="0 0 24 24" aria-hidden="true"><path data-dc-tpl="230" d="M3 7.5l9-4.5 9 4.5-9 4.5z"></path><path data-dc-tpl="231" d="M3 7.5v9l9 4.5 9-4.5v-9"></path><path data-dc-tpl="232" d="M12 12v9"></path></svg>
+                    <p className="text-[15px] text-[#e7ecf5]">Todavía no agregaste productos</p>
+                    <p className="text-[13px] text-[#a8b3c8]">Buscalos por nombre o tocá uno del catálogo para configurarlo.</p>
                   </div>
-                  <div className='flex gap-2'>
-                    <div className='flex items-center gap-2 w-full h-[44px] px-[14px] rounded-[10px] border border-[#2a3a59] bg-[#08101d] text-[#e7ecf5] font-[inherit] text-[14px] outline-none transition-[border-color,box-shadow] duration-150 [color-scheme:dark]'>
-                      <p className='text-[#a8b3c8]'>$</p>
-                      <input type="number" className='w-full h-full bg-transparent outline-none text-[#e7ecf5] placeholder-[#8390ab] text-[14px]' placeholder='0,00' />
-                    </div>
-                    <button className='px-3 text-[13px] border border-[#2a3a59] text-[#a8b3c8] hover:bg-[#152139] hover:text-[#e7ecf5] cursor-pointer rounded-[10px]' type="button">50%</button>
-                    <button type="button" className='px-3 text-[13px] border border-[#2a3a59] text-[#a8b3c8] hover:bg-[#152139] hover:text-[#e7ecf5] cursor-pointer rounded-[10px]'>Total</button>
-                  </div>
-                  <PaymentMethodField />
-                  <div className='flex items-center justify-between gap-3 pt-2.5 border-t border-[#34d39947] text-[#a8b3c8]'>
-                    <p className='text-[12px]'>Saldo pendiente</p>
-                    <p className='text-[18px] font-bold text-[#34d399]'>$ 0</p>
-                  </div>
-                </div>
+                )}
+                <InitialPaymentField />
               </aside>
             </div>
           </>
         )
         }
-      </FormProvider >
-    </Modal >
+
+        {/* Paso 3: Resumen antes de crear */}
+        {wizardStep === 'order_summary' && <OrderSummary products={productosList} />}
+
+        {/* Pedido creado */}
+        {wizardStep === 'order_confirmation' && createdPedidoResult && (
+          <OrderCreated pedido={createdPedidoResult} />
+        )}
+      </Modal >
+    </FormProvider >
   )
 }
-
-//       {/* Paso 3: Confirmación de Pedido */}
-//       {wizardStep === 'order_confirmation' && createdPedidoResult && (
-//         <div className="space-y-6 text-center py-6 animate-in fade-in zoom-in-95 duration-200">
-//           <div className="flex items-center justify-center mx-auto w-16 h-16 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded-full text-3xl shadow-[0_0_15px_rgba(16,185,129,0.2)]">
-//             🎉
-//           </div>
-//           <div className="space-y-2">
-//             <h3 className="text-lg font-bold text-white">¡Pedido Creado con Éxito!</h3>
-//             <p className="text-xs text-slate-400 max-w-sm mx-auto">
-//               El pedido de fabricación ha sido registrado correctamente y está listo para ser procesado.
-//             </p>
-//           </div>
-
-//           <div className="bg-slate-950/60 border border-slate-800 rounded-xl p-5 text-left max-w-md mx-auto space-y-3">
-//             <div className="border-b border-slate-850 pb-2 flex justify-between items-center">
-//               <span className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">
-//                 Ficha de Pedido
-//               </span>
-//               <span className="text-xs font-mono font-bold text-white bg-slate-900 border border-slate-800 px-2 py-0.5 rounded-lg">
-//                 #{createdPedidoResult.id}
-//               </span>
-//             </div>
-
-//             <div className="space-y-1">
-//               <span className="text-[10px] text-slate-500 uppercase font-semibold">
-//                 Cliente Asignado
-//               </span>
-//               <span className="text-sm font-bold text-white block">
-//                 {selectedWizardClient?.nombre_cliente || 'N/A'}
-//               </span>
-//               <span className="text-xs text-slate-400 block">
-//                 {selectedWizardClient?.nombre_empresa || 'N/A'}
-//               </span>
-//             </div>
-
-//             <div className="grid grid-cols-3 gap-4 pt-2 border-t border-slate-850/50 text-xs">
-//               <div>
-//                 <span className="text-slate-500 block mb-0.5">Prioridad</span>
-//                 <span
-//                   className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold capitalize ${getPriorityBadgeClass(
-//                     createdPedidoResult.prioridad
-//                   )}`}
-//                 >
-//                   {createdPedidoResult.prioridad}
-//                 </span>
-//               </div>
-//               <div>
-//                 <span className="text-slate-500 block mb-0.5">Fecha de Entrega</span>
-//                 <span className="font-semibold text-slate-300">
-//                   {createdPedidoResult.fecha_entrega || 'No planificada'}
-//                 </span>
-//               </div>
-//               <div>
-//                 <span className="text-slate-500 block mb-0.5">Precio</span>
-//                 <span className="font-semibold text-slate-300">
-//                   {createdPedidoResult.precio !== null && createdPedidoResult.precio !== undefined
-//                     ? `$ ${parseFloat(createdPedidoResult.precio.toString()).toLocaleString('es-AR', {
-//                         minimumFractionDigits: 2
-//                       })}`
-//                     : 'Sin precio'}
-//                 </span>
-//               </div>
-//             </div>
-
-//             {formData.selectedProductIds.length > 0 && (
-//               <div className="pt-3 border-t border-slate-850/50 space-y-1.5">
-//                 <span className="text-[10px] text-slate-500 uppercase font-bold tracking-wider block">
-//                   Productos Asociados
-//                 </span>
-//                 <div className="flex flex-wrap gap-1.5">
-//                   {formData.selectedProductIds.map((pId) => {
-//                     const p = productosList.find((prod) => prod.id === pId)
-//                     const qty = formData.productQuantities[pId] || 1
-//                     return p ? (
-//                       <span
-//                         key={pId}
-//                         className="bg-slate-900 border border-slate-800 text-slate-200 text-xs px-2.5 py-1 rounded-md"
-//                       >
-//                         {p.nombre} <span className="text-slate-500 font-bold ml-1">x{qty}</span>
-//                       </span>
-//                     ) : null
-//                   })}
-//                 </div>
-//               </div>
-//             )}
-
-//             {(createdPedidoResult.monto_pagado || 0) > 0 && (
-//               <div className="pt-3 border-t border-slate-850/50 space-y-1 bg-emerald-500/10 border border-emerald-500/20 p-2.5 rounded-lg">
-//                 <span className="text-[10px] text-emerald-400 font-bold uppercase tracking-wider block flex items-center gap-1">
-//                   💵 Pago Inicial Registrado Con Éxito
-//                 </span>
-//                 <div className="flex justify-between items-center text-xs text-slate-300">
-//                   <span>Monto Pagado:</span>
-//                   <span className="font-bold font-mono text-emerald-300">
-//                     $
-//                     {parseFloat(
-//                       (createdPedidoResult.monto_pagado || 0).toString()
-//                     ).toLocaleString('es-AR', { minimumFractionDigits: 2 })}
-//                   </span>
-//                 </div>
-//                 <div className="flex justify-between items-center text-xs text-slate-400">
-//                   <span>Saldo Pendiente:</span>
-//                   <span className="font-semibold font-mono text-white">
-//                     $
-//                     {parseFloat(
-//                       (createdPedidoResult.saldo_pendiente || 0).toString()
-//                     ).toLocaleString('es-AR', { minimumFractionDigits: 2 })}
-//                   </span>
-//                 </div>
-//               </div>
-//             )}
-//           </div>
-
-//           <div className="flex items-center justify-center gap-3 pt-6 border-t border-slate-800">
-//             <button
-//               type="button"
-//               onClick={handleClose}
-//               className="px-6 py-2 bg-blue-600 hover:bg-blue-500 text-white font-semibold shadow transition hover:scale-[1.02] active:scale-[0.98] rounded-lg text-sm cursor-pointer"
-//             >
-//               Finalizar y Ver en Panel
-//             </button>
-//           </div>
-//         </div>
-//       )}
 export default CreatePedidoModal

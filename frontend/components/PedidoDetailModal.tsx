@@ -287,7 +287,8 @@ export default function PedidoDetailModal({
     <Modal
       id={PEDIDO_DETAIL_MODAL_ID}
       onClose={onClose}
-      className="max-w-4xl !p-0 flex flex-col max-h-[90vh] overflow-hidden"
+      className="max-w-4xl"
+      bodyClassName="!p-0"
     >
       {/* Header de Imagen / Portada */}
       {coverUrl && (
@@ -321,8 +322,8 @@ export default function PedidoDetailModal({
         </div>
       )}
 
-      {/* Contenedor con Scroll de toda la Segunda Parte */}
-      <div className="flex-1 overflow-y-auto px-4 py-6 md:p-6 space-y-6 min-h-0 text-slate-300">
+      {/* Segunda parte (el scroll lo maneja el cuerpo del Modal) */}
+      <div className="px-4 py-6 md:p-6 space-y-6 text-slate-300">
         {/* Notificación rápida */}
         {notification && (
           <div className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 px-4 py-2 rounded-xl text-xs font-semibold text-center animate-in fade-in">

@@ -2,7 +2,7 @@
 
 import { Controller, useFormContext } from "react-hook-form";
 
-const PRIORIDADES = [
+export const PRIORIDADES = [
     { value: 'baja', label: 'Baja', dot: 'bg-slate-400', active: 'bg-slate-400/15 shadow-[inset_0_0_0_1px_rgba(148,163,184,0.5)]' },
     { value: 'normal', label: 'Normal', dot: 'bg-blue-400', active: 'bg-blue-400/15 shadow-[inset_0_0_0_1px_rgba(96,165,250,0.55)]' },
     { value: 'alta', label: 'Alta', dot: 'bg-amber-400', active: 'bg-amber-400/15 shadow-[inset_0_0_0_1px_rgba(251,191,36,0.55)]' },
