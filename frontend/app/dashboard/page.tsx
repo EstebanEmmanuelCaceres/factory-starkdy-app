@@ -7,6 +7,7 @@ import PedidoDetailModal from '@/components/PedidoDetailModal'
 import EditPedidoModal from '@/components/EditPedidoModal'
 import OrderImageGallery from '@/components/OrderImageGallery'
 import { fetchUsers, getStoredUser, type User } from '@/lib/auth'
+import { fetchMetricasCobros, type MetricasCobros } from '@/lib/metricas'
 import {
   fetchPedidos,
   updatePedido,
@@ -84,6 +85,27 @@ export default function DashboardPage() {
 
   const isFirstRender = useRef(true)
 
+  // Métricas de cobros del período (Valor total, Plata cobrada, Plata por cobrar y comisión)
+  const [metricas, setMetricas] = useState<MetricasCobros | null>(null)
+  const [loadingMetricas, setLoadingMetricas] = useState(true)
+
+  const loadMetricas = async () => {
+    setLoadingMetricas(true)
+    try {
+      const data = await fetchMetricasCobros({
+        mes: selectedCommissionMonth,
+        anio: selectedCommissionYear,
+        vendedor_id: selectedVendedorId ? Number(selectedVendedorId) : undefined,
+      })
+      setMetricas(data)
+    } catch (err: unknown) {
+      console.error('Error al cargar métricas de cobros:', err)
+      setMetricas(null)
+    } finally {
+      setLoadingMetricas(false)
+    }
+  }
+
   const loadCompletadosPorCobrar = async () => {
     setLoadingUnpaid(true)
     try {
@@ -119,6 +141,7 @@ export default function DashboardPage() {
       ])
       setPedidos(pedidosData)
       setCompletedUnpaidPedidos(unpaidData)
+      if (isRefresh && user && user.role !== 'encargado') loadMetricas()
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Error al cargar los datos'
       setError(msg)
@@ -135,6 +158,12 @@ export default function DashboardPage() {
     loadData()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  useEffect(() => {
+    if (!currentUser || currentUser.role === 'encargado') return
+    loadMetricas()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUser, selectedCommissionMonth, selectedCommissionYear, selectedVendedorId])
 
   // Recargar pedidos cuando cambien los filtros
   useEffect(() => {
@@ -255,67 +284,16 @@ export default function DashboardPage() {
   const vendedores = users.filter((u) => u.role === 'vendedor')
   const isAdmin = currentUser?.role === 'admin'
 
-  // Helper para obtener YYYY-MM de un pedido
-  const getPedidoMonthKey = (p: Pedido) => {
-    const rawDate = p.created_at || p.fecha_entrega
-    if (!rawDate) return ''
-    const dateStr = rawDate.includes(' ') && !rawDate.includes('T') ? rawDate.replace(' ', 'T') : rawDate
-    const d = new Date(dateStr)
-    if (isNaN(d.getTime())) return ''
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
-  }
-
   // Filtro de fecha de comisión visible si es vendedor o si Admin/Supervisor ha seleccionado un vendedor
   const showDateFilter = isVendedor || !!selectedVendedorId
 
-  // Pedidos a considerar para la comisión del vendedor seleccionado
-  const commissionPedidos = isVendedor
-    ? scopedPedidos
-    : (selectedVendedorId ? pedidos.filter((p) => p.user_id === Number(selectedVendedorId)) : [])
-
-  // Cálculo de Cobros en el Mes/Año seleccionado y Comisión (2%)
-  const selectedMonthKey = `${selectedCommissionYear}-${String(selectedCommissionMonth).padStart(2, '0')}`
-
-  // Pedidos del periodo y vendedor filtrado para métricas de Admin
-  const adminFilteredPedidos = scopedPedidos.filter((p) => {
-    const matchesMonth = selectedCommissionMonth === 0 || getPedidoMonthKey(p) === selectedMonthKey
-    const matchesVendedor = !selectedVendedorId || p.user_id === Number(selectedVendedorId)
-    return matchesMonth && matchesVendedor
-  })
-
-  const adminTotalValorPedidos = adminFilteredPedidos.reduce((sum, p) => sum + (Number(p.precio) || 0), 0)
-
-  const adminTotalCobrado = adminFilteredPedidos.reduce((sum, p) => {
-    const paidAmount = p.pagos
-      ? p.pagos.filter(pago => pago.estado === 'pagado').reduce((s, pago) => s + Number(pago.monto), 0)
-      : (p.pago && p.pago.estado === 'pagado' ? Number(p.pago.monto) : 0)
-    return sum + paidAmount
-  }, 0)
-
-  const adminTotalPorCobrar = adminFilteredPedidos.reduce((sum, p) => {
-    const precio = Number(p.precio) || 0
-    const paidAmount = p.pagos
-      ? p.pagos.filter(pago => pago.estado === 'pagado').reduce((s, pago) => s + Number(pago.monto), 0)
-      : (p.pago && p.pago.estado === 'pagado' ? Number(p.pago.monto) : 0)
-    const pending = Math.max(0, precio - paidAmount)
-    return sum + pending
-  }, 0)
-
-  const totalCobradoMes = commissionPedidos.reduce((sum, p) => {
-    const payments = p.pagos || (p.pago ? [p.pago] : [])
-    const monthPayments = payments.filter((pago) => {
-      if (pago.estado !== 'pagado') return false
-      if (selectedCommissionMonth === 0) return true
-      const rawDate = pago.fecha_pago || pago.created_at || pago.pagado_at
-      if (!rawDate) return false
-      const dateStr = rawDate.includes(' ') && !rawDate.includes('T') ? rawDate.replace(' ', 'T') : rawDate
-      const d = new Date(dateStr)
-      if (isNaN(d.getTime())) return false
-      const monthKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
-      return monthKey === selectedMonthKey
-    })
-    return sum + monthPayments.reduce((s, pago) => s + Number(pago.monto), 0)
-  }, 0)
+  // Cobros del Mes/Año seleccionado: vienen calculados de GET /api/metricas/cobros
+  // (pagos recibidos en el período + pedidos creados en el período, para el vendedor elegido o todos)
+  const adminTotalValorPedidos = metricas?.total_pedidos ?? 0
+  const adminTotalCobrado = metricas?.cobrado ?? 0
+  const adminTotalPorCobrar = metricas?.por_cobrar ?? 0
+  // Para la comisión: lo cobrado en el período por el vendedor (el back ya filtra por vendedor)
+  const totalCobradoMes = showDateFilter ? adminTotalCobrado : 0
 
   // Escala: hasta 39M → 2% · 40M a 50M → 3% · 51M en adelante → 4%
   const getCommissionRate = (totalAcumulado: number): number => {
@@ -485,13 +463,13 @@ export default function DashboardPage() {
 
                 <div>
                   <span className="block text-2xl md:text-3xl font-black text-white mt-1 font-mono">
-                    {loadingPedidos ? 'Cargando...' : formatCurrency(adminTotalValorPedidos)}
+                    {loadingMetricas ? 'Cargando...' : formatCurrency(adminTotalValorPedidos)}
                   </span>
                   <span className="block text-[11px] text-slate-400 mt-1.5 truncate">
                     {selectedVendedorName
                       ? `Pedidos de ${selectedVendedorName} ${selectedCommissionMonth === 0 ? '(Todos los meses)' : `en ${monthsList.find(m => m.value === selectedCommissionMonth)?.label} ${selectedCommissionYear}`}`
                       : (selectedCommissionMonth === 0
-                        ? `Suma total de ${adminFilteredPedidos.length} pedidos registrados`
+                        ? `Suma total de ${metricas?.cantidad_pedidos ?? 0} pedidos registrados`
                         : `Suma total de pedidos en ${monthsList.find(m => m.value === selectedCommissionMonth)?.label} ${selectedCommissionYear}`)}
                   </span>
                 </div>
@@ -558,7 +536,7 @@ export default function DashboardPage() {
                       <div>
                         <span className="block text-[10px] font-bold text-emerald-400 uppercase tracking-wider">Plata Cobrada</span>
                         <span className="block text-xl font-black text-white font-mono leading-tight">
-                          {loadingPedidos ? 'Cargando...' : formatCurrency(adminTotalCobrado)}
+                          {loadingMetricas ? 'Cargando...' : formatCurrency(adminTotalCobrado)}
                         </span>
                       </div>
                     </div>
@@ -574,7 +552,7 @@ export default function DashboardPage() {
                       <div>
                         <span className="block text-[10px] font-bold text-amber-400 uppercase tracking-wider">Plata por Cobrar</span>
                         <span className="block text-xl font-black text-white font-mono leading-tight">
-                          {loadingPedidos ? 'Cargando...' : formatCurrency(adminTotalPorCobrar)}
+                          {loadingMetricas ? 'Cargando...' : formatCurrency(adminTotalPorCobrar)}
                         </span>
                       </div>
                     </div>
@@ -1281,6 +1259,7 @@ export default function DashboardPage() {
             setSelectedPedidoForCommentModal(updated)
             setPedidos((prev) => prev.map((item) => (item.id === updated.id ? updated : item)))
             loadCompletadosPorCobrar()
+            loadMetricas()
           }}
           onOpenEdit={(pedidoToEdit) => {
             setSelectedPedidoForEdit(pedidoToEdit)
@@ -1304,6 +1283,7 @@ export default function DashboardPage() {
             setSelectedPedidoForEdit(null)
             fetchPedidos(filters).then(setPedidos).catch(console.error)
             loadCompletadosPorCobrar()
+            loadMetricas()
             if (selectedPedidoForCommentModal && selectedPedidoForCommentModal.id === updatedPedido.id) {
               setSelectedPedidoForCommentModal(updatedPedido)
             }
@@ -1322,6 +1302,7 @@ export default function DashboardPage() {
           onPaymentUpdated={(updatedPedido) => {
             fetchPedidos(filters).then(setPedidos).catch(console.error)
             loadCompletadosPorCobrar()
+            loadMetricas()
             if (updatedPedido && selectedPedidoForCommentModal?.id === updatedPedido.id) {
               setSelectedPedidoForCommentModal(updatedPedido)
             }
