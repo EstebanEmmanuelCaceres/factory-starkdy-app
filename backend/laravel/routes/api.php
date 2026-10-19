@@ -11,6 +11,7 @@ use App\Http\Controllers\Api\ResponsableEtapaController;
 use App\Http\Controllers\Api\OperarioTaskController;
 use App\Http\Controllers\Api\EtapaDependenciaController;
 use App\Http\Controllers\Api\PagoController;
+use App\Http\Controllers\Api\MetricaController;
 use App\Http\Controllers\Api\ProductoImagenController;
 use App\Http\Controllers\Api\PedidoImagenController;
 use App\Http\Controllers\Api\UserController;
@@ -119,6 +120,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('pedidos/{pedido}/pagos', [PagoController::class, 'store']);
     Route::patch('pagos/{pago}', [PagoController::class, 'update']);
     Route::delete('pagos/{pago}', [PagoController::class, 'destroy']);
+
+    // ── Métricas ──────────────────────────────────────────────────
+    Route::get('metricas/cobros', [MetricaController::class, 'cobros']);
 
     // ── Responsabilidades ──────────────────────────────────────────
     Route::get('responsabilidades', [ResponsabilidadController::class, 'index']);
