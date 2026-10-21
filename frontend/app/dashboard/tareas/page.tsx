@@ -54,7 +54,7 @@ const CELL_LAST = 'pl-3 pr-4 2xl:pl-4 2xl:pr-5 py-3'
 
 // Minúsculas y sin tildes, para que "diseno" encuentre "Diseño"
 const normalizeText = (text: string) =>
-  text.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
+  text.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
 
 // Busca en empresa, cliente, N° / código de pedido, producto y etapa
 const taskMatchesSearch = (t: ResponsableEtapa, query: string) => {
@@ -80,9 +80,12 @@ export default function TareasPage() {
   const { open: openModal, close: closeModal } = useModalContext()
 
   const [loading, setLoading] = useState(true)
-  const [actionLoading, setActionLoading] = useState<number | null>(null)
+  const [pendingTaskIds, setPendingTaskIds] = useState<Record<number, boolean>>({})
   const [error, setError] = useState('')
+  const [errorToast, setErrorToast] = useState('')
   const [successMessage, setSuccessMessage] = useState('')
+  const successTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const errorTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Paginadores para Pendientes Activas y Pendientes Bloqueadas (10 tareas por página)
   const [activePage, setActivePage] = useState<number>(1)
@@ -96,6 +99,15 @@ export default function TareasPage() {
 
   // Buscador de tareas (filtra en el navegador, sin pedir nada al backend)
   const [searchQuery, setSearchQuery] = useState('')
+
+  const setTaskPending = (id: number, isPending: boolean) => {
+    setPendingTaskIds((prev) => {
+      if (isPending) return { ...prev, [id]: true }
+      const next = { ...prev }
+      delete next[id]
+      return next
+    })
+  }
 
   const handleSearchChange = (value: string) => {
     setSearchQuery(value)
@@ -160,44 +172,161 @@ export default function TareasPage() {
   }
 
   const showNotification = (message: string) => {
+    if (successTimeoutRef.current) clearTimeout(successTimeoutRef.current)
     setSuccessMessage(message)
-    setTimeout(() => setSuccessMessage(''), 3000)
+    successTimeoutRef.current = setTimeout(() => setSuccessMessage(''), 3000)
   }
 
+  const showError = (message: string) => {
+    if (errorTimeoutRef.current) clearTimeout(errorTimeoutRef.current)
+    setError(message)
+    setErrorToast(message)
+    errorTimeoutRef.current = setTimeout(() => setErrorToast(''), 5000)
+  }
+
+  const isManager = Boolean(currentUser && ['admin', 'supervisor', 'encargado'].includes(currentUser.role))
+
   const handleStartTask = async (id: number) => {
-    setActionLoading(id)
+    const targetTask = tasks.find((t) => t.id === id)
+    if (!targetTask || pendingTaskIds[id]) return
+
+    const prevTask: ResponsableEtapa = { ...targetTask }
+    const shouldAssignCurrentUser = Boolean(currentUser && (!targetTask.user_id || !isManager))
+    const optimisticUserId = shouldAssignCurrentUser && currentUser ? currentUser.id : targetTask.user_id
+    const optimisticUser = shouldAssignCurrentUser && currentUser ? currentUser : targetTask.user
+
     setError('')
+    setErrorToast('')
+    setTaskPending(id, true)
+
+    // Actualización optimista inmediata en la vista sin recargar la tabla
+    setTasks((prev) =>
+      prev.map((t) =>
+        t.id === id
+          ? {
+              ...t,
+              estado: 'en_progreso',
+              fecha_inicio: t.fecha_inicio || new Date().toISOString(),
+              user_id: optimisticUserId,
+              user: optimisticUser
+            }
+          : t
+      )
+    )
+
     try {
-      await startOperarioTask(id)
+      const updated = await startOperarioTask(id)
+      setTasks((prev) =>
+        prev.map((t) => {
+          if (t.id !== id) return t
+          const resolvedUser =
+            updated.user_id != null
+              ? operarios.find((op) => op.id === updated.user_id) ||
+                (currentUser?.id === updated.user_id ? currentUser : t.user)
+              : undefined
+          return {
+            ...t,
+            estado: updated.estado || 'en_progreso',
+            fecha_inicio: updated.fecha_inicio ?? t.fecha_inicio,
+            user_id: updated.user_id ?? t.user_id,
+            user: resolvedUser ?? t.user
+          }
+        })
+      )
       showNotification('Tarea iniciada correctamente.')
-      await loadData()
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Error al iniciar la tarea')
+      const msg = err instanceof Error ? err.message : 'Error al iniciar la tarea'
+      const isBlockedError = normalizeText(msg).includes('bloqueada')
+
+      // Revertir o actualizar únicamente el campo/tarea en cuestión si falla la consulta
+      setTasks((prev) =>
+        prev.map((t) =>
+          t.id === id
+            ? {
+                ...prevTask,
+                estado: isBlockedError ? 'bloqueada' : prevTask.estado
+              }
+            : t
+        )
+      )
+      showError(msg)
     } finally {
-      setActionLoading(null)
+      setTaskPending(id, false)
     }
   }
 
   const handleCancelTask = async (id: number) => {
     if (!confirm('¿Estás seguro de que deseas cancelar esta tarea iniciada y restablecerla a pendiente?')) return
-    setActionLoading(id)
+    const targetTask = tasks.find((t) => t.id === id)
+    if (!targetTask || pendingTaskIds[id]) return
+
+    const prevTask: ResponsableEtapa = { ...targetTask }
     setError('')
+    setErrorToast('')
+    setTaskPending(id, true)
+
+    // Actualización optimista inmediata a pendiente
+    setTasks((prev) =>
+      prev.map((t) =>
+        t.id === id
+          ? {
+              ...t,
+              estado: 'pendiente',
+              fecha_inicio: null
+            }
+          : t
+      )
+    )
+
     try {
-      await cancelOperarioTask(id)
+      const updated = await cancelOperarioTask(id)
+      setTasks((prev) =>
+        prev.map((t) =>
+          t.id === id
+            ? {
+                ...t,
+                estado: updated.estado || 'pendiente',
+                fecha_inicio: updated.fecha_inicio ?? null
+              }
+            : t
+        )
+      )
       showNotification('Tarea en progreso cancelada y restablecida a pendiente.')
-      await loadData()
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Error al cancelar la tarea')
+      const msg = err instanceof Error ? err.message : 'Error al cancelar la tarea'
+      setTasks((prev) => prev.map((t) => (t.id === id ? prevTask : t)))
+      showError(msg)
     } finally {
-      setActionLoading(null)
+      setTaskPending(id, false)
     }
   }
 
   const handleReassignUser = async (task: ResponsableEtapa, newUserIdStr: string) => {
     const newUserId = newUserIdStr ? parseInt(newUserIdStr) : null
     if (newUserIdStr && isNaN(newUserId!)) return
-    setActionLoading(task.id)
+    if (pendingTaskIds[task.id]) return
+
+    const prevUserId = task.user_id
+    const prevUser = task.user
+    const newUser = newUserId ? operarios.find((op) => op.id === newUserId) : undefined
+
     setError('')
+    setErrorToast('')
+    setTaskPending(task.id, true)
+
+    // Actualización optimista del operario asignado
+    setTasks((prev) =>
+      prev.map((t) =>
+        t.id === task.id
+          ? {
+              ...t,
+              user_id: newUserId,
+              user: newUser
+            }
+          : t
+      )
+    )
+
     try {
       const etapaId = task.etapa_id || (task.etapa as any)?.id || (task as any).etapa_producto_id
       await assignTask({
@@ -206,13 +335,25 @@ export default function TareasPage() {
         user_id: newUserId
       })
       showNotification(newUserId ? 'Operario reasignado correctamente a la etapa.' : 'Tarea desasignada correctamente.')
-      await loadData()
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Error al reasignar el operario')
+      const msg = err instanceof Error ? err.message : 'Error al reasignar el operario'
+      setTasks((prev) =>
+        prev.map((t) =>
+          t.id === task.id
+            ? {
+                ...t,
+                user_id: prevUserId,
+                user: prevUser
+              }
+            : t
+        )
+      )
+      showError(msg)
     } finally {
-      setActionLoading(null)
+      setTaskPending(task.id, false)
     }
   }
+
   // Al hacer clic en la fila/tarjeta se abre el panel del pedido de esa tarea
   const handleOpenPedido = (task: ResponsableEtapa) => {
     orderChangedRef.current = false
@@ -239,22 +380,127 @@ export default function TareasPage() {
     closeModal(COMPLETE_TASK_MODAL_ID)
   }
 
-  const handleCompleteSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!completingTask) return
-    setActionLoading(completingTask.id)
+  const confirmCompleteTask = async () => {
+    if (!completingTask || pendingTaskIds[completingTask.id]) return
+
+    const taskToComplete: ResponsableEtapa = { ...completingTask }
+    const completedStageId =
+      (taskToComplete as any).etapa_producto_id ||
+      taskToComplete.etapa?.id ||
+      taskToComplete.etapa_id
+
+    // Guardar estado previo de las tareas del mismo pedido por si hay que revertir desbloqueos
+    const prevSiblingSnapshots = new Map<
+      number,
+      { estado: string; dependencias_info?: { id: number; nombre: string; estado: string }[] }
+    >()
+    tasks.forEach((t) => {
+      if (t.pedido_id === taskToComplete.pedido_id && t.id !== taskToComplete.id) {
+        prevSiblingSnapshots.set(t.id, {
+          estado: t.estado,
+          dependencias_info: t.dependencias_info ? t.dependencias_info.map((d) => ({ ...d })) : undefined
+        })
+      }
+    })
+
     setError('')
+    setErrorToast('')
+    setTaskPending(taskToComplete.id, true)
+    handleCloseCompleteModal()
+
+    // Actualización optimista inmediata: quitar la tarea completada y desbloquear etapas dependientes satisfechas
+    setTasks((prev) => {
+      const next = prev
+        .filter((t) => t.id !== taskToComplete.id)
+        .map((t) => {
+          if (t.pedido_id === taskToComplete.pedido_id && t.estado === 'bloqueada' && t.dependencias_info?.length) {
+            const updatedDeps = t.dependencias_info.map((dep) =>
+              dep.id === completedStageId ? { ...dep, estado: 'completado' } : dep
+            )
+            const allSatisfied = updatedDeps.every((dep) => dep.estado === 'completado')
+            return {
+              ...t,
+              dependencias_info: updatedDeps,
+              estado: allSatisfied ? 'pendiente' : t.estado
+            }
+          }
+          return t
+        })
+
+      const nextActiveCount = next.filter(
+        (t) => (t.estado === 'pendiente' || t.estado === 'en_progreso') && taskMatchesSearch(t, searchQuery)
+      ).length
+      const maxActivePage = Math.max(1, Math.ceil(nextActiveCount / PAGE_SIZE))
+      setActivePage((currPage) => Math.min(currPage, maxActivePage))
+
+      const nextBlockedCount = next.filter((t) => t.estado === 'bloqueada').length
+      const maxBlockedPage = Math.max(1, Math.ceil(nextBlockedCount / PAGE_SIZE))
+      setBlockedPage((currPage) => Math.min(currPage, maxBlockedPage))
+
+      return next
+    })
+
     try {
-      await completeOperarioTask(completingTask.id)
-      handleCloseCompleteModal()
+      await completeOperarioTask(taskToComplete.id)
       showNotification('Tarea completada con éxito.')
-      await loadData()
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Error al completar la tarea')
+      const msg = err instanceof Error ? err.message : 'Error al completar la tarea'
+      const isBlockedError = normalizeText(msg).includes('etapas previas') || normalizeText(msg).includes('bloqueada')
+
+      // Revertir el cambio en la tarea y las etapas dependientes si falla la petición
+      setTasks((prev) => {
+        const restoredTask: ResponsableEtapa = {
+          ...taskToComplete,
+          estado: isBlockedError ? 'bloqueada' : taskToComplete.estado
+        }
+        const exists = prev.some((t) => t.id === taskToComplete.id)
+        const baseList = exists
+          ? prev.map((t) => (t.id === taskToComplete.id ? restoredTask : t))
+          : [...prev, restoredTask]
+
+        return baseList
+          .map((t) => {
+            const snap = prevSiblingSnapshots.get(t.id)
+            if (!snap) return t
+            return {
+              ...t,
+              estado: snap.estado,
+              dependencias_info: snap.dependencias_info
+            }
+          })
+          .sort((a, b) => getTaskCreatedAt(a) - getTaskCreatedAt(b) || a.id - b.id)
+      })
+      showError(msg)
     } finally {
-      setActionLoading(null)
+      setTaskPending(taskToComplete.id, false)
     }
   }
+
+  const handleCompleteSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    await confirmCompleteTask()
+  }
+
+  const confirmCompleteRef = useRef(confirmCompleteTask)
+  confirmCompleteRef.current = confirmCompleteTask
+
+  useEffect(() => {
+    if (!completingTask) return
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== 'Enter' || e.repeat) return
+      const target = e.target as HTMLElement | null
+      // Si el foco está explícitamente sobre un botón que no es submit (ej. Cancelar o Cerrar), respetar ese botón
+      if (target && target.tagName === 'BUTTON' && (target as HTMLButtonElement).type !== 'submit') {
+        return
+      }
+      e.preventDefault()
+      confirmCompleteRef.current()
+    }
+
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [completingTask])
 
   const getStatusLabel = (status: string) => {
     switch (status) {
@@ -294,8 +540,6 @@ export default function TareasPage() {
 
   const visibleActiveTasks = activeTasks.slice((activePage - 1) * PAGE_SIZE, activePage * PAGE_SIZE)
   const visibleBlockedTasks = blockedTasks.slice((blockedPage - 1) * PAGE_SIZE, blockedPage * PAGE_SIZE)
-
-  const isManager = currentUser && ['admin', 'supervisor', 'encargado'].includes(currentUser.role)
 
   // Buscador de tareas: filtra solo las Pendientes activas.
   // Se dibuja en dos lugares (uno visible por tamaño de pantalla); ambos comparten el mismo estado.
@@ -380,7 +624,7 @@ export default function TareasPage() {
         value={task.user_id || ''}
         onClick={(e) => e.stopPropagation()}
         onChange={(e) => handleReassignUser(task, e.target.value)}
-        disabled={actionLoading === task.id}
+        disabled={Boolean(pendingTaskIds[task.id])}
         title="Reasignar operario"
         className="w-40 2xl:w-44 bg-slate-950 border border-slate-700/80 hover:border-slate-600 focus:border-blue-500 text-sm font-semibold text-blue-400 rounded-lg px-3 py-2 focus:outline-none cursor-pointer transition disabled:opacity-50"
       >
@@ -437,6 +681,7 @@ export default function TareasPage() {
           <div className="md:hidden space-y-3">
             {visibleActiveTasks.map((task) => {
               const coverUrl = getTaskCoverUrl(task)
+              const isTaskPending = Boolean(pendingTaskIds[task.id])
               return (
                 <div
                   key={task.id}
@@ -475,8 +720,8 @@ export default function TareasPage() {
                         value={task.user_id || ''}
                         onClick={(e) => e.stopPropagation()}
                         onChange={(e) => handleReassignUser(task, e.target.value)}
-                        disabled={actionLoading === task.id}
-                        className="bg-slate-950 border border-slate-800 text-xs font-bold text-blue-400 rounded-lg px-2.5 py-1.5 focus:outline-none cursor-pointer"
+                        disabled={isTaskPending}
+                        className="bg-slate-950 border border-slate-800 text-xs font-bold text-blue-400 rounded-lg px-2.5 py-1.5 focus:outline-none cursor-pointer disabled:opacity-50"
                       >
                         <option value="" className="bg-slate-900 text-slate-400">Sin Asignar</option>
                         {operarios.map((op) => (
@@ -499,15 +744,15 @@ export default function TareasPage() {
                       <>
                         <button
                           onClick={() => handleCancelTask(task.id)}
-                          disabled={actionLoading === task.id}
-                          className="bg-rose-600/20 hover:bg-rose-600/30 text-rose-300 border border-rose-500/30 text-xs font-bold px-3 py-2 rounded-xl transition"
+                          disabled={isTaskPending}
+                          className="bg-rose-600/20 hover:bg-rose-600/30 text-rose-300 border border-rose-500/30 text-xs font-bold px-3 py-2 rounded-xl transition disabled:opacity-50"
                         >
-                          {actionLoading === task.id ? 'Cancelando...' : '⏹️ Cancelar'}
+                          ⏹️ Cancelar
                         </button>
                         <button
                           onClick={() => handleOpenCompleteModal(task)}
-                          disabled={actionLoading === task.id}
-                          className="bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-extrabold px-3.5 py-2 rounded-xl shadow-lg transition"
+                          disabled={isTaskPending}
+                          className="bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-extrabold px-3.5 py-2 rounded-xl shadow-lg transition disabled:opacity-50"
                         >
                           Completar
                         </button>
@@ -516,17 +761,17 @@ export default function TareasPage() {
                       <>
                         <button
                           onClick={() => handleOpenCompleteModal(task)}
-                          disabled={actionLoading === task.id}
-                          className="bg-slate-800 hover:bg-slate-700 text-emerald-400 border border-emerald-500/30 text-xs font-bold px-3 py-2 rounded-xl transition"
+                          disabled={isTaskPending}
+                          className="bg-slate-800 hover:bg-slate-700 text-emerald-400 border border-emerald-500/30 text-xs font-bold px-3 py-2 rounded-xl transition disabled:opacity-50"
                         >
                           ✓ Completar
                         </button>
                         <button
                           onClick={() => handleStartTask(task.id)}
-                          disabled={actionLoading === task.id}
-                          className="bg-blue-600 hover:bg-blue-500 text-white text-xs font-extrabold px-3.5 py-2 rounded-xl shadow-lg transition"
+                          disabled={isTaskPending}
+                          className="bg-blue-600 hover:bg-blue-500 text-white text-xs font-extrabold px-3.5 py-2 rounded-xl shadow-lg transition disabled:opacity-50"
                         >
-                          {actionLoading === task.id ? 'Iniciando...' : '🚀 Iniciar'}
+                          🚀 Iniciar
                         </button>
                       </>
                     )}
@@ -546,58 +791,61 @@ export default function TareasPage() {
               <table className="w-full text-left border-collapse">
                 {renderDesktopHead()}
                 <tbody className="divide-y divide-slate-800 text-slate-200">
-                  {visibleActiveTasks.map((task) => (
-                    <tr
-                      key={task.id}
-                      onClick={() => handleOpenPedido(task)}
-                      title="Ver el pedido de esta tarea"
-                      className="group hover:bg-slate-800/50 transition cursor-pointer"
-                    >
-                      <td className={CELL_FIRST}>{renderPedidoCell(task)}</td>
-                      <td className={CELL_MID}>{renderEtapaCell(task)}</td>
-                      <td className={CELL_MID}>{renderOperarioCell(task)}</td>
-                      <td className={CELL_MID}>{renderStatusBadge(task.estado)}</td>
-                      <td className={`${CELL_LAST} cursor-default`} onClick={(e) => e.stopPropagation()}>
-                        <div className={actionsLayoutClass}>
-                          {task.estado === 'en_progreso' ? (
-                            <>
-                              <button
-                                onClick={() => handleCancelTask(task.id)}
-                                disabled={actionLoading === task.id}
-                                className={`${actionButtonClass} bg-rose-600/20 hover:bg-rose-600/30 text-rose-300 border-rose-500/30`}
-                              >
-                                {actionLoading === task.id ? 'Cancelando...' : '⏹️ Cancelar'}
-                              </button>
-                              <button
-                                onClick={() => handleOpenCompleteModal(task)}
-                                disabled={actionLoading === task.id}
-                                className={`${actionButtonClass} bg-amber-500 hover:bg-amber-400 text-slate-950 border-amber-500 hover:border-amber-400`}
-                              >
-                                {actionLoading === task.id ? 'Cargando...' : '✓ Completar'}
-                              </button>
-                            </>
-                          ) : (
-                            <>
-                              <button
-                                onClick={() => handleOpenCompleteModal(task)}
-                                disabled={actionLoading === task.id}
-                                className={`${actionButtonClass} bg-slate-800 hover:bg-slate-700 text-emerald-400 border-emerald-500/30`}
-                              >
-                                ✓ Completar
-                              </button>
-                              <button
-                                onClick={() => handleStartTask(task.id)}
-                                disabled={actionLoading === task.id}
-                                className={`${actionButtonClass} bg-blue-600 hover:bg-blue-500 text-white border-blue-600 hover:border-blue-500`}
-                              >
-                                {actionLoading === task.id ? 'Iniciando...' : '🚀 Iniciar'}
-                              </button>
-                            </>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
+                  {visibleActiveTasks.map((task) => {
+                    const isTaskPending = Boolean(pendingTaskIds[task.id])
+                    return (
+                      <tr
+                        key={task.id}
+                        onClick={() => handleOpenPedido(task)}
+                        title="Ver el pedido de esta tarea"
+                        className="group hover:bg-slate-800/50 transition cursor-pointer"
+                      >
+                        <td className={CELL_FIRST}>{renderPedidoCell(task)}</td>
+                        <td className={CELL_MID}>{renderEtapaCell(task)}</td>
+                        <td className={CELL_MID}>{renderOperarioCell(task)}</td>
+                        <td className={CELL_MID}>{renderStatusBadge(task.estado)}</td>
+                        <td className={`${CELL_LAST} cursor-default`} onClick={(e) => e.stopPropagation()}>
+                          <div className={actionsLayoutClass}>
+                            {task.estado === 'en_progreso' ? (
+                              <>
+                                <button
+                                  onClick={() => handleCancelTask(task.id)}
+                                  disabled={isTaskPending}
+                                  className={`${actionButtonClass} bg-rose-600/20 hover:bg-rose-600/30 text-rose-300 border-rose-500/30`}
+                                >
+                                  ⏹️ Cancelar
+                                </button>
+                                <button
+                                  onClick={() => handleOpenCompleteModal(task)}
+                                  disabled={isTaskPending}
+                                  className={`${actionButtonClass} bg-amber-500 hover:bg-amber-400 text-slate-950 border-amber-500 hover:border-amber-400`}
+                                >
+                                  ✓ Completar
+                                </button>
+                              </>
+                            ) : (
+                              <>
+                                <button
+                                  onClick={() => handleOpenCompleteModal(task)}
+                                  disabled={isTaskPending}
+                                  className={`${actionButtonClass} bg-slate-800 hover:bg-slate-700 text-emerald-400 border-emerald-500/30`}
+                                >
+                                  ✓ Completar
+                                </button>
+                                <button
+                                  onClick={() => handleStartTask(task.id)}
+                                  disabled={isTaskPending}
+                                  className={`${actionButtonClass} bg-blue-600 hover:bg-blue-500 text-white border-blue-600 hover:border-blue-500`}
+                                >
+                                  🚀 Iniciar
+                                </button>
+                              </>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    )
+                  })}
                 </tbody>
               </table>
             </div>
@@ -635,6 +883,7 @@ export default function TareasPage() {
           <div className="md:hidden space-y-3">
             {visibleBlockedTasks.map((task) => {
               const coverUrl = getTaskCoverUrl(task)
+              const isTaskPending = Boolean(pendingTaskIds[task.id])
               return (
                 <div
                   key={task.id}
@@ -673,8 +922,8 @@ export default function TareasPage() {
                         value={task.user_id || ''}
                         onClick={(e) => e.stopPropagation()}
                         onChange={(e) => handleReassignUser(task, e.target.value)}
-                        disabled={actionLoading === task.id}
-                        className="bg-slate-950 border border-slate-800 text-xs font-bold text-blue-400 rounded-lg px-2.5 py-1.5 focus:outline-none cursor-pointer"
+                        disabled={isTaskPending}
+                        className="bg-slate-950 border border-slate-800 text-xs font-bold text-blue-400 rounded-lg px-2.5 py-1.5 focus:outline-none cursor-pointer disabled:opacity-50"
                       >
                         <option value="" className="bg-slate-900 text-slate-400">Sin Asignar</option>
                         {operarios.map((op) => (
@@ -743,7 +992,7 @@ export default function TareasPage() {
   return (
     <RoleGuard allowedRoles={['admin', 'supervisor', 'encargado', 'operario', 'operator', 'disenador', 'disenadora']}>
       <main className="page-content p-6 max-w-7xl mx-auto text-white">
-        {/* Notificaciones */}
+        {/* Notificaciones flotantes */}
         {successMessage && (
           <div className="fixed top-4 right-4 z-50 bg-emerald-500 text-white px-5 py-3.5 rounded-xl shadow-2xl border border-emerald-400 flex items-center gap-3 text-base font-bold animate-bounce">
             <span>✅</span>
@@ -751,10 +1000,35 @@ export default function TareasPage() {
           </div>
         )}
 
+        {errorToast && (
+          <div className="fixed top-4 right-4 z-50 bg-rose-600 text-white px-5 py-3.5 rounded-xl shadow-2xl border border-rose-400 flex items-center gap-3 text-sm font-bold max-w-md">
+            <span>⚠️</span>
+            <span className="flex-1">{errorToast}</span>
+            <button
+              type="button"
+              onClick={() => setErrorToast('')}
+              className="text-white/80 hover:text-white px-1.5 py-0.5 rounded-lg hover:bg-rose-700 transition"
+              aria-label="Cerrar alerta"
+            >
+              ✕
+            </button>
+          </div>
+        )}
+
         {error && (
-          <div className="mb-6 bg-rose-500/10 border border-rose-500/20 text-rose-200 px-5 py-4 rounded-xl flex items-center gap-3 text-base font-semibold">
-            <span>❌</span>
-            <span>{error}</span>
+          <div className="mb-6 bg-rose-500/10 border border-rose-500/20 text-rose-200 px-5 py-4 rounded-xl flex items-center justify-between gap-3 text-base font-semibold">
+            <div className="flex items-center gap-3">
+              <span>❌</span>
+              <span>{error}</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setError('')}
+              className="text-rose-300 hover:text-white px-2 py-1 rounded-lg hover:bg-rose-500/20 transition text-sm"
+              aria-label="Cerrar error"
+            >
+              ✕
+            </button>
           </div>
         )}
 
@@ -799,8 +1073,6 @@ export default function TareasPage() {
             )}
           </div>
         </div>
-
-
 
         {/* TAREAS DE PRODUCCIÓN */}
         <div className="space-y-10">
@@ -857,6 +1129,7 @@ export default function TareasPage() {
                 </button>
                 <button
                   type="submit"
+                  autoFocus
                   className="px-6 py-2.5 rounded-xl text-sm bg-amber-500 hover:bg-amber-400 text-slate-950 font-extrabold shadow-lg shadow-amber-500/20 transition hover:scale-[1.02] active:scale-[0.98]"
                 >
                   Confirmar y Finalizar

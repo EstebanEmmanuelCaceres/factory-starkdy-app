@@ -953,7 +953,7 @@ export default function PedidosPage() {
         const matchClientName = (p.cliente?.nombre_cliente || '').toLowerCase().includes(q)
         const matchEmpresa = (p.cliente?.nombre_empresa || '').toLowerCase().includes(q)
         const matchEmail = (p.cliente?.email || '').toLowerCase().includes(q)
-        return matchCode || matchClientName || matchEmpresa || matchEmail
+        return matchCode || matchClientName || matchEmpresa || matchEmail || (p.productos || []).some((prod) => (prod.nombre || '').toLowerCase().includes(q))
       }
 
       // Si NO hay texto en el buscador, se aplican los filtros de la barra
@@ -1062,7 +1062,7 @@ export default function PedidosPage() {
               <div className="relative flex-1 min-w-[240px]">
                 <input
                   type="text"
-                  placeholder="Buscar por nombre o empresa del cliente..."
+                  placeholder="Buscar por cliente, empresa o producto..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   onKeyDown={handleSearchKeyDown}

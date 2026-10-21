@@ -48,7 +48,7 @@ class PedidoController extends Controller
 
         $hasSearch = $request->has('search') && !empty(trim($request->input('search')));
 
-        // Búsqueda opcional por código de pedido, nombre de empresa, nombre de cliente o correo del cliente relacionado
+        // Búsqueda opcional por código de pedido, nombre de empresa, nombre de cliente, correo del cliente o productos del pedido
         if ($hasSearch) {
             $searchTerm = mb_strtolower(trim($request->input('search')));
             $query->where(function ($q) use ($searchTerm) {
@@ -57,6 +57,9 @@ class PedidoController extends Controller
                         $cq->whereRaw('LOWER(nombre_empresa) LIKE ?', ['%' . $searchTerm . '%'])
                             ->orWhereRaw('LOWER(nombre_cliente) LIKE ?', ['%' . $searchTerm . '%'])
                             ->orWhereRaw('LOWER(email) LIKE ?', ['%' . $searchTerm . '%']);
+                    })
+                    ->orWhereHas('productos', function ($pq) use ($searchTerm) {
+                        $pq->whereRaw('LOWER(productos.nombre) LIKE ?', ['%' . $searchTerm . '%']);
                     });
             });
         }
