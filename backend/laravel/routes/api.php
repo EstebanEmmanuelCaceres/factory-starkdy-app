@@ -12,6 +12,7 @@ use App\Http\Controllers\Api\OperarioTaskController;
 use App\Http\Controllers\Api\EtapaDependenciaController;
 use App\Http\Controllers\Api\PagoController;
 use App\Http\Controllers\Api\MetricaController;
+use App\Http\Controllers\Api\Admin\CobroController;
 use App\Http\Controllers\Api\ProductoImagenController;
 use App\Http\Controllers\Api\PedidoImagenController;
 use App\Http\Controllers\Api\UserController;
@@ -49,6 +50,16 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::patch('users/{id}/password', [UserController::class, 'changePassword']);
         Route::delete('users/{id}', [UserController::class, 'destroy']);
         Route::get('roles', [UserController::class, 'roles']);
+
+        // Cobros (CRUD solo admin; cancelar = anular, no se borran)
+        Route::get('cobros', [CobroController::class, 'index']);
+        Route::post('cobros', [CobroController::class, 'store']);
+        // 'buscar' y 'exportar' van antes de {cobro} para que no se tomen como un id
+        Route::get('cobros/buscar', [CobroController::class, 'search']);
+        Route::get('cobros/exportar', [CobroController::class, 'export']);
+        Route::get('cobros/{cobro}', [CobroController::class, 'show']);
+        Route::patch('cobros/{cobro}', [CobroController::class, 'update']);
+        Route::patch('cobros/{cobro}/cancelar', [CobroController::class, 'cancel']);
     });
 
     // ── Módulos de fábrica ──────────────────────────────

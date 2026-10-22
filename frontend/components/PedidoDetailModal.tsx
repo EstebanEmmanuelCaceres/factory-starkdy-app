@@ -18,6 +18,7 @@ import SelectStatus from './SelectFilter/SelectStatus'
 import { PEDIDO_STATE_OPTIONS } from '@/lib/order-status'
 import { useModalContext } from '@/components/Modal/context/ModalContext'
 import ClientDetailModal, { CLIENT_DETAIL_MODAL_ID } from '@/components/ClientDetailModal'
+import ImageLightbox, { type LightboxImage } from '@/components/ImageLightbox'
 
 const PEDIDO_DETAIL_MODAL_ID = 'pedido-detail'
 
@@ -57,6 +58,8 @@ export default function PedidoDetailModal({
   const [notification, setNotification] = useState('')
   const [error, setError] = useState('')
   const [completingTaskId, setCompletingTaskId] = useState<number | null>(null)
+  const [coverIndex, setCoverIndex] = useState(0)
+  const [isLightboxOpen, setIsLightboxOpen] = useState(false)
 
   // Pila de modales: el detalle del pedido y, encima, el del cliente
   const { open: openModal, close: closeModal } = useModalContext()
@@ -85,6 +88,11 @@ export default function PedidoDetailModal({
       setTempComentario(pedido.comentario || '')
     }
   }, [pedido, isOpen])
+
+  useEffect(() => {
+    setCoverIndex(0)
+    setIsLightboxOpen(false)
+  }, [pedido?.id, isOpen])
 
   // Cargar pedido completo, etapas y asignaciones si no vinieron por props
   useEffect(() => {
@@ -243,13 +251,24 @@ export default function PedidoDetailModal({
     }
   }
 
-  // Cover image
-  const coverUrl =
-    currentPedido.imagenes?.find((img) => img.es_principal)?.url ||
-    currentPedido.imagenes?.[0]?.url ||
+  // Imágenes de la portada: las del pedido (la principal primero, luego por orden).
+  // Si el pedido no tiene, se usa la imagen del producto como antes.
+  const productCoverUrl =
     currentPedido.productos?.find((prod) => (prod as any).imagen_principal?.url)?.imagen_principal?.url ||
     currentPedido.productos?.[0]?.imagen_principal?.url ||
     currentPedido.productos?.[0]?.imagenes?.[0]?.url
+  const coverImages: LightboxImage[] = currentPedido.imagenes?.length
+    ? [...currentPedido.imagenes]
+      .sort((a, b) => Number(b.es_principal) - Number(a.es_principal) || a.orden - b.orden)
+      .map((img, i) => ({ url: img.url, alt: `Pedido #${currentPedido.id} - imagen ${i + 1}` }))
+    : productCoverUrl
+      ? [{ url: productCoverUrl, alt: `Portada Pedido #${currentPedido.id}` }]
+      : []
+  const safeCoverIndex = Math.min(coverIndex, Math.max(coverImages.length - 1, 0))
+  const coverUrl = coverImages[safeCoverIndex]?.url
+  const hasManyCovers = coverImages.length > 1
+  const moveCover = (step: number) =>
+    setCoverIndex((safeCoverIndex + step + coverImages.length) % coverImages.length)
 
   // Productos (se muestran todos directamente)
   const pds = currentPedido.productos || []
@@ -295,12 +314,68 @@ export default function PedidoDetailModal({
             className="absolute inset-0 bg-cover bg-center opacity-25 blur-2xl scale-110 pointer-events-none"
             style={{ backgroundImage: `url(${coverUrl})` }}
           />
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={coverUrl}
-            alt={`Portada Pedido #${currentPedido.id}`}
-            className="relative z-10 max-h-full max-w-full object-contain p-4 transition duration-200"
-          />
+          <button
+            type="button"
+            onClick={() => setIsLightboxOpen(true)}
+            title="Ver en tamaño completo"
+            className="relative z-10 flex h-full max-w-full items-center justify-center p-4 cursor-pointer"
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              key={coverUrl}
+              src={coverUrl}
+              alt={coverImages[safeCoverIndex]?.alt ?? `Portada Pedido #${currentPedido.id}`}
+              className="max-h-full max-w-full object-contain transition duration-200 animate-in fade-in"
+            />
+          </button>
+
+          {/* Aviso de varias imágenes + ampliar */}
+          <div className="absolute top-3 left-3 z-20 flex items-center gap-2">
+            {hasManyCovers && (
+              <span className="flex items-center gap-1.5 rounded-lg border border-slate-700 bg-slate-900/90 px-2.5 py-1 text-xs font-bold text-white shadow-xl backdrop-blur-md">
+                🖼️ {safeCoverIndex + 1} / {coverImages.length} imágenes
+              </span>
+            )}
+            <button
+              type="button"
+              onClick={() => setIsLightboxOpen(true)}
+              className="rounded-lg border border-slate-700 bg-slate-900/90 px-2.5 py-1 text-xs font-bold text-white shadow-xl backdrop-blur-md transition hover:bg-slate-950 cursor-pointer"
+            >
+              🔍 Ampliar
+            </button>
+          </div>
+
+          {hasManyCovers && (
+            <>
+              <button
+                type="button"
+                aria-label="Imagen anterior"
+                onClick={() => moveCover(-1)}
+                className="absolute left-3 top-1/2 z-20 grid size-10 -translate-y-1/2 place-items-center rounded-full border border-slate-700 bg-slate-900/80 text-white shadow-xl backdrop-blur-md transition hover:bg-slate-950 cursor-pointer"
+              >
+                <svg viewBox="0 0 24 24" className="size-5 fill-none stroke-current stroke-2 [stroke-linecap:round] [stroke-linejoin:round]"><path d="M15 6l-6 6 6 6" /></svg>
+              </button>
+              <button
+                type="button"
+                aria-label="Imagen siguiente"
+                onClick={() => moveCover(1)}
+                className="absolute right-3 top-1/2 z-20 grid size-10 -translate-y-1/2 place-items-center rounded-full border border-slate-700 bg-slate-900/80 text-white shadow-xl backdrop-blur-md transition hover:bg-slate-950 cursor-pointer"
+              >
+                <svg viewBox="0 0 24 24" className="size-5 fill-none stroke-current stroke-2 [stroke-linecap:round] [stroke-linejoin:round]"><path d="M9 6l6 6-6 6" /></svg>
+              </button>
+              <div className="absolute bottom-4 left-1/2 z-20 flex -translate-x-1/2 gap-1.5">
+                {coverImages.map((img, i) => (
+                  <button
+                    key={`${img.url}-${i}`}
+                    type="button"
+                    aria-label={`Ver imagen ${i + 1}`}
+                    onClick={() => setCoverIndex(i)}
+                    className={`h-2 rounded-full transition-all cursor-pointer ${i === safeCoverIndex ? 'w-5 bg-white' : 'w-2 bg-white/40 hover:bg-white/70'}`}
+                  />
+                ))}
+              </div>
+            </>
+          )}
 
           {onOpenGallery && (
             <div className="absolute bottom-3 right-3 z-20">
@@ -866,6 +941,14 @@ export default function PedidoDetailModal({
 
       {/* Modal de Cliente, se apila encima del pedido */}
       <ClientDetailModal clienteId={clientIdForModal} />
+      {isLightboxOpen && coverImages.length > 0 && (
+        <ImageLightbox
+          images={coverImages}
+          initialIndex={safeCoverIndex}
+          onIndexChange={setCoverIndex}
+          onClose={() => setIsLightboxOpen(false)}
+        />
+      )}
     </Modal>
   )
 }
