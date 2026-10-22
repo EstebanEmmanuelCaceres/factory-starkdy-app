@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { fetchPedidos, type Pedido } from '@/lib/pedidos'
-import { formatMoney, inputClass } from './format'
+import { formatClienteLabel, formatMoney, inputClass } from './format'
 
 interface PedidoPickerProps {
   value: Pedido | null
@@ -41,7 +41,7 @@ export const PedidoPicker = ({ value, onChange }: PedidoPickerProps) => {
       <div className="flex items-center justify-between gap-3 rounded-xl border border-blue-500/40 bg-blue-500/5 px-3.5 py-2.5">
         <div className="min-w-0">
           <p className="truncate text-sm font-semibold text-slate-100">
-            {value.codigo} · {value.cliente?.nombre_cliente || value.cliente?.nombre_empresa || 'Sin cliente'}
+            {value.codigo} · {formatClienteLabel(value.cliente, 'Sin cliente')}
           </p>
           <p className="text-xs text-slate-400">
             Total {formatMoney(Number(value.precio) || 0)} · Saldo{' '}
@@ -84,7 +84,7 @@ export const PedidoPicker = ({ value, onChange }: PedidoPickerProps) => {
               >
                 <span className="min-w-0">
                   <span className="block truncate font-semibold text-slate-200">{p.codigo}</span>
-                  <span className="block truncate text-xs text-slate-500">{p.cliente?.nombre_cliente || p.cliente?.nombre_empresa}</span>
+                  <span className="block truncate text-xs text-slate-500">{formatClienteLabel(p.cliente, '')}</span>
                 </span>
                 <span className="shrink-0 text-right text-xs">
                   <span className="block text-slate-500">Saldo</span>

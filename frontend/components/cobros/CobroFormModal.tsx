@@ -8,7 +8,7 @@ import type { Pedido } from '@/lib/pedidos'
 import { createCobro, updateCobro, MEDIOS_PAGO, TIPOS_COBRO, type CobroDetail, type TipoCobro } from '@/lib/cobros'
 import { PedidoPicker } from './PedidoPicker'
 import { COBRO_FORM_MODAL_ID } from './modalIds'
-import { formatMoney, inputClass, labelClass, toDateInput, todayInput } from './format'
+import { formatClienteLabel, formatMoney, inputClass, labelClass, toDateInput, todayInput } from './format'
 
 interface CobroFormValues {
   pedido: Pedido | null
@@ -120,7 +120,7 @@ export const CobroFormModal = ({ cobro, vendedores, onSaved }: CobroFormModalPro
           <h2 className="text-xl font-bold text-white">{cobro ? `Editar cobro #${cobro.id}` : 'Registrar cobro'}</h2>
           {cobro?.pedido && (
             <p className="mt-1 text-sm text-slate-400">
-              Pedido {cobro.pedido.codigo} · {cobro.cliente?.nombre_cliente || cobro.cliente?.nombre_empresa}
+              Pedido {cobro.pedido.codigo} · {formatClienteLabel(cobro.cliente)}
             </p>
           )}
         </div>

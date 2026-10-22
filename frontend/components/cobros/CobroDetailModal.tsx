@@ -70,6 +70,7 @@ export const CobroDetailModal = ({ cobroId, refreshKey, onEdit, onCancel }: Cobr
                 {cobro.pedido?.codigo ?? '—'}
                 {cobro.pedido && <span className="block text-xs text-slate-500">Total {formatMoney(cobro.pedido.precio)}</span>}
               </Row>
+              {cobro.cliente?.nombre_empresa && <Row label="Empresa">{cobro.cliente.nombre_empresa}</Row>}
               <Row label="Cliente">{cobro.cliente?.nombre_cliente || cobro.cliente?.nombre_empresa || '—'}</Row>
               <Row label="Fecha de cobro">{formatFechaCobro(cobro.fecha_pago)}</Row>
               <Row label="Medio de pago">{medioPagoLabel(cobro.medio_pago)}</Row>

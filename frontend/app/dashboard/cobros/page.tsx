@@ -10,7 +10,7 @@ import { CobroCancelModal } from '@/components/cobros/CobroCancelModal'
 import { CobroDetailModal } from '@/components/cobros/CobroDetailModal'
 import { COBRO_CANCEL_MODAL_ID, COBRO_DETAIL_MODAL_ID, COBRO_FORM_MODAL_ID } from '@/components/cobros/modalIds'
 import { useModal } from '@/components/Modal/context/ModalContext'
-import { currentMonthRange, formatFechaCobro, formatMoney, medioPagoLabel, tipoCobroLabel } from '@/components/cobros/format'
+import { currentMonthRange, formatClienteLabel, formatFechaCobro, formatMoney, medioPagoLabel, tipoCobroLabel } from '@/components/cobros/format'
 
 const PER_PAGE = 20
 const SEARCH_MIN_CHARS = 2
@@ -394,8 +394,17 @@ function CobrosContent() {
                     <tr key={c.id} onClick={() => openDetail(c.id)} className="hover:bg-slate-800/40 transition cursor-pointer">
                       <td className="py-3.5 px-5 text-slate-300 whitespace-nowrap">{formatFechaCobro(c.fecha_pago)}</td>
                       <td className="py-3.5 px-5">
-                        <div className="font-semibold text-slate-100">{c.pedido?.codigo ?? '—'}</div>
-                        <div className="text-xs text-slate-400 truncate max-w-[220px]">{c.cliente?.nombre_cliente || c.cliente?.nombre_empresa || '—'}</div>
+                        <div className="font-semibold text-slate-100 truncate max-w-[260px]" title={formatClienteLabel(c.cliente)}>
+                          {c.cliente?.nombre_empresa || c.cliente?.nombre_cliente || '—'}
+                        </div>
+                        <div className="text-xs text-slate-500 truncate max-w-[260px]">
+                          {c.pedido?.codigo ?? '—'}
+                          {c.cliente?.nombre_empresa &&
+                            c.cliente?.nombre_cliente &&
+                            c.cliente.nombre_cliente.trim().toLowerCase() !== c.cliente.nombre_empresa.trim().toLowerCase() && (
+                              <span className="text-slate-400"> · {c.cliente.nombre_cliente}</span>
+                            )}
+                        </div>
                       </td>
                       <td className="py-3.5 px-5 text-slate-300">{c.vendedor ?? '—'}</td>
                       <td className="py-3.5 px-5 text-slate-300">
@@ -438,8 +447,8 @@ function CobrosContent() {
                 <li key={c.id}>
                   <button type="button" onClick={() => openDetail(c.id)} className="flex w-full items-center gap-3 px-4 py-3.5 text-left cursor-pointer hover:bg-slate-800/40">
                     <div className="min-w-0 flex-1">
-                      <p className="truncate font-semibold text-slate-100">{c.pedido?.codigo ?? '—'} · {c.cliente?.nombre_cliente || c.cliente?.nombre_empresa}</p>
-                      <p className="text-xs text-slate-400">{formatFechaCobro(c.fecha_pago)} · {medioPagoLabel(c.medio_pago)} · {c.vendedor ?? '—'}</p>
+                      <p className="truncate font-semibold text-slate-100">{c.cliente?.nombre_empresa || c.cliente?.nombre_cliente || '—'}</p>
+                      <p className="text-xs text-slate-400"><span className="text-slate-500">{c.pedido?.codigo ?? '—'}</span> · {formatFechaCobro(c.fecha_pago)} · {medioPagoLabel(c.medio_pago)} · {c.vendedor ?? '—'}</p>
                     </div>
                     <div className="shrink-0 text-right">
                       <p className={`font-bold tabular-nums ${c.estado === 'anulado' ? 'text-slate-500 line-through' : 'text-slate-100'}`}>{formatMoney(c.monto)}</p>

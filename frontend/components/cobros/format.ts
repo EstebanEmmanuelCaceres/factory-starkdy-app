@@ -36,6 +36,18 @@ export const tipoCobroLabel = (tipo: TipoCobro | null) =>
   tipo ? TIPOS_COBRO.find((t) => t.value === tipo)?.label ?? tipo : '—'
 
 // Clases compartidas de los formularios
+export const formatClienteLabel = (
+  cliente?: { nombre_cliente?: string | null; nombre_empresa?: string | null } | null,
+  fallback = '—',
+) => {
+  if (!cliente) return fallback
+  const empresa = cliente.nombre_empresa?.trim()
+  const nombre = cliente.nombre_cliente?.trim()
+  if (empresa && nombre && empresa.toLowerCase() !== nombre.toLowerCase()) {
+    return `${empresa} · ${nombre}`
+  }
+  return empresa || nombre || fallback
+}
 export const inputClass =
   'w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:border-blue-500 transition [color-scheme:dark]'
 export const labelClass = 'block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5'
