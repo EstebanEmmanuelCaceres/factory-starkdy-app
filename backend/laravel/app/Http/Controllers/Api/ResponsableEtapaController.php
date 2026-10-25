@@ -156,16 +156,17 @@ class ResponsableEtapaController extends Controller
             ->where('etapa_producto_id', $etapaProducto->id)
             ->first();
 
-        if ($requestedEstado === 'completado') {
+        if ($requestedEstado === 'completado' || $requestedEstado === 'en_progreso') {
             $tempTask = $existingTask ?? new ResponsableEtapa([
                 'pedido_id' => $pedido->id,
                 'etapa_producto_id' => $etapaProducto->id,
             ]);
 
             if ($tempTask->isBlockedByDependencies()) {
+                $verbo = $requestedEstado === 'en_progreso' ? 'iniciar' : 'completar';
                 return response()->json([
                     'status' => 'error',
-                    'message' => 'No puedes completar esta etapa porque requiere que se completen las etapas previas'
+                    'message' => "No puedes {$verbo} esta etapa porque requiere que se completen las etapas previas"
                 ], 422);
             }
         }
@@ -187,6 +188,8 @@ class ResponsableEtapaController extends Controller
 
         if ($targetEstado === 'completado') {
             $this->workflowService->completarTarea($asignacion, $user?->id, 'Asignada y completada por supervisor');
+        } elseif ($targetEstado === 'en_progreso') {
+            $this->workflowService->iniciarTarea($asignacion, $user?->id, 'Asignada e iniciada por supervisor');
         } elseif ($estadoAnterior !== null && $estadoAnterior !== $targetEstado) {
             $this->workflowService->cambiarEstadoTarea($asignacion, $targetEstado, $user?->id, 'Estado actualizado por supervisor');
         }

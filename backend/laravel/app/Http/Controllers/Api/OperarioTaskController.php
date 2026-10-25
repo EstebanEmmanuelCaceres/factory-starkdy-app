@@ -252,6 +252,49 @@ class OperarioTaskController extends Controller
     }
 
     /**
+     * Revertir una tarea completada a "sin completar" (pendiente).
+     */
+    public function uncomplete(Request $request, $id): JsonResponse
+    {
+        /** @var User|null $user */
+        $user = Auth::user();
+        $task = ResponsableEtapa::find($id);
+
+        if (!$task) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Tarea no encontrada'
+            ], 404);
+        }
+
+        if ($task->estado !== 'completado') {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Solo se pueden desmarcar tareas que se encuentran completadas'
+            ], 422);
+        }
+
+        $task->update([
+            'fecha_fin' => null,
+        ]);
+
+        $task = $this->workflowService->cambiarEstadoTarea(
+            $task,
+            'pendiente',
+            $user?->id,
+            'Tarea desmarcada (vuelta a sin completar)'
+        );
+
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Tarea marcada como sin completar',
+            'data' => [
+                'task' => $task
+            ]
+        ]);
+    }
+
+    /**
      * Consultar el historial de producción del operario autenticado.
      */
     public function historial(): JsonResponse
@@ -310,10 +353,14 @@ class OperarioTaskController extends Controller
             ], 422);
         }
 
+        $estadoAnterior = $task->estado;
         $task->update([
             'estado' => 'pendiente',
             'fecha_inicio' => null,
         ]);
+
+        $this->workflowService->logStateChange($task, $estadoAnterior, 'pendiente', 'Tarea pausada y restablecida a pendiente', $user?->id);
+        $this->workflowService->sincronizarEstadoPedido($task->pedido_id);
 
         return response()->json([
             'status' => 'success',

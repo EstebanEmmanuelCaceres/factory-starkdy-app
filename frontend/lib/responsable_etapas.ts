@@ -47,6 +47,11 @@ export async function removeTaskAssignment(id: number): Promise<void> {
   await api.delete(`/responsables-etapas/${id}`)
 }
 
+export async function uncompleteTask(id: number): Promise<ResponsableEtapa> {
+  const { data } = await api.post<{ status: string; data: { task: ResponsableEtapa } }>(`/operario/tasks/${id}/uncomplete`)
+  return data.data.task
+}
+
 export async function fetchDisenosPendientes(filters?: { vendedor_id?: string }): Promise<ResponsableEtapa[]> {
   const { data } = await api.get<{ status: string; data: ResponsableEtapa[] }>('/disenos-pendientes', { params: filters })
   return data.data

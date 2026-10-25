@@ -43,7 +43,11 @@ class PedidoWorkflowService
             }
         } else {
             $completedTasks = $totalTasks - $incompleteTasks;
-            if ($completedTasks > 0) {
+            $inProgressTasks = ResponsableEtapa::where('pedido_id', $pedidoId)
+                ->where('estado', 'en_progreso')
+                ->count();
+
+            if ($completedTasks > 0 || $inProgressTasks > 0) {
                 if (in_array($pedido->estado, ['pendiente', 'listo_para_produccion'])) {
                     $pedido->estado = 'en_progreso';
                     $pedido->save();
@@ -62,21 +66,38 @@ class PedidoWorkflowService
     }
 
     /**
+     * Actualiza el bloqueo de etapas según dependencias y orden cronológico.
+     * Importante: Nunca bloquea las etapas que ya se encuentran completadas.
+     */
+    public function actualizarBloqueosPedido(int $pedidoId): void
+    {
+        $tasks = ResponsableEtapa::where('pedido_id', $pedidoId)->get();
+
+        foreach ($tasks as $task) {
+            // "para este caso no bloquees las que ya estan completas despuse de la que quiero revisar, eso traería problemas."
+            if ($task->estado === 'completado') {
+                continue;
+            }
+
+            $isBlocked = $task->isBlockedByDependencies();
+            if ($isBlocked && $task->estado !== 'bloqueada') {
+                $estadoAnterior = $task->estado;
+                $task->update(['estado' => 'bloqueada']);
+                $this->logStateChange($task, $estadoAnterior, 'bloqueada', 'Bloqueo automático por etapa previa no completada');
+            } elseif (!$isBlocked && $task->estado === 'bloqueada') {
+                $estadoAnterior = $task->estado;
+                $task->update(['estado' => 'pendiente']);
+                $this->logStateChange($task, $estadoAnterior, 'pendiente', 'Desbloqueo automático por cumplimiento de etapas previas');
+            }
+        }
+    }
+
+    /**
      * Desbloquea las etapas de un pedido cuyas dependencias ya fueron completadas.
      */
     public function desbloquearTareasSatisfechas(int $pedidoId): void
     {
-        $blockedTasks = ResponsableEtapa::where('pedido_id', $pedidoId)
-            ->where('estado', 'bloqueada')
-            ->get();
-
-        foreach ($blockedTasks as $bTask) {
-            if (!$bTask->isBlockedByDependencies()) {
-                $estadoAnterior = $bTask->estado;
-                $bTask->update(['estado' => 'pendiente']);
-                $this->logStateChange($bTask, $estadoAnterior, 'pendiente', 'Desbloqueo automático por cumplimiento de dependencias');
-            }
-        }
+        $this->actualizarBloqueosPedido($pedidoId);
     }
 
     /**
@@ -102,7 +123,7 @@ class PedidoWorkflowService
         $task->update($updateData);
 
         $this->logStateChange($task, $estadoAnterior, 'completado', $observacion, $userId);
-        $this->desbloquearTareasSatisfechas($task->pedido_id);
+        $this->actualizarBloqueosPedido($task->pedido_id);
         $this->sincronizarEstadoPedido($task->pedido_id);
 
         return $task->fresh();
@@ -133,7 +154,7 @@ class PedidoWorkflowService
             }
         }
 
-        $this->desbloquearTareasSatisfechas($pedidoId);
+        $this->actualizarBloqueosPedido($pedidoId);
         $this->sincronizarEstadoPedido($pedidoId);
     }
 
@@ -158,6 +179,7 @@ class PedidoWorkflowService
 
         $task->update($updateData);
         $this->logStateChange($task, $estadoAnterior, 'en_progreso', $observacion, $userId);
+        $this->sincronizarEstadoPedido($task->pedido_id);
 
         return $task->fresh();
     }
@@ -192,9 +214,7 @@ class PedidoWorkflowService
         $task->update($updateData);
         $this->logStateChange($task, $estadoAnterior, $nuevoEstado, $observacion, $userId);
 
-        if ($nuevoEstado === 'completado') {
-            $this->desbloquearTareasSatisfechas($task->pedido_id);
-        }
+        $this->actualizarBloqueosPedido($task->pedido_id);
         $this->sincronizarEstadoPedido($task->pedido_id);
 
         return $task->fresh();

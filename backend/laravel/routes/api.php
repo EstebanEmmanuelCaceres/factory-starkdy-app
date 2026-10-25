@@ -148,6 +148,10 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::delete('responsables-etapas/{id}', [ResponsableEtapaController::class, 'destroy']);
     Route::get('disenos-pendientes', [ResponsableEtapaController::class, 'disenosPendientes']);
     Route::post('pedidos/{id}/completar-disenos', [ResponsableEtapaController::class, 'completarDisenosPedido']);
+    Route::post('responsables-etapas/{id}/start', [OperarioTaskController::class, 'start']);
+    Route::post('responsables-etapas/{id}/cancel', [OperarioTaskController::class, 'cancel']);
+    Route::post('responsables-etapas/{id}/complete', [OperarioTaskController::class, 'complete']);
+    Route::post('responsables-etapas/{id}/uncomplete', [OperarioTaskController::class, 'uncomplete']);
 
     // ── Panel del Operario ─────────────────────────────────────────
     Route::prefix('operario')->group(function () {
@@ -156,6 +160,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('tasks/{id}/start', [OperarioTaskController::class, 'start']);
         Route::post('tasks/{id}/cancel', [OperarioTaskController::class, 'cancel']);
         Route::post('tasks/{id}/complete', [OperarioTaskController::class, 'complete']);
+        Route::post('tasks/{id}/uncomplete', [OperarioTaskController::class, 'uncomplete']);
         Route::get('historial', [OperarioTaskController::class, 'historial']);
     });
 });

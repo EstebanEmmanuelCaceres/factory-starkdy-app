@@ -79,6 +79,10 @@ export default function DashboardPage() {
   const [sortField, setSortField] = useState<'created_at' | 'cliente' | 'estado'>('created_at')
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc')
 
+  // Estado para ordenamiento ASC/DESC de completados por cobrar
+  const [unpaidSortField, setUnpaidSortField] = useState<'created_at' | 'saldo'>('created_at')
+  const [unpaidSortOrder, setUnpaidSortOrder] = useState<'asc' | 'desc'>('desc')
+
   // Paginación para vista Mobile de Pedidos y Completados por Cobrar (Límite de 5 tarjetas por página)
   const [mobilePedidosPage, setMobilePedidosPage] = useState(1)
   const [mobileUnpaidPage, setMobileUnpaidPage] = useState(1)
@@ -262,6 +266,29 @@ export default function DashboardPage() {
       : (p.pago && p.pago.estado === 'pagado' ? Number(p.pago.monto) : 0)
     return Math.max(0, precio - paidAmount)
   }
+
+  // Lista ordenada de pedidos completados por cobrar (por fecha de creación o por saldo pendiente)
+  const sortedCompletedUnpaidPedidos = [...completedUnpaidPedidos].sort((a, b) => {
+    if (unpaidSortField === 'saldo') {
+      const balA = getPendingBalance(a)
+      const balB = getPendingBalance(b)
+      if (balA !== balB) {
+        return unpaidSortOrder === 'asc' ? balA - balB : balB - balA
+      }
+      const timeA = a.created_at ? new Date(a.created_at).getTime() : 0
+      const timeB = b.created_at ? new Date(b.created_at).getTime() : 0
+      return timeB - timeA
+    } else {
+      const timeA = a.created_at ? new Date(a.created_at).getTime() : 0
+      const timeB = b.created_at ? new Date(b.created_at).getTime() : 0
+      if (timeA !== timeB) {
+        return unpaidSortOrder === 'asc' ? timeA - timeB : timeB - timeA
+      }
+      const balA = getPendingBalance(a)
+      const balB = getPendingBalance(b)
+      return balB - balA
+    }
+  })
 
   // Cálculos de cobros y totales acumulados
   const totalCobrado = scopedPedidos.reduce((sum, p) => {
@@ -1068,7 +1095,7 @@ export default function DashboardPage() {
               {/* Tabla Adyacente: Completados por Cobrar (Solo visible para roles con módulo financiero) */}
               {!isEncargado && (
                 <div className="bg-slate-900 border border-slate-800 rounded-2xl shadow-xl overflow-hidden flex flex-col">
-                  <div className="border-b border-slate-800 p-5 bg-slate-950/40 flex items-center justify-between">
+                  <div className="border-b border-slate-800 p-5 bg-slate-950/40 flex flex-wrap items-center justify-between gap-3">
                     <div>
                       <h2 className="text-base font-bold text-white flex items-center gap-2">
                         <span>⚠️</span> Completados por Cobrar
@@ -1082,14 +1109,67 @@ export default function DashboardPage() {
                         Clientes con fabricación terminada y saldo pendiente
                       </p>
                     </div>
-                    <button
-                      onClick={loadCompletadosPorCobrar}
-                      disabled={loadingUnpaid}
-                      className="text-xs text-slate-400 hover:text-white p-1 rounded transition cursor-pointer"
-                      title="Actualizar completados por cobrar"
-                    >
-                      🔄
-                    </button>
+
+                    <div className="flex items-center gap-2">
+                      {/* Controles de ordenamiento por Saldo y Fecha */}
+                      {completedUnpaidPedidos.length > 0 && (
+                        <div className="flex items-center bg-slate-950 border border-slate-800 rounded-xl p-1 text-xs gap-1 shadow-inner">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (unpaidSortField === 'created_at') {
+                                setUnpaidSortOrder(prev => prev === 'asc' ? 'desc' : 'asc')
+                              } else {
+                                setUnpaidSortField('created_at')
+                                setUnpaidSortOrder('desc')
+                              }
+                            }}
+                            className={`px-2.5 py-1 rounded-lg flex items-center gap-1.5 transition text-xs font-semibold cursor-pointer ${
+                              unpaidSortField === 'created_at'
+                                ? 'bg-blue-600/25 text-blue-300 border border-blue-500/30 font-bold'
+                                : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+                            }`}
+                            title="Ordenar por fecha de creación (ascendente / descendente)"
+                          >
+                            <span>Fecha</span>
+                            {unpaidSortField === 'created_at' && (
+                              <span className="font-bold text-blue-400">{unpaidSortOrder === 'asc' ? '↑' : '↓'}</span>
+                            )}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (unpaidSortField === 'saldo') {
+                                setUnpaidSortOrder(prev => prev === 'asc' ? 'desc' : 'asc')
+                              } else {
+                                setUnpaidSortField('saldo')
+                                setUnpaidSortOrder('desc')
+                              }
+                            }}
+                            className={`px-2.5 py-1 rounded-lg flex items-center gap-1.5 transition text-xs font-semibold cursor-pointer ${
+                              unpaidSortField === 'saldo'
+                                ? 'bg-amber-600/25 text-amber-300 border border-amber-500/30 font-bold'
+                                : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+                            }`}
+                            title="Ordenar por saldo pendiente (ascendente / descendente)"
+                          >
+                            <span>Saldo</span>
+                            {unpaidSortField === 'saldo' && (
+                              <span className="font-bold text-amber-400">{unpaidSortOrder === 'asc' ? '↑' : '↓'}</span>
+                            )}
+                          </button>
+                        </div>
+                      )}
+
+                      <button
+                        onClick={loadCompletadosPorCobrar}
+                        disabled={loadingUnpaid}
+                        className="text-xs text-slate-400 hover:text-white p-2 bg-slate-950 border border-slate-800 rounded-xl transition cursor-pointer hover:bg-slate-800"
+                        title="Actualizar completados por cobrar"
+                      >
+                        🔄
+                      </button>
+                    </div>
                   </div>
 
                   <div className="p-0 flex-grow">
@@ -1110,7 +1190,7 @@ export default function DashboardPage() {
                         {/* VISTA EN TARJETAS PARA MOBILE (< md) CON LÍMITE DE 5 POR PÁGINA */}
                         <div className="md:hidden space-y-3 p-3">
                           <div className="max-h-[380px] overflow-y-auto space-y-2.5 pr-1">
-                            {completedUnpaidPedidos
+                            {sortedCompletedUnpaidPedidos
                               .slice((mobileUnpaidPage - 1) * 5, mobileUnpaidPage * 5)
                               .map((pedido) => {
                                 const pending = getPendingBalance(pedido)
@@ -1133,6 +1213,9 @@ export default function DashboardPage() {
                                           {pedido.cliente?.nombre_cliente || 'Sin cliente'}
                                         </h3>
                                         <span className="text-xs text-slate-400 block">{pedido.cliente?.nombre_empresa || 'Empresa'}</span>
+                                        <span className="text-xs text-slate-400 block mt-0.5">
+                                          {pedido.created_at ? new Date(pedido.created_at).toLocaleDateString('es-AR') : '-'}
+                                        </span>
                                       </div>
                                       <div className="text-right">
                                         <span className="text-[10px] text-slate-400 block">Saldo Pendiente</span>
@@ -1150,7 +1233,7 @@ export default function DashboardPage() {
                                           setSelectedPedidoForPayments(pedido)
                                           setIsPaymentsModalOpen(true)
                                         }}
-                                        className="inline-flex items-center gap-1 bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition shadow-sm"
+                                        className="inline-flex items-center gap-1 bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition shadow-sm cursor-pointer"
                                       >
                                         💵 Cobrar
                                       </button>
@@ -1161,26 +1244,26 @@ export default function DashboardPage() {
                           </div>
 
                           {/* Controles de Paginación Mobile */}
-                          {completedUnpaidPedidos.length > 5 && (
+                          {sortedCompletedUnpaidPedidos.length > 5 && (
                             <div className="flex items-center justify-between border-t border-slate-800/80 pt-3 text-xs">
                               <span className="text-slate-400 font-medium text-[11px]">
-                                {((mobileUnpaidPage - 1) * 5) + 1} - {Math.min(mobileUnpaidPage * 5, completedUnpaidPedidos.length)} de {completedUnpaidPedidos.length}
+                                {((mobileUnpaidPage - 1) * 5) + 1} - {Math.min(mobileUnpaidPage * 5, sortedCompletedUnpaidPedidos.length)} de {sortedCompletedUnpaidPedidos.length}
                               </span>
                               <div className="flex items-center gap-1.5">
                                 <button
                                   disabled={mobileUnpaidPage === 1}
                                   onClick={() => setMobileUnpaidPage(prev => Math.max(1, prev - 1))}
-                                  className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 disabled:opacity-30 rounded text-slate-200 font-bold transition"
+                                  className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 disabled:opacity-30 rounded text-slate-200 font-bold transition cursor-pointer"
                                 >
                                   Anterior
                                 </button>
                                 <span className="text-slate-300 font-bold font-mono text-[11px] px-1">
-                                  {mobileUnpaidPage} / {Math.ceil(completedUnpaidPedidos.length / 5)}
+                                  {mobileUnpaidPage} / {Math.ceil(sortedCompletedUnpaidPedidos.length / 5)}
                                 </span>
                                 <button
-                                  disabled={mobileUnpaidPage >= Math.ceil(completedUnpaidPedidos.length / 5)}
-                                  onClick={() => setMobileUnpaidPage(prev => Math.min(Math.ceil(completedUnpaidPedidos.length / 5), prev + 1))}
-                                  className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 disabled:opacity-30 rounded text-slate-200 font-bold transition"
+                                  disabled={mobileUnpaidPage >= Math.ceil(sortedCompletedUnpaidPedidos.length / 5)}
+                                  onClick={() => setMobileUnpaidPage(prev => Math.min(Math.ceil(sortedCompletedUnpaidPedidos.length / 5), prev + 1))}
+                                  className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 disabled:opacity-30 rounded text-slate-200 font-bold transition cursor-pointer"
                                 >
                                   Siguiente
                                 </button>
@@ -1200,7 +1283,7 @@ export default function DashboardPage() {
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-800 text-sm">
-                              {completedUnpaidPedidos.map((pedido) => {
+                              {sortedCompletedUnpaidPedidos.map((pedido) => {
                                 const pending = getPendingBalance(pedido)
 
                                 return (
@@ -1214,6 +1297,9 @@ export default function DashboardPage() {
                                         <span className="text-[10px] text-blue-400 font-mono">#{pedido.codigo}</span>
                                         <span className="text-[11px] text-slate-400">{pedido.cliente?.nombre_cliente || 'Sin cliente'}</span>
                                         <span className="font-semibold text-white text-xs">{pedido.cliente?.nombre_empresa || 'Empresa'}</span>
+                                        <span className="text-[11px] text-slate-400">
+                                          {pedido.created_at ? new Date(pedido.created_at).toLocaleDateString('es-AR') : '-'}
+                                        </span>
                                       </div>
                                     </td>
                                     <td className="px-4 py-3 text-right">
@@ -1229,7 +1315,7 @@ export default function DashboardPage() {
                                           setSelectedPedidoForPayments(pedido)
                                           setIsPaymentsModalOpen(true)
                                         }}
-                                        className="inline-flex items-center gap-1 bg-emerald-600/20 hover:bg-emerald-600/40 text-emerald-300 border border-emerald-500/30 px-3 py-1.5 rounded-lg text-xs font-bold transition shadow-sm"
+                                        className="inline-flex items-center gap-1 bg-emerald-600/20 hover:bg-emerald-600/40 text-emerald-300 border border-emerald-500/30 px-3 py-1.5 rounded-lg text-xs font-bold transition shadow-sm cursor-pointer"
                                         title="Cargar cobro a este pedido"
                                       >
                                         💵 Cobrar

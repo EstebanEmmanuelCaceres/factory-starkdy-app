@@ -84,10 +84,49 @@ class ResponsableEtapa extends Model
 
     public function isBlockedByDependencies(): bool
     {
-        $requiredEtapaProductoIds = \DB::table('etapa_producto_dependencias')
+        // "para este caso no bloquees las que ya estan completas despuse de la que quiero revisar, eso traería problemas."
+        if ($this->estado === 'completado') {
+            return false;
+        }
+
+        $ep = $this->etapaProducto;
+        if (!$ep && $this->etapa_producto_id) {
+            $ep = EtapaProducto::find($this->etapa_producto_id);
+        }
+
+        // 1. Dependencias explícitas en etapa_producto_dependencias (incluyendo transitivas)
+        $directDeps = \DB::table('etapa_producto_dependencias')
             ->where('etapa_producto_id', $this->etapa_producto_id)
             ->pluck('depende_de_etapa_producto_id')
             ->toArray();
+
+        $allDeps = $directDeps;
+        $toCheck = $directDeps;
+        while (!empty($toCheck)) {
+            $curr = array_pop($toCheck);
+            $parentDeps = \DB::table('etapa_producto_dependencias')
+                ->where('etapa_producto_id', $curr)
+                ->pluck('depende_de_etapa_producto_id')
+                ->toArray();
+            foreach ($parentDeps as $pId) {
+                if (!in_array($pId, $allDeps)) {
+                    $allDeps[] = $pId;
+                    $toCheck[] = $pId;
+                }
+            }
+        }
+
+        // 2. Todas las etapas anteriores del mismo producto según su orden
+        if ($ep) {
+            $anteriorEtapaIds = EtapaProducto::where('producto_id', $ep->producto_id)
+                ->where('orden', '<', $ep->orden)
+                ->pluck('id')
+                ->toArray();
+
+            $requiredEtapaProductoIds = array_unique(array_merge($allDeps, $anteriorEtapaIds));
+        } else {
+            $requiredEtapaProductoIds = array_unique($allDeps);
+        }
 
         if (!empty($requiredEtapaProductoIds)) {
             $completedCount = self::where('pedido_id', $this->pedido_id)
