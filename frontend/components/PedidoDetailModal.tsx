@@ -11,7 +11,7 @@ import {
 } from '@/lib/pedidos'
 import { fetchEtapas, topologicalSortEtapas, type Etapa } from '@/lib/entities/etapas'
 import { fetchResponsablesEtapas, assignTask, type ResponsableEtapa } from '@/lib/responsable_etapas'
-import { completeOperarioTask } from '@/lib/operario_tasks'
+import { completeOperarioTask, uncompleteOperarioTask, startOperarioTask, cancelOperarioTask } from '@/lib/operario_tasks'
 import { getStoredUser } from '@/lib/auth'
 import SubtitleH2 from './Titles/SubtitleH2'
 import SelectStatus from './SelectFilter/SelectStatus'
@@ -251,6 +251,123 @@ export default function PedidoDetailModal({
     }
   }
 
+  const handleUncompleteTask = async (task: ResponsableEtapa | null, stage: Etapa) => {
+    if (!currentPedido) return
+    const targetKey = task?.id || stage.id
+    try {
+      setError('')
+      setCompletingTaskId(targetKey)
+
+      if (task) {
+        await uncompleteOperarioTask(task.id)
+      } else {
+        const storedUser = getStoredUser()
+        await assignTask({
+          pedido_id: currentPedido.id,
+          etapa_id: stage.id,
+          user_id: storedUser?.id || null,
+          estado: 'pendiente'
+        })
+      }
+
+      showNotification(`↩ Etapa "${stage.nombre}" marcada como sin completar`)
+
+      // Actualizar asignaciones
+      const updatedAssignments = await fetchResponsablesEtapas({ pedido_id: currentPedido.id }).catch(() => [])
+      setAssignments(updatedAssignments)
+
+      // Actualizar pedido por si cambió su estado global
+      const updatedPedido = await getPedido(currentPedido.id).catch(() => currentPedido)
+      if (updatedPedido) {
+        setCurrentPedido(updatedPedido)
+        if (onUpdatePedido) onUpdatePedido(updatedPedido)
+      }
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Error al desmarcar la etapa')
+    } finally {
+      setCompletingTaskId(null)
+    }
+  }
+
+  const handleStartTask = async (task: ResponsableEtapa | null, stage: Etapa) => {
+    if (!currentPedido) return
+    const targetKey = task?.id || stage.id
+    try {
+      setError('')
+      setCompletingTaskId(targetKey)
+
+      if (task) {
+        await startOperarioTask(task.id)
+      } else {
+        const storedUser = getStoredUser()
+        const newTask = await assignTask({
+          pedido_id: currentPedido.id,
+          etapa_id: stage.id,
+          user_id: storedUser?.id || null,
+          estado: 'en_progreso'
+        })
+        if (newTask && newTask.estado !== 'en_progreso') {
+          await startOperarioTask(newTask.id)
+        }
+      }
+
+      showNotification(`▶ Etapa "${stage.nombre}" puesta en progreso`)
+
+      // Actualizar asignaciones
+      const updatedAssignments = await fetchResponsablesEtapas({ pedido_id: currentPedido.id }).catch(() => [])
+      setAssignments(updatedAssignments)
+
+      // Actualizar pedido por si cambió su estado global
+      const updatedPedido = await getPedido(currentPedido.id).catch(() => currentPedido)
+      if (updatedPedido) {
+        setCurrentPedido(updatedPedido)
+        if (onUpdatePedido) onUpdatePedido(updatedPedido)
+      }
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Error al iniciar la etapa')
+    } finally {
+      setCompletingTaskId(null)
+    }
+  }
+
+  const handleCancelTask = async (task: ResponsableEtapa | null, stage: Etapa) => {
+    if (!currentPedido) return
+    const targetKey = task?.id || stage.id
+    try {
+      setError('')
+      setCompletingTaskId(targetKey)
+
+      if (task) {
+        await cancelOperarioTask(task.id)
+      } else {
+        const storedUser = getStoredUser()
+        await assignTask({
+          pedido_id: currentPedido.id,
+          etapa_id: stage.id,
+          user_id: storedUser?.id || null,
+          estado: 'pendiente'
+        })
+      }
+
+      showNotification(`⏸ Etapa "${stage.nombre}" pausada (a pendiente)`)
+
+      // Actualizar asignaciones
+      const updatedAssignments = await fetchResponsablesEtapas({ pedido_id: currentPedido.id }).catch(() => [])
+      setAssignments(updatedAssignments)
+
+      // Actualizar pedido por si cambió su estado global
+      const updatedPedido = await getPedido(currentPedido.id).catch(() => currentPedido)
+      if (updatedPedido) {
+        setCurrentPedido(updatedPedido)
+        if (onUpdatePedido) onUpdatePedido(updatedPedido)
+      }
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Error al pausar la etapa')
+    } finally {
+      setCompletingTaskId(null)
+    }
+  }
+
   // Imágenes de la portada: las del pedido (la principal primero, luego por orden).
   // Si el pedido no tiene, se usa la imagen del producto como antes.
   const productCoverUrl =
@@ -438,38 +555,60 @@ export default function PedidoDetailModal({
                 </div>
               </div>
 
-              <p className="text-xs text-slate-400">
-                Cliente:{' '}
-                <button
-                  type="button"
-                  onClick={handleOpenClientModal}
-                  className="text-blue-400 font-bold hover:underline cursor-pointer transition inline-flex items-center gap-1"
-                >
-                  {currentPedido.cliente?.nombre_cliente || currentPedido.cliente?.nombre_empresa || 'N/A'}
-                  {currentPedido.cliente?.nombre_empresa && currentPedido.cliente?.nombre_cliente
-                    ? ` (${currentPedido.cliente.nombre_empresa})`
-                    : ''}
-                </button>
-              </p>
+              <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5 pt-0.5">
+                <p className="text-xs text-slate-400">
+                  Cliente:{' '}
+                  <button
+                    type="button"
+                    onClick={handleOpenClientModal}
+                    className="text-blue-400 font-bold hover:underline cursor-pointer transition inline-flex items-center gap-1"
+                  >
+                    {currentPedido.cliente?.nombre_cliente || currentPedido.cliente?.nombre_empresa || 'N/A'}
+                    {currentPedido.cliente?.nombre_empresa && currentPedido.cliente?.nombre_cliente
+                      ? ` (${currentPedido.cliente.nombre_empresa})`
+                      : ''}
+                  </button>
+                </p>
 
-              <p className="text-xs text-slate-400">
-                Vendedor:{' '}
-                <span className="text-slate-200 font-bold">
-                  {currentPedido.user?.name || 'Sin asignar'}
-                </span>
-              </p>
+                <p className="text-xs text-slate-400">
+                  Vendedor:{' '}
+                  <span className="text-slate-200 font-bold">
+                    {currentPedido.user?.name || 'Sin asignar'}
+                  </span>
+                </p>
+
+                <p className="text-xs text-slate-400">
+                  Fecha de creación:{' '}
+                  <span className="text-slate-200 font-bold">
+                    {currentPedido.created_at
+                      ? new Date(currentPedido.created_at).toLocaleDateString('es-AR', {
+                          day: '2-digit',
+                          month: 'short',
+                          year: 'numeric'
+                        }) +
+                        ' • ' +
+                        new Date(currentPedido.created_at).toLocaleTimeString('es-AR', {
+                          hour: '2-digit',
+                          minute: '2-digit'
+                        })
+                      : 'N/A'}
+                  </span>
+                </p>
+
+                {currentPedido.fecha_entrega && (
+                  <p className="text-xs text-slate-400">
+                    Fecha de entrega:{' '}
+                    <span className="text-slate-200 font-bold">
+                      {new Date(currentPedido.fecha_entrega + 'T00:00:00').toLocaleDateString('es-AR', {
+                        day: '2-digit',
+                        month: 'short',
+                        year: 'numeric'
+                      })}
+                    </span>
+                  </p>
+                )}
+              </div>
             </div>
-
-            {/* Cliente */}
-            <p className="text-xs text-slate-400 min-w-0 sm:col-start-1 sm:row-start-2 lg:col-span-3">
-              Cliente:{' '}
-              <span className="text-slate-200 font-bold">
-                {currentPedido.cliente?.nombre_cliente || 'N/A'}
-              </span>{' '}
-              {currentPedido.cliente?.nombre_empresa && currentPedido.cliente?.nombre_cliente
-                ? `(${currentPedido.cliente.nombre_empresa})`
-                : ''}
-            </p>
 
             {/* Botones de acción: Editar Pedido, Galería */}
             <div className="flex flex-wrap items-center gap-2.5 justify-self-end sm:col-start-2 sm:row-start-1 lg:col-start-3">
@@ -697,7 +836,20 @@ export default function PedidoDetailModal({
                                     return (depTask?.estado || 'pendiente') !== 'completado'
                                   })
 
-                                  const isCurrentBlocked = currentInfo.task?.estado === 'bloqueada' || isBlockedByExplicitDeps
+                                  const currentStageIdx = prodStages.findIndex((s) => s.id === currentInfo.stage.id)
+                                  const anteriorStages = currentStageIdx > 0 ? prodStages.slice(0, currentStageIdx) : []
+                                  const hasIncompleteAnterior = anteriorStages.some((prevStage) => {
+                                    const prevTask = assignments.find(
+                                      (t) =>
+                                        t.pedido_id === currentPedido.id &&
+                                        ((t as any).etapa_producto_id === prevStage.id ||
+                                          t.etapa_id === prevStage.id ||
+                                          t.etapa?.id === prevStage.id)
+                                    )
+                                    return (prevTask?.estado || 'pendiente') !== 'completado'
+                                  })
+
+                                  const isCurrentBlocked = currentInfo.task?.estado === 'bloqueada' || isBlockedByExplicitDeps || hasIncompleteAnterior
 
                                   if (isCurrentBlocked) {
                                     return (
@@ -707,19 +859,72 @@ export default function PedidoDetailModal({
                                     )
                                   }
 
+                                  const isCurrentInProgress = currentInfo.task?.estado === 'en_progreso'
+
                                   return (
-                                    <button
-                                      type="button"
-                                      disabled={completingTaskId === (currentInfo.task?.id || currentInfo.stage.id)}
-                                      onClick={() => handleCompleteTask(currentInfo.task || null, currentInfo.stage)}
-                                      className="mt-1 bg-emerald-600 hover:bg-emerald-500 active:scale-95 disabled:opacity-50 text-white text-xs font-extrabold px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition shadow cursor-pointer"
-                                      title="Marcar etapa como completada"
-                                    >
-                                      <span>✓</span>
-                                      <span>{completingTaskId === (currentInfo.task?.id || currentInfo.stage.id) ? 'Guardando...' : 'Completar Etapa'}</span>
-                                    </button>
+                                    <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                                      {isCurrentInProgress ? (
+                                        <>
+                                          <button
+                                            type="button"
+                                            disabled={completingTaskId === (currentInfo.task?.id || currentInfo.stage.id)}
+                                            onClick={() => handleCompleteTask(currentInfo.task || null, currentInfo.stage)}
+                                            className="bg-emerald-600 hover:bg-emerald-500 active:scale-95 disabled:opacity-50 text-white text-xs font-extrabold px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition shadow cursor-pointer"
+                                            title="Marcar etapa como completada"
+                                          >
+                                            <span>✓</span>
+                                            <span>{completingTaskId === (currentInfo.task?.id || currentInfo.stage.id) ? 'Guardando...' : 'Completar Etapa'}</span>
+                                          </button>
+                                          <button
+                                            type="button"
+                                            disabled={completingTaskId === (currentInfo.task?.id || currentInfo.stage.id)}
+                                            onClick={() => handleCancelTask(currentInfo.task || null, currentInfo.stage)}
+                                            className="bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 active:scale-95 disabled:opacity-50 text-xs font-bold px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition shadow cursor-pointer"
+                                            title="Pausar o devolver esta etapa a pendiente"
+                                          >
+                                            <span>⏸</span>
+                                            <span>{completingTaskId === (currentInfo.task?.id || currentInfo.stage.id) ? 'Pausando...' : 'Pausar'}</span>
+                                          </button>
+                                        </>
+                                      ) : (
+                                        <>
+                                          <button
+                                            type="button"
+                                            disabled={completingTaskId === (currentInfo.task?.id || currentInfo.stage.id)}
+                                            onClick={() => handleStartTask(currentInfo.task || null, currentInfo.stage)}
+                                            className="bg-blue-600 hover:bg-blue-500 active:scale-95 disabled:opacity-50 text-white text-xs font-bold px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition shadow cursor-pointer"
+                                            title="Iniciar esta etapa (en progreso)"
+                                          >
+                                            <span>▶</span>
+                                            <span>{completingTaskId === (currentInfo.task?.id || currentInfo.stage.id) ? 'Iniciando...' : 'Iniciar Etapa'}</span>
+                                          </button>
+                                          <button
+                                            type="button"
+                                            disabled={completingTaskId === (currentInfo.task?.id || currentInfo.stage.id)}
+                                            onClick={() => handleCompleteTask(currentInfo.task || null, currentInfo.stage)}
+                                            className="bg-emerald-600/90 hover:bg-emerald-600 active:scale-95 disabled:opacity-50 text-white text-xs font-extrabold px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition shadow cursor-pointer"
+                                            title="Marcar etapa como completada directamente"
+                                          >
+                                            <span>✓</span>
+                                            <span>{completingTaskId === (currentInfo.task?.id || currentInfo.stage.id) ? 'Guardando...' : 'Completar'}</span>
+                                          </button>
+                                        </>
+                                      )}
+                                    </div>
                                   )
                                 })()
+                              )}
+                              {currentInfo.task?.estado === 'completado' && (
+                                <button
+                                  type="button"
+                                  disabled={completingTaskId === (currentInfo.task?.id || currentInfo.stage.id)}
+                                  onClick={() => handleUncompleteTask(currentInfo.task || null, currentInfo.stage)}
+                                  className="mt-1 bg-slate-800 hover:bg-amber-600/30 text-amber-300 border border-amber-500/30 active:scale-95 disabled:opacity-50 text-xs font-bold px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition shadow cursor-pointer"
+                                  title="Revertir esta etapa a sin completar"
+                                >
+                                  <span>↩️</span>
+                                  <span>{completingTaskId === (currentInfo.task?.id || currentInfo.stage.id) ? 'Guardando...' : 'Pasar a Sin Completar'}</span>
+                                </button>
                               )}
                             </div>
                           ) : (
@@ -780,7 +985,22 @@ export default function PedidoDetailModal({
                                       return (depTask?.estado || 'pendiente') !== 'completado'
                                     })
 
-                                    const isBlockedNode = state === 'bloqueada' || isBlockedByExplicitDeps
+                                    const anteriorStages = prodStages.slice(0, idx)
+                                    const hasIncompleteAnterior = anteriorStages.some((prevStage) => {
+                                      const prevTask = assignments.find(
+                                        (t) =>
+                                          t.pedido_id === currentPedido.id &&
+                                          ((t as any).etapa_producto_id === prevStage.id ||
+                                            t.etapa_id === prevStage.id ||
+                                            t.etapa?.id === prevStage.id)
+                                      )
+                                      return (prevTask?.estado || 'pendiente') !== 'completado'
+                                    })
+
+                                    // Si la etapa ya está completada, no debe bloquearse
+                                    const isBlockedNode =
+                                      state !== 'completado' &&
+                                      (state === 'bloqueada' || isBlockedByExplicitDeps || hasIncompleteAnterior)
 
                                     let nodeBg = 'bg-slate-900 border-slate-800 text-slate-400'
                                     let stateLabel = 'Pendiente'
@@ -801,6 +1021,17 @@ export default function PedidoDetailModal({
                                       state === 'completado' && (task?.fecha_fin || task?.updated_at)
                                         ? new Date(
                                           task.fecha_fin || task.updated_at
+                                        ).toLocaleDateString('es-ES', {
+                                          day: 'numeric',
+                                          month: 'short',
+                                          year: 'numeric'
+                                        })
+                                        : null
+
+                                    const startDate =
+                                      state === 'en_progreso' && (task?.fecha_inicio || task?.updated_at)
+                                        ? new Date(
+                                          task.fecha_inicio || task.updated_at
                                         ).toLocaleDateString('es-ES', {
                                           day: 'numeric',
                                           month: 'short',
@@ -836,18 +1067,77 @@ export default function PedidoDetailModal({
                                               {completionDate}
                                             </span>
                                           )}
+                                          {startDate && (
+                                            <span
+                                              className="text-[9px] font-medium block mt-1 text-blue-300/90 font-mono"
+                                              title={`Iniciada: ${startDate}`}
+                                            >
+                                              Desde: {startDate}
+                                            </span>
+                                          )}
+                                          {state === 'completado' && (
+                                            <button
+                                              type="button"
+                                              disabled={completingTaskId === (task?.id || stage.id)}
+                                              onClick={() => handleUncompleteTask(task || null, stage)}
+                                              className="mt-2 w-full text-[10px] font-bold px-2 py-1 rounded-lg bg-slate-800 hover:bg-amber-600/30 text-amber-300 border border-amber-500/30 active:scale-95 disabled:opacity-50 transition shadow flex items-center justify-center gap-1 cursor-pointer"
+                                              title="Pasar esta etapa a sin completar"
+                                            >
+                                              <span>↩️</span>
+                                              <span>{completingTaskId === (task?.id || stage.id) ? 'Guardando...' : 'Sin completar'}</span>
+                                            </button>
+                                          )}
                                           {state !== 'completado' && currentPedido.estado !== 'pendiente' && (
                                             !isBlockedNode ? (
-                                              <button
-                                                type="button"
-                                                disabled={completingTaskId === (task?.id || stage.id)}
-                                                onClick={() => handleCompleteTask(task || null, stage)}
-                                                className="mt-2 w-full text-[10px] font-extrabold px-2 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 active:scale-95 disabled:opacity-50 text-white transition shadow flex items-center justify-center gap-1 cursor-pointer"
-                                                title="Completar esta etapa"
-                                              >
-                                                <span>✓</span>
-                                                <span>{completingTaskId === (task?.id || stage.id) ? 'Completo...' : 'Completar'}</span>
-                                              </button>
+                                              <div className="mt-2 flex flex-col gap-1.5">
+                                                {state === 'en_progreso' ? (
+                                                  <>
+                                                    <button
+                                                      type="button"
+                                                      disabled={completingTaskId === (task?.id || stage.id)}
+                                                      onClick={() => handleCompleteTask(task || null, stage)}
+                                                      className="w-full text-[10px] font-extrabold px-2 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 active:scale-95 disabled:opacity-50 text-white transition shadow flex items-center justify-center gap-1 cursor-pointer"
+                                                      title="Completar esta etapa"
+                                                    >
+                                                      <span>✓</span>
+                                                      <span>{completingTaskId === (task?.id || stage.id) ? 'Completo...' : 'Completar'}</span>
+                                                    </button>
+                                                    <button
+                                                      type="button"
+                                                      disabled={completingTaskId === (task?.id || stage.id)}
+                                                      onClick={() => handleCancelTask(task || null, stage)}
+                                                      className="w-full text-[10px] font-semibold px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 active:scale-95 disabled:opacity-50 transition flex items-center justify-center gap-1 cursor-pointer"
+                                                      title="Pausar o devolver esta etapa a pendiente"
+                                                    >
+                                                      <span>⏸</span>
+                                                      <span>{completingTaskId === (task?.id || stage.id) ? 'Pausando...' : 'A pendiente'}</span>
+                                                    </button>
+                                                  </>
+                                                ) : (
+                                                  <>
+                                                    <button
+                                                      type="button"
+                                                      disabled={completingTaskId === (task?.id || stage.id)}
+                                                      onClick={() => handleStartTask(task || null, stage)}
+                                                      className="w-full text-[10px] font-bold px-2 py-1 rounded-lg bg-blue-600 hover:bg-blue-500 active:scale-95 disabled:opacity-50 text-white transition shadow flex items-center justify-center gap-1 cursor-pointer"
+                                                      title="Poner esta etapa en progreso"
+                                                    >
+                                                      <span>▶</span>
+                                                      <span>{completingTaskId === (task?.id || stage.id) ? 'Iniciando...' : 'En progreso'}</span>
+                                                    </button>
+                                                    <button
+                                                      type="button"
+                                                      disabled={completingTaskId === (task?.id || stage.id)}
+                                                      onClick={() => handleCompleteTask(task || null, stage)}
+                                                      className="w-full text-[10px] font-bold px-2 py-1 rounded-lg bg-emerald-600/90 hover:bg-emerald-600 active:scale-95 disabled:opacity-50 text-white transition shadow flex items-center justify-center gap-1 cursor-pointer"
+                                                      title="Completar esta etapa directamente"
+                                                    >
+                                                      <span>✓</span>
+                                                      <span>{completingTaskId === (task?.id || stage.id) ? 'Completo...' : 'Completar'}</span>
+                                                    </button>
+                                                  </>
+                                                )}
+                                              </div>
                                             ) : (
                                               <div
                                                 className="mt-2 w-full text-[10px] font-semibold px-2 py-1 rounded-lg bg-slate-900/90 text-rose-400/80 border border-rose-500/20 flex items-center justify-center gap-1 opacity-80"
