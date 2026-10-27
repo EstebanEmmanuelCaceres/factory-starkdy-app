@@ -143,6 +143,16 @@ export async function searchCobros(q: string, orden: OrdenFecha = 'desc'): Promi
   return { data: data.data, meta: data.meta }
 }
 
+/** Sube el comprobante (PDF o imagen) y devuelve su URL, para mandarla como `comprobante_url`. */
+export async function uploadComprobante(file: File): Promise<string> {
+  const formData = new FormData()
+  formData.append('comprobante', file)
+  const { data } = await api.post<{ status: string; data: { url: string } }>('/pagos/comprobante', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  })
+  return data.data.url
+}
+
 export async function getCobro(id: number): Promise<CobroDetail> {
   const { data } = await api.get<{ status: string; data: CobroDetail }>(`/admin/cobros/${id}`)
   return data.data

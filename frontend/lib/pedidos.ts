@@ -143,6 +143,7 @@ export async function createPedidoPago(pedidoId: number, input: {
   tipo_cobro: 'seña' | 'parcial' | 'saldo' | 'unico'
   observaciones?: string
   fecha_pago?: string
+  comprobante_url?: string | null
 }): Promise<{ status: string; message: string; data: Pago; pedido: Pedido }> {
   const { data } = await api.post<{ status: string; message: string; data: Pago; pedido: Pedido }>(`/pedidos/${pedidoId}/pagos`, input)
   return data

@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Pago;
 use App\Models\Pedido;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 
 class PagoController extends Controller
 {
@@ -45,6 +46,32 @@ class PagoController extends Controller
     }
 
     /**
+     * Subir el comprobante de un cobro (PDF o imagen). Devuelve la URL para mandarla
+     * después como `comprobante_url` al crear / editar el cobro.
+     */
+    public function uploadComprobante(Request $request)
+    {
+        if (!$this->authorizePaymentAction()) {
+            return response()->json(['message' => 'No autorizado para subir comprobantes.'], 403);
+        }
+
+        $request->validate([
+            'comprobante' => 'required|file|mimes:pdf,jpg,jpeg,png,webp|max:10240',
+        ], [
+            'comprobante.required' => 'Elegí un archivo.',
+            'comprobante.mimes' => 'El comprobante debe ser un PDF o una imagen (JPG, PNG, WEBP).',
+            'comprobante.max' => 'El comprobante no puede pesar más de 10 MB.',
+        ]);
+
+        $path = $request->file('comprobante')->store('comprobantes', 'public');
+
+        return response()->json([
+            'status' => 'success',
+            'data' => ['url' => Storage::disk('public')->url($path)],
+        ], 201);
+    }
+
+    /**
      * Registrar un nuevo pago (parcial o único) para un pedido.
      */
     public function store(Request $request, Pedido $pedido)
@@ -59,6 +86,7 @@ class PagoController extends Controller
             'tipo_cobro' => 'required|in:seña,parcial,saldo,unico',
             'observaciones' => 'nullable|string',
             'fecha_pago' => 'nullable|date',
+            'comprobante_url' => 'nullable|url|max:255',
         ]);
 
         // Regla 2: El monto del pago no puede superar el saldo pendiente del pedido
@@ -79,6 +107,7 @@ class PagoController extends Controller
             'medio' => $validated['medio_pago'], // por compatibilidad
             'tipo_cobro' => $validated['tipo_cobro'],
             'observaciones' => $validated['observaciones'] ?? null,
+            'comprobante_url' => $validated['comprobante_url'] ?? null,
             'fecha_pago' => $validated['fecha_pago'] ?? now(),
             'pagado_at' => $validated['fecha_pago'] ?? now(), // por compatibilidad
             'estado' => 'pagado', // por defecto cobrado exitosamente
@@ -111,6 +140,7 @@ class PagoController extends Controller
             'observaciones' => 'nullable|string',
             'fecha_pago' => 'nullable|date',
             'estado' => 'nullable|string|in:pendiente,pagado,anulado',
+            'comprobante_url' => 'nullable|url|max:255',
         ]);
 
         $pedido = $pago->pedido;

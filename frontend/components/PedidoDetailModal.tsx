@@ -582,15 +582,9 @@ export default function PedidoDetailModal({
                   <span className="text-slate-200 font-bold">
                     {currentPedido.created_at
                       ? new Date(currentPedido.created_at).toLocaleDateString('es-AR', {
-                          day: '2-digit',
-                          month: 'short',
-                          year: 'numeric'
-                        }) +
-                        ' • ' +
-                        new Date(currentPedido.created_at).toLocaleTimeString('es-AR', {
-                          hour: '2-digit',
-                          minute: '2-digit'
-                        })
+                        day: '2-digit',
+                        month: 'short'
+                      })
                       : 'N/A'}
                   </span>
                 </p>
@@ -601,8 +595,7 @@ export default function PedidoDetailModal({
                     <span className="text-slate-200 font-bold">
                       {new Date(currentPedido.fecha_entrega + 'T00:00:00').toLocaleDateString('es-AR', {
                         day: '2-digit',
-                        month: 'short',
-                        year: 'numeric'
+                        month: 'short'
                       })}
                     </span>
                   </p>
@@ -1084,7 +1077,7 @@ export default function PedidoDetailModal({
                                               title="Pasar esta etapa a sin completar"
                                             >
                                               <span>↩️</span>
-                                              <span>{completingTaskId === (task?.id || stage.id) ? 'Guardando...' : 'Sin completar'}</span>
+                                              <span>{completingTaskId === (task?.id || stage.id) ? 'Guardando...' : 'Anular etapa'}</span>
                                             </button>
                                           )}
                                           {state !== 'completado' && currentPedido.estado !== 'pendiente' && (

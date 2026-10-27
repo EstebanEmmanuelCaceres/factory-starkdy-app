@@ -38,6 +38,8 @@ import SelectFilter from '@/components/SelectFilter/SelectFilter'
 import { PRIORITY_OPTIONS, PEDIDO_STATE_OPTIONS } from '@/lib/order-status'
 import ImagePedido from '@/components/ImagePedido/ImagePedido'
 import PedidoThumbnail from '@/components/PedidoThumbnail'
+import ClientQuickPasteBox from '@/components/ClientQuickPasteBox'
+import { type ParsedClienteData } from '@/lib/parseClienteText'
 
 // Portada del pedido: imagen principal, o la primera del pedido, o la de sus productos
 const getPedidoCoverUrl = (pedido: Pedido) =>
@@ -183,6 +185,34 @@ export default function PedidosPage() {
     saldo: 0,
     observaciones: ''
   })
+  const [isClientExtraOpen, setIsClientExtraOpen] = useState(false)
+  const [needsEmpresaWarning, setNeedsEmpresaWarning] = useState(false)
+  const wizardEmpresaInputRef = useRef<HTMLInputElement | null>(null)
+
+  const handleApplyParsedCliente = (parsed: ParsedClienteData) => {
+    setClienteFormData((prev) => ({
+      ...prev,
+      nombre_cliente: parsed.nombre_cliente || prev.nombre_cliente,
+      nombre_empresa: parsed.nombre_empresa || prev.nombre_empresa,
+      telefono: parsed.telefono || prev.telefono,
+      email: parsed.email || prev.email,
+      dni: parsed.dni || prev.dni,
+      direccion: parsed.direccion || prev.direccion,
+      provincia: parsed.provincia || prev.provincia,
+      cp: parsed.cp || prev.cp,
+      localidad: parsed.localidad || prev.localidad,
+      observaciones: parsed.observaciones || prev.observaciones
+    }))
+    setIsClientExtraOpen(true)
+    if (parsed.missingEmpresa && !clienteFormData.nombre_empresa.trim()) {
+      setNeedsEmpresaWarning(true)
+      setTimeout(() => {
+        wizardEmpresaInputRef.current?.focus()
+      }, 50)
+    } else {
+      setNeedsEmpresaWarning(false)
+    }
+  }
 
   // Último texto buscado en el backend y id del último pedido de datos (para ignorar respuestas viejas)
   const lastSearchRef = useRef('')
@@ -386,6 +416,8 @@ export default function PedidosPage() {
     setClientMode('search')
     setWizardNewClient(null)
     setIsClientDropdownOpen(false)
+    setIsClientExtraOpen(false)
+    setNeedsEmpresaWarning(false)
   }
 
   const handleOpenCreateModal = () => {
@@ -1538,7 +1570,7 @@ export default function PedidosPage() {
               setIsCreateModalOpen(false)
               resetAllCreateOrderForms()
             }}
-            className="max-w-xl p-6"
+            className="max-w-2xl p-6"
           >
             <h2 className="text-xl font-bold text-white mb-4">Registrar Nuevo Pedido</h2>
 
@@ -1783,6 +1815,18 @@ export default function PedidosPage() {
                 ) : (
                   /* Formulario de Registro Rápido integrado */
                   <form onSubmit={handleWizardCreateClienteSubmit} className="space-y-4 text-left">
+                    <ClientQuickPasteBox
+                      onParsed={handleApplyParsedCliente}
+                      currentEmpresaValue={clienteFormData.nombre_empresa}
+                      existingClientes={clientes}
+                      onSelectExistingClient={(existing) => {
+                        setFormData({ ...formData, cliente_id: existing.id.toString() })
+                        setClientSearchText(`${existing.nombre_cliente} - ${existing.nombre_empresa}`)
+                        setSelectedWizardClient(existing)
+                        setClientMode('search')
+                      }}
+                    />
+
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div>
                         <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
@@ -1802,13 +1846,26 @@ export default function PedidosPage() {
                           Nombre de la Empresa *
                         </label>
                         <input
+                          ref={wizardEmpresaInputRef}
                           type="text"
                           required
                           value={clienteFormData.nombre_empresa}
-                          onChange={(e) => setClienteFormData({ ...clienteFormData, nombre_empresa: e.target.value })}
-                          className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition"
-                          placeholder="Ej. Empresa S.A."
+                          onChange={(e) => {
+                            setClienteFormData({ ...clienteFormData, nombre_empresa: e.target.value })
+                            if (e.target.value.trim()) setNeedsEmpresaWarning(false)
+                          }}
+                          className={`w-full bg-slate-950 border rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none transition ${
+                            needsEmpresaWarning && !clienteFormData.nombre_empresa.trim()
+                              ? 'border-amber-500 ring-2 ring-amber-500/30 focus:border-amber-400'
+                              : 'border-slate-800 focus:border-blue-500'
+                          }`}
+                          placeholder="Ej. Empresa S.A. / Particular"
                         />
+                        {needsEmpresaWarning && !clienteFormData.nombre_empresa.trim() && (
+                          <span className="text-[11px] text-amber-400 font-medium mt-1 block">
+                            ⚠️ Por favor, ingresá el nombre de la empresa o razón social.
+                          </span>
+                        )}
                       </div>
                     </div>
 
@@ -1840,7 +1897,11 @@ export default function PedidosPage() {
                       </div>
                     </div>
 
-                    <details className="group border border-slate-800 rounded-lg bg-slate-950/30 overflow-hidden">
+                    <details
+                      open={isClientExtraOpen}
+                      onToggle={(e) => setIsClientExtraOpen((e.currentTarget as HTMLDetailsElement).open)}
+                      className="group border border-slate-800 rounded-lg bg-slate-950/30 overflow-hidden"
+                    >
                       <summary className="list-none flex items-center justify-between p-3 text-xs text-slate-400 font-semibold cursor-pointer select-none hover:bg-slate-950/60 transition">
                         <span>Información Adicional (Dirección, Facturación, etc.)</span>
                         <span className="transition-transform group-open:rotate-180">▼</span>
@@ -2394,10 +2455,15 @@ export default function PedidosPage() {
           <Modal
             isOpen={isCreateClienteModalOpen}
             onClose={() => setIsCreateClienteModalOpen(false)}
-            className="max-w-lg p-6 text-slate-300"
+            className="max-w-2xl p-6 text-slate-300"
           >
             <h2 className="text-xl font-bold text-white mb-4">Registrar Nuevo Cliente</h2>
             <form onSubmit={handleCreateClienteSubmit} className="space-y-4 max-h-[70vh] overflow-y-auto pr-2 text-left">
+              <ClientQuickPasteBox
+                onParsed={handleApplyParsedCliente}
+                currentEmpresaValue={clienteFormData.nombre_empresa}
+                existingClientes={clientes}
+              />
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
@@ -2420,10 +2486,22 @@ export default function PedidosPage() {
                     type="text"
                     required
                     value={clienteFormData.nombre_empresa}
-                    onChange={(e) => setClienteFormData({ ...clienteFormData, nombre_empresa: e.target.value })}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition"
-                    placeholder="Ej. Empresa S.A."
+                    onChange={(e) => {
+                      setClienteFormData({ ...clienteFormData, nombre_empresa: e.target.value })
+                      if (e.target.value.trim()) setNeedsEmpresaWarning(false)
+                    }}
+                    className={`w-full bg-slate-950 border rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none transition ${
+                      needsEmpresaWarning && !clienteFormData.nombre_empresa.trim()
+                        ? 'border-amber-500 ring-2 ring-amber-500/30 focus:border-amber-400'
+                        : 'border-slate-800 focus:border-blue-500'
+                    }`}
+                    placeholder="Ej. Empresa S.A. / Particular"
                   />
+                  {needsEmpresaWarning && !clienteFormData.nombre_empresa.trim() && (
+                    <span className="text-[11px] text-amber-400 font-medium mt-1 block">
+                      ⚠️ Por favor, ingresá el nombre de la empresa o razón social.
+                    </span>
+                  )}
                 </div>
               </div>
 

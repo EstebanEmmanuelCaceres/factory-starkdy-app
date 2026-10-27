@@ -127,6 +127,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('pedidos/{id}/imagenes/reordenar', [PedidoImagenController::class, 'reorder']);
 
     // ── Pagos de Pedidos ───────────────────────────────────────────
+    Route::post('pagos/comprobante', [PagoController::class, 'uploadComprobante']);
     Route::get('pedidos/{pedido}/pagos', [PagoController::class, 'index']);
     Route::post('pedidos/{pedido}/pagos', [PagoController::class, 'store']);
     Route::patch('pagos/{pago}', [PagoController::class, 'update']);
