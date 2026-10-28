@@ -7,6 +7,7 @@ import type { User } from '@/lib/auth'
 import type { Pedido } from '@/lib/pedidos'
 import { createCobro, updateCobro, MEDIOS_PAGO, TIPOS_COBRO, type CobroDetail, type TipoCobro } from '@/lib/cobros'
 import { PedidoPicker } from './PedidoPicker'
+import { ComprobanteInput } from './ComprobanteInput'
 import { COBRO_FORM_MODAL_ID } from './modalIds'
 import { formatClienteLabel, formatMoney, inputClass, labelClass, toDateInput, todayInput } from './format'
 
@@ -19,6 +20,7 @@ interface CobroFormValues {
   vendedor_id: string
   observaciones: string
   referencia_externa: string
+  comprobante_url: string
 }
 
 type FormErrors = Partial<Record<'pedido' | 'monto' | 'fecha_pago', string>>
@@ -39,6 +41,7 @@ const getDefaults = (cobro: CobroDetail | null): CobroFormValues => ({
   vendedor_id: cobro?.vendedor?.id ? String(cobro.vendedor.id) : '',
   observaciones: cobro?.observaciones ?? '',
   referencia_externa: cobro?.referencia_externa ?? '',
+  comprobante_url: cobro?.comprobante_url ?? '',
 })
 
 export const CobroFormModal = ({ cobro, vendedores, onSaved }: CobroFormModalProps) => {
@@ -47,6 +50,7 @@ export const CobroFormModal = ({ cobro, vendedores, onSaved }: CobroFormModalPro
   const [errors, setErrors] = useState<FormErrors>({})
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
+  const [uploading, setUploading] = useState(false)
 
   const saldoPedido = Number(values.pedido?.saldo_pendiente) || 0
 
@@ -95,6 +99,7 @@ export const CobroFormModal = ({ cobro, vendedores, onSaved }: CobroFormModalPro
       vendedor_id: values.vendedor_id ? Number(values.vendedor_id) : null,
       observaciones: values.observaciones.trim() || null,
       referencia_externa: values.referencia_externa.trim() || null,
+      comprobante_url: values.comprobante_url || null,
     }
     try {
       const saved = cobro
@@ -206,6 +211,12 @@ export const CobroFormModal = ({ cobro, vendedores, onSaved }: CobroFormModalPro
           />
         </div>
 
+        <ComprobanteInput
+          value={values.comprobante_url || null}
+          onChange={(url) => setField('comprobante_url', url ?? '')}
+          onUploadingChange={setUploading}
+        />
+
         <div>
           <label className={labelClass}>Observaciones</label>
           <textarea rows={2} value={values.observaciones} onChange={(e) => setField('observaciones', e.target.value)} className={`${inputClass} resize-y`} />
@@ -217,7 +228,7 @@ export const CobroFormModal = ({ cobro, vendedores, onSaved }: CobroFormModalPro
           </button>
           <button
             type="submit"
-            disabled={submitting}
+            disabled={submitting || uploading}
             className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-500 disabled:opacity-50 cursor-pointer"
           >
             {submitting ? 'Guardando...' : cobro ? 'Guardar cambios' : 'Registrar cobro'}

@@ -1,9 +1,11 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import RoleGuard from '@/components/RoleGuard'
 import Modal from '@/components/Modal'
 import Pagination from '@/components/Pagination'
+import ClientQuickPasteBox from '@/components/ClientQuickPasteBox'
+import { type ParsedClienteData } from '@/lib/parseClienteText'
 import {
   clientesWithPedidos,
   createCliente,
@@ -52,6 +54,32 @@ export default function ClientesPage() {
     saldo: 0,
     observaciones: ''
   })
+  const [needsEmpresaWarning, setNeedsEmpresaWarning] = useState(false)
+  const empresaInputRef = useRef<HTMLInputElement | null>(null)
+
+  const handleApplyParsedCliente = (parsed: ParsedClienteData) => {
+    setFormData((prev) => ({
+      ...prev,
+      nombre_cliente: parsed.nombre_cliente || prev.nombre_cliente,
+      nombre_empresa: parsed.nombre_empresa || prev.nombre_empresa,
+      telefono: parsed.telefono || prev.telefono,
+      email: parsed.email || prev.email,
+      dni: parsed.dni || prev.dni,
+      direccion: parsed.direccion || prev.direccion,
+      provincia: parsed.provincia || prev.provincia,
+      cp: parsed.cp || prev.cp,
+      localidad: parsed.localidad || prev.localidad,
+      observaciones: parsed.observaciones || prev.observaciones
+    }))
+    if (parsed.missingEmpresa && !formData.nombre_empresa.trim()) {
+      setNeedsEmpresaWarning(true)
+      setTimeout(() => {
+        empresaInputRef.current?.focus()
+      }, 50)
+    } else {
+      setNeedsEmpresaWarning(false)
+    }
+  }
 
   const loadData = async (search?: string) => {
     setLoading(true)
@@ -117,6 +145,7 @@ export default function ClientesPage() {
       saldo: 0,
       observaciones: ''
     })
+    setNeedsEmpresaWarning(false)
     setIsCreateModalOpen(true)
   }
 
@@ -560,9 +589,18 @@ export default function ClientesPage() {
 
         {/* Modal de Creación */}
         {isCreateModalOpen && (
-          <Modal isOpen={isCreateModalOpen} onClose={() => setIsCreateModalOpen(false)} className="max-w-lg p-6">
+          <Modal isOpen={isCreateModalOpen} onClose={() => setIsCreateModalOpen(false)} className="max-w-2xl p-6">
               <h2 className="text-xl font-bold text-white mb-4">Registrar Nuevo Cliente</h2>
               <form onSubmit={handleCreateSubmit} className="space-y-4 text-slate-300 max-h-[75vh] overflow-y-auto pr-2">
+                <ClientQuickPasteBox
+                  onParsed={handleApplyParsedCliente}
+                  currentEmpresaValue={formData.nombre_empresa}
+                  existingClientes={clientes}
+                  onSelectExistingClient={(existing) => {
+                    setSelectedCliente(existing)
+                    setIsCreateModalOpen(false)
+                  }}
+                />
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
@@ -582,13 +620,26 @@ export default function ClientesPage() {
                       Nombre de la Empresa *
                     </label>
                     <input
+                      ref={empresaInputRef}
                       type="text"
                       required
                       value={formData.nombre_empresa}
-                      onChange={(e) => setFormData({ ...formData, nombre_empresa: e.target.value })}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition"
-                      placeholder="Ej. Empresa S.A."
+                      onChange={(e) => {
+                        setFormData({ ...formData, nombre_empresa: e.target.value })
+                        if (e.target.value.trim()) setNeedsEmpresaWarning(false)
+                      }}
+                      className={`w-full bg-slate-950 border rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none transition ${
+                        needsEmpresaWarning && !formData.nombre_empresa.trim()
+                          ? 'border-amber-500 ring-2 ring-amber-500/30 focus:border-amber-400'
+                          : 'border-slate-800 focus:border-blue-500'
+                      }`}
+                      placeholder="Ej. Empresa S.A. / Particular"
                     />
+                    {needsEmpresaWarning && !formData.nombre_empresa.trim() && (
+                      <span className="text-[11px] text-amber-400 font-medium mt-1 block">
+                        ⚠️ Por favor, ingresá el nombre de la empresa o razón social.
+                      </span>
+                    )}
                   </div>
                 </div>
 

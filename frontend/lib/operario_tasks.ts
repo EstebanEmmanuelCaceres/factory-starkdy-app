@@ -26,6 +26,16 @@ export async function completeOperarioTask(id: number): Promise<{
   return data.data
 }
 
+export async function uncompleteOperarioTask(id: number): Promise<{
+  task: ResponsableEtapa
+}> {
+  const { data } = await api.post<{
+    status: string
+    data: { task: ResponsableEtapa }
+  }>(`/operario/tasks/${id}/uncomplete`)
+  return data.data
+}
+
 export async function fetchOperarioHistorial(): Promise<ResponsableEtapa[]> {
   const { data } = await api.get<{ status: string; data: ResponsableEtapa[] }>('/operario/historial')
   return data.data

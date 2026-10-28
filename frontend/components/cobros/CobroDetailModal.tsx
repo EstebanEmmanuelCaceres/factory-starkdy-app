@@ -5,6 +5,7 @@ import { Modal } from '@/components/Modal/Modal'
 import { useModal } from '@/components/Modal/context/ModalContext'
 import { getCobro, type CobroDetail } from '@/lib/cobros'
 import { CobroEstadoBadge } from './CobroEstadoBadge'
+import { ComprobanteLink } from './ComprobanteLink'
 import { COBRO_DETAIL_MODAL_ID } from './modalIds'
 import { formatFechaCobro, formatMoney, medioPagoLabel, tipoCobroLabel } from './format'
 
@@ -80,7 +81,7 @@ export const CobroDetailModal = ({ cobroId, refreshKey, onEdit, onCancel }: Cobr
               {cobro.referencia_externa && <Row label="Referencia">{cobro.referencia_externa}</Row>}
               {cobro.comprobante_url && (
                 <Row label="Comprobante">
-                  <a href={cobro.comprobante_url} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">Ver</a>
+                  <ComprobanteLink url={cobro.comprobante_url} className="text-blue-400 hover:underline">Ver</ComprobanteLink>
                 </Row>
               )}
             </dl>

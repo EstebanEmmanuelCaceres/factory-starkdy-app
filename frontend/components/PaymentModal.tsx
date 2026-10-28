@@ -10,6 +10,8 @@ import {
   type Pedido,
   type Pago
 } from '@/lib/pedidos'
+import { ComprobanteInput } from '@/components/cobros/ComprobanteInput'
+import { ComprobanteLink } from '@/components/cobros/ComprobanteLink'
 
 interface PaymentModalProps {
   isOpen: boolean
@@ -34,13 +36,15 @@ export default function PaymentModal({
   const [paymentError, setPaymentError] = useState('')
   const [paymentSuccess, setPaymentSuccess] = useState('')
   const [isSubmittingPayment, setIsSubmittingPayment] = useState(false)
+  const [uploadingComprobante, setUploadingComprobante] = useState(false)
 
   const [paymentFormData, setPaymentFormData] = useState({
     monto: '',
     medio_pago: 'efectivo',
     tipo_cobro: 'parcial' as 'seña' | 'parcial' | 'saldo' | 'unico',
     observaciones: '',
-    fecha_pago: ''
+    fecha_pago: '',
+    comprobante_url: ''
   })
 
   useEffect(() => {
@@ -70,7 +74,8 @@ export default function PaymentModal({
         medio_pago: 'efectivo',
         tipo_cobro: 'parcial',
         observaciones: '',
-        fecha_pago: new Date().toISOString().split('T')[0]
+        fecha_pago: new Date().toISOString().split('T')[0],
+        comprobante_url: ''
       })
 
       setLoadingPayments(true)
@@ -111,7 +116,8 @@ export default function PaymentModal({
         medio_pago: paymentFormData.medio_pago,
         tipo_cobro: paymentFormData.tipo_cobro,
         observaciones: paymentFormData.observaciones || undefined,
-        fecha_pago: paymentFormData.fecha_pago || undefined
+        fecha_pago: paymentFormData.fecha_pago || undefined,
+        comprobante_url: paymentFormData.comprobante_url || undefined
       })
 
       setPaymentSuccess(res.message || 'Pago registrado con éxito.')
@@ -133,7 +139,8 @@ export default function PaymentModal({
         medio_pago: 'efectivo',
         tipo_cobro: 'parcial',
         observaciones: '',
-        fecha_pago: new Date().toISOString().split('T')[0]
+        fecha_pago: new Date().toISOString().split('T')[0],
+        comprobante_url: ''
       })
 
       if (onPaymentUpdated) {
@@ -303,6 +310,11 @@ export default function PaymentModal({
                       {pago.observaciones && (
                         <p className="text-[10px] text-slate-400 italic mt-0.5">Nota: &quot;{pago.observaciones}&quot;</p>
                       )}
+                      {pago.comprobante_url && (
+                        <ComprobanteLink url={pago.comprobante_url} className="block text-[10px] text-blue-400 hover:underline mt-0.5">
+                          📎 Ver comprobante
+                        </ComprobanteLink>
+                      )}
                     </div>
 
                     {/* Botón para anular pago */}
@@ -407,9 +419,16 @@ export default function PaymentModal({
                 />
               </div>
 
+              <ComprobanteInput
+                compact
+                value={paymentFormData.comprobante_url || null}
+                onChange={(url) => setPaymentFormData({ ...paymentFormData, comprobante_url: url ?? '' })}
+                onUploadingChange={setUploadingComprobante}
+              />
+
               <button
                 type="submit"
-                disabled={isSubmittingPayment}
+                disabled={isSubmittingPayment || uploadingComprobante}
                 className="w-full py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-semibold shadow transition active:scale-[0.98] disabled:opacity-50"
               >
                 {isSubmittingPayment ? 'Registrando...' : 'Registrar Cobro'}
