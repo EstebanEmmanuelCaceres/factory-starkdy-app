@@ -17,14 +17,32 @@ use Illuminate\Support\Facades\Validator;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Auth;
 use App\Services\PedidoWorkflowService;
+use App\Services\PedidoProgresoService;
+use App\Http\Resources\ProgresoPedidoResource;
+use Illuminate\Support\Collection;
 
 class PedidoController extends Controller
 {
     protected PedidoWorkflowService $workflowService;
+    protected PedidoProgresoService $progresoService;
 
-    public function __construct(PedidoWorkflowService $workflowService)
+    public function __construct(PedidoWorkflowService $workflowService, PedidoProgresoService $progresoService)
     {
         $this->workflowService = $workflowService;
+        $this->progresoService = $progresoService;
+    }
+
+    /**
+     * Agrega a cada pedido el atributo 'progreso' (porcentaje del pedido y de cada producto).
+     */
+    private function adjuntarProgreso(Collection $pedidos): void
+    {
+        $progresos = $this->progresoService->progresosDe($pedidos);
+
+        $pedidos->each(fn(Pedido $pedido) => $pedido->setAttribute(
+            'progreso',
+            (new ProgresoPedidoResource($progresos->get($pedido->id)))->resolve()
+        ));
     }
 
     /**
@@ -127,6 +145,7 @@ class PedidoController extends Controller
         }
 
         $pedidos = $query->latest()->get();
+        $this->adjuntarProgreso($pedidos);
 
         $pedidos->makeHidden(['porcentaje_pagado', 'comentario', 'fecha_entrega']);
         if ($currentUser && in_array($currentUser->role?->slug, ['operario', 'operator'])) {
@@ -320,6 +339,7 @@ class PedidoController extends Controller
 
         // Cargar relaciones para la respuesta
         $pedido->load(['cliente', 'user', 'productos', 'pago', 'pagos']);
+        $this->adjuntarProgreso(collect([$pedido]));
 
         return response()->json([
             'status' => 'success',
@@ -341,6 +361,9 @@ class PedidoController extends Controller
             'productos',
             'productos.imagenPrincipal',
             'productos.imagenes',
+            // Etapas de cada producto (para el flujo de etapas del modal)
+            'productos.etapasProductos.etapa.categorias',
+            'productos.etapasProductos.dependencias.etapa.categorias',
             'imagenPrincipal',
             'imagenes',
             'pago',
@@ -369,6 +392,8 @@ class PedidoController extends Controller
                 $pedido->makeHidden(['precio', 'monto_pagado', 'saldo_pendiente', 'pagos']);
             }
         }
+
+        $this->adjuntarProgreso(collect([$pedido]));
 
         return response()->json([
             'status' => 'success',
@@ -455,6 +480,7 @@ class PedidoController extends Controller
 
         $pedido->refresh();
         $pedido->load(['cliente', 'user', 'productos', 'pago', 'pagos', 'ultimoEstado']);
+        $this->adjuntarProgreso(collect([$pedido]));
 
         return response()->json([
             'status' => 'success',
@@ -651,6 +677,85 @@ class PedidoController extends Controller
             'message' => 'Comentario agregado correctamente',
             'data' => $comentario->load('user')
         ], 201);
+    }
+
+    /**
+     * Progreso de todos los pedidos en progreso (porcentaje por pedido y por producto).
+     */
+    public function progresos(Request $request): JsonResponse
+    {
+        $progresos = $this->progresoService->listarEnProgreso($request->user());
+
+        return response()->json([
+            'status' => 'success',
+            'data' => ProgresoPedidoResource::collection($progresos),
+        ]);
+    }
+
+    /**
+     * Progreso de un pedido puntual.
+     */
+    public function progreso($id): JsonResponse
+    {
+        $pedido = Pedido::find($id);
+
+        if (!$pedido) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Pedido no encontrado'
+            ], 404);
+        }
+
+        return response()->json([
+            'status' => 'success',
+            'data' => new ProgresoPedidoResource($this->progresoService->progresoDe($pedido)),
+        ]);
+    }
+
+    /**
+     * Completar en un solo pedido HTTP todas las etapas de un producto del pedido
+     * (evita mandar una petición por etapa). Devuelve el progreso actualizado.
+     */
+    public function completarEtapasProducto($id, $productoId): JsonResponse
+    {
+        $pedido = Pedido::find($id);
+
+        if (!$pedido) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Pedido no encontrado'
+            ], 404);
+        }
+
+        if (!$pedido->productos()->where('productos.id', $productoId)->exists()) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'El producto no pertenece a este pedido'
+            ], 404);
+        }
+
+        if ($pedido->estado === 'pendiente') {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'El pedido está pendiente; habilitalo para producción antes de completar etapas.'
+            ], 422);
+        }
+
+        $completadas = $this->workflowService->completarEtapasDeProducto($pedido, (int) $productoId, Auth::id());
+
+        $pedido->refresh();
+
+        return response()->json([
+            'status' => 'success',
+            'message' => $completadas > 0
+                ? "Se completaron {$completadas} etapa(s) del producto"
+                : 'El producto ya tenía todas sus etapas completadas',
+            'data' => [
+                'completadas' => $completadas,
+                'estado' => $pedido->estado,
+                'progreso' => new ProgresoPedidoResource($this->progresoService->progresoDe($pedido)),
+            ],
+        ]);
     }
 
     /**

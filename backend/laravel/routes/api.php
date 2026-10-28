@@ -111,10 +111,14 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('pedidos', [PedidoController::class, 'index']);
     Route::post('pedidos', [PedidoController::class, 'store']);
     Route::get('pedidos/completados-por-cobrar', [PedidoController::class, 'completadosPorCobrar']);
+    // 'progreso' va antes de {id} para que no se tome como un id
+    Route::get('pedidos/progreso', [PedidoController::class, 'progresos']);
+    Route::get('pedidos/{id}/progreso', [PedidoController::class, 'progreso']);
     Route::get('pedidos/{id}', [PedidoController::class, 'show']);
     Route::patch('pedidos/{id}', [PedidoController::class, 'update']);
     Route::delete('pedidos/{id}', [PedidoController::class, 'destroy']);
     Route::post('pedidos/{id}/generar-tareas', [PedidoController::class, 'generarTareasManual']);
+    Route::post('pedidos/{id}/productos/{productoId}/completar-etapas', [PedidoController::class, 'completarEtapasProducto']);
     Route::get('pedidos/{id}/comentarios', [PedidoController::class, 'getComentarios']);
     Route::post('pedidos/{id}/comentarios', [PedidoController::class, 'addComentario']);
     Route::get("clientes-with-pedidos", [ClienteController::class, 'clientesWithPedidos']);

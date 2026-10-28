@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\EtapaProducto;
 use App\Models\Pedido;
 use App\Models\ResponsableEtapa;
 use Illuminate\Support\Facades\Auth;
@@ -135,6 +136,41 @@ class PedidoWorkflowService
 
         $this->desbloquearTareasSatisfechas($pedidoId);
         $this->sincronizarEstadoPedido($pedidoId);
+    }
+
+    /**
+     * Completar de una vez todas las etapas pendientes de un producto dentro de un pedido.
+     * Como se completan todas juntas, no hace falta respetar el orden de dependencias entre ellas.
+     *
+     * @return int cantidad de etapas que se completaron
+     */
+    public function completarEtapasDeProducto(
+        Pedido $pedido,
+        int $productoId,
+        ?int $userId = null,
+        ?string $observacion = 'Etapas del producto completadas en lote'
+    ): int {
+        return DB::transaction(function () use ($pedido, $productoId, $userId, $observacion) {
+            $consultaTareas = fn() => ResponsableEtapa::where('pedido_id', $pedido->id)
+                ->whereHas('etapaProducto', fn($q) => $q->where('producto_id', $productoId));
+
+            // Si faltan tareas para alguna etapa del producto, generarlas antes de completar
+            $etapasDelProducto = EtapaProducto::where('producto_id', $productoId)->count();
+            if ($consultaTareas()->count() < $etapasDelProducto) {
+                $pedido->generarTareas();
+            }
+
+            $taskIds = $consultaTareas()
+                ->where('estado', '!=', ResponsableEtapa::ESTADO_COMPLETADO)
+                ->pluck('id')
+                ->all();
+
+            if (!empty($taskIds)) {
+                $this->completarTareasPorIds($pedido->id, $taskIds, $userId, $observacion);
+            }
+
+            return count($taskIds);
+        });
     }
 
     /**

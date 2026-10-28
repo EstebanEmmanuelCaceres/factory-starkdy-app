@@ -7,9 +7,11 @@ import {
   type ComentarioPedido,
   getPedido,
   updatePedido,
-  createPedidoComentario
+  createPedidoComentario,
+  completarEtapasProducto
 } from '@/lib/pedidos'
-import { fetchEtapas, topologicalSortEtapas, type Etapa } from '@/lib/entities/etapas'
+import { mapEtapaProducto, topologicalSortEtapas, type Etapa } from '@/lib/entities/etapas'
+import ProgressBar from '@/components/ProgressBar'
 import { fetchResponsablesEtapas, assignTask, type ResponsableEtapa } from '@/lib/responsable_etapas'
 import { completeOperarioTask } from '@/lib/operario_tasks'
 import { getStoredUser } from '@/lib/auth'
@@ -22,12 +24,19 @@ import ImageLightbox, { type LightboxImage } from '@/components/ImageLightbox'
 
 const PEDIDO_DETAIL_MODAL_ID = 'pedido-detail'
 
+// Etapas de todos los productos del pedido. Solo vienen en el detalle (getPedido);
+// devuelve null si el pedido no las trae (por ejemplo, la respuesta de updatePedido).
+const getStagesFromPedido = (p: Pedido | null | undefined): Etapa[] | null => {
+  const prods = p?.productos || []
+  if (!prods.some((prod) => prod.etapas_productos)) return null
+  return prods.flatMap((prod) => (prod.etapas_productos || []).map(mapEtapaProducto))
+}
+
 export interface PedidoDetailModalProps {
   pedido: Pedido | null
   isOpen: boolean
   onClose: () => void
   onUpdatePedido?: (updatedPedido: Pedido) => void
-  allStages?: Etapa[]
   taskAssignments?: ResponsableEtapa[]
   onOpenGallery?: (pedido: Pedido) => void
   onOpenPayments?: (pedido: Pedido) => void
@@ -39,14 +48,13 @@ export default function PedidoDetailModal({
   isOpen,
   onClose,
   onUpdatePedido,
-  allStages: propAllStages,
   taskAssignments: propTaskAssignments,
   onOpenGallery,
   onOpenPayments,
   onOpenEdit
 }: PedidoDetailModalProps) {
   const [currentPedido, setCurrentPedido] = useState<Pedido | null>(pedido)
-  const [stages, setStages] = useState<Etapa[]>(propAllStages || [])
+  const [stages, setStages] = useState<Etapa[]>(() => getStagesFromPedido(pedido) || [])
   const [assignments, setAssignments] = useState<ResponsableEtapa[]>(propTaskAssignments || [])
 
   // Estados locales de la UI
@@ -58,6 +66,7 @@ export default function PedidoDetailModal({
   const [notification, setNotification] = useState('')
   const [error, setError] = useState('')
   const [completingTaskId, setCompletingTaskId] = useState<number | null>(null)
+  const [completingProductId, setCompletingProductId] = useState<number | null>(null)
   const [coverIndex, setCoverIndex] = useState(0)
   const [isLightboxOpen, setIsLightboxOpen] = useState(false)
 
@@ -109,26 +118,14 @@ export default function PedidoDetailModal({
           setTempComentario(fullPedido.comentario || '')
         }
 
-        const prods = fullPedido?.productos || pedido.productos || []
-
-        // 2. Obtener etapas configuradas para cada producto
-        let loadedStages: Etapa[] = []
-        if (propAllStages && propAllStages.length > 0) {
-          loadedStages = propAllStages
-        } else if (prods.length > 0) {
-          const stagesByProduct = await Promise.all(
-            prods.map((prod) => fetchEtapas({ producto_id: prod.id }).catch(() => []))
-          )
-          loadedStages = stagesByProduct.flat()
-        } else {
-          loadedStages = await fetchEtapas().catch(() => [])
-        }
+        // 2. Las etapas de cada producto ya vienen en el detalle del pedido
+        const loadedStages = getStagesFromPedido(fullPedido)
 
         // 3. Obtener asignaciones/responsables actualizados de este pedido
         const loadedAssignments = await fetchResponsablesEtapas({ pedido_id: pedido.id }).catch(() => [])
 
         if (isMounted) {
-          setStages(loadedStages)
+          if (loadedStages) setStages(loadedStages)
           setAssignments(loadedAssignments)
         }
       } catch (err) {
@@ -142,14 +139,7 @@ export default function PedidoDetailModal({
       isMounted = false
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen, pedido?.id, propAllStages])
-
-  // Si se envían props actualizadas de etapas
-  useEffect(() => {
-    if (propAllStages && propAllStages.length > 0) {
-      setStages(propAllStages)
-    }
-  }, [propAllStages])
+  }, [isOpen, pedido?.id])
 
   const userRole = (() => {
     const u = getStoredUser()
@@ -242,12 +232,47 @@ export default function PedidoDetailModal({
       const updatedPedido = await getPedido(currentPedido.id).catch(() => currentPedido)
       if (updatedPedido) {
         setCurrentPedido(updatedPedido)
+        const updatedStages = getStagesFromPedido(updatedPedido)
+        if (updatedStages) setStages(updatedStages)
         if (onUpdatePedido) onUpdatePedido(updatedPedido)
       }
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Error al completar la etapa')
     } finally {
       setCompletingTaskId(null)
+    }
+  }
+
+  // Completa todas las etapas de un producto con una sola petición al servidor
+  const handleCompleteAllStages = async (productoId: number, productoNombre: string) => {
+    if (!currentPedido || completingProductId !== null) return
+    if (!confirm(`¿Completar todas las etapas pendientes de "${productoNombre}"?`)) return
+
+    try {
+      setError('')
+      setCompletingProductId(productoId)
+
+      const { completadas } = await completarEtapasProducto(currentPedido.id, productoId)
+      showNotification(
+        completadas > 0
+          ? `✓ ${completadas} etapa(s) de "${productoNombre}" completadas`
+          : `"${productoNombre}" ya tenía todas sus etapas completadas`
+      )
+
+      // Refrescar asignaciones y pedido (estado, progreso y etapas)
+      const [updatedAssignments, updatedPedido] = await Promise.all([
+        fetchResponsablesEtapas({ pedido_id: currentPedido.id }).catch(() => assignments),
+        getPedido(currentPedido.id).catch(() => currentPedido)
+      ])
+      setAssignments(updatedAssignments)
+      setCurrentPedido(updatedPedido)
+      const updatedStages = getStagesFromPedido(updatedPedido)
+      if (updatedStages) setStages(updatedStages)
+      if (onUpdatePedido) onUpdatePedido(updatedPedido)
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Error al completar las etapas del producto')
+    } finally {
+      setCompletingProductId(null)
     }
   }
 
@@ -639,6 +664,15 @@ export default function PedidoDetailModal({
                 <span>📦</span> Productos y Etapas de Fabricación
               </h3>
 
+              {currentPedido.progreso && (
+                <div className="bg-slate-950/40 border border-slate-800 rounded-xl px-4 py-3">
+                  <span className="text-[10px] uppercase font-extrabold tracking-wider text-slate-400 block mb-1.5">
+                    Progreso del pedido
+                  </span>
+                  <ProgressBar value={currentPedido.progreso.porcentaje} />
+                </div>
+              )}
+
               {pds.length === 0 ? (
                 <p className="text-xs text-slate-500 italic">
                   No hay productos asociados a este pedido.
@@ -652,6 +686,7 @@ export default function PedidoDetailModal({
                     const qty = prod.pivot?.cantidad || 1
                     const currentInfo = getProductCurrentStage(prodStages, assignments)
                     const isAccordionOpen = openAccordions[prod.id] || false
+                    const prodProgreso = currentPedido.progreso?.productos.find((p) => p.producto_id === prod.id)
 
                     return (
                       <div
@@ -726,6 +761,31 @@ export default function PedidoDetailModal({
                             <span className="text-xs text-slate-500 italic">Sin etapas</span>
                           )}
                         </div>
+
+                        {/* Progreso del producto: etapas completadas sobre el total */}
+                        {prodProgreso && prodProgreso.porcentaje !== null && (
+                          <div>
+                            <div className="flex items-center justify-between gap-2 mb-1">
+                              <span className="text-[10px] text-slate-500 font-bold uppercase">
+                                {prodProgreso.etapas_completadas} de {prodProgreso.etapas_totales} etapas completadas
+                              </span>
+                              {/* Completar todas las etapas del producto de una vez */}
+                              {prodProgreso.porcentaje < 100 && currentPedido.estado !== 'pendiente' && (
+                                <button
+                                  type="button"
+                                  disabled={completingProductId !== null || completingTaskId !== null}
+                                  onClick={() => handleCompleteAllStages(prod.id, prod.nombre)}
+                                  className="shrink-0 bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-500/40 disabled:opacity-50 disabled:cursor-not-allowed text-emerald-300 text-[11px] font-bold px-2.5 py-1 rounded-lg flex items-center gap-1 transition cursor-pointer"
+                                  title="Marcar todas las etapas pendientes de este producto como completadas"
+                                >
+                                  <span>✓✓</span>
+                                  <span>{completingProductId === prod.id ? 'Completando...' : 'Completar todas'}</span>
+                                </button>
+                              )}
+                            </div>
+                            <ProgressBar value={prodProgreso.porcentaje} />
+                          </div>
+                        )}
 
                         {/* Botón del acordeón */}
                         {prodStages.length > 0 && (
