@@ -5,9 +5,6 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Pedido;
 use App\Models\PedidoProducto;
-use App\Models\Etapa;
-use App\Models\EtapaProducto;
-
 use App\Models\ResponsableEtapa;
 use App\Models\Cliente;
 use App\Models\ComentarioPedido;
@@ -198,15 +195,8 @@ class PedidoController extends Controller
             'productos' => 'nullable|array',
             'productos.*.id' => 'required|exists:productos,id',
             'productos.*.cantidad' => 'required|integer|min:1',
-            'etapas' => 'nullable|array',
-            'etapas.*.id' => 'nullable',
-            'etapas.*.producto_id' => 'required|exists:productos,id',
-            'etapas.*.nombre' => 'required|string|max:255',
-            'etapas.*.orden' => 'required|integer',
-            'etapas.*.temp_id' => 'nullable|string',
             'asignaciones' => 'nullable|array',
             'asignaciones.*.etapa_id' => 'nullable|integer',
-            'asignaciones.*.etapa_temp_id' => 'nullable|string',
             'asignaciones.*.user_id' => 'nullable|integer|exists:users,id',
         ], $messages);
 
@@ -296,7 +286,7 @@ class PedidoController extends Controller
             }
             $pedido->productos()->sync($syncData);
         }
-        $this->syncEtapasYAsignaciones($pedido, $request);
+        $this->syncAsignaciones($pedido, $request);
 
         // Registrar pago inicial si fue proporcionado
         if ($montoInicial > 0) {
@@ -411,15 +401,8 @@ class PedidoController extends Controller
             'productos' => 'sometimes|array',
             'productos.*.id' => 'required|exists:productos,id',
             'productos.*.cantidad' => 'required|integer|min:1',
-            'etapas' => 'nullable|array',
-            'etapas.*.id' => 'nullable',
-            'etapas.*.producto_id' => 'required|exists:productos,id',
-            'etapas.*.nombre' => 'required|string|max:255',
-            'etapas.*.orden' => 'required|integer',
-            'etapas.*.temp_id' => 'nullable|string',
             'asignaciones' => 'nullable|array',
             'asignaciones.*.etapa_id' => 'nullable|integer',
-            'asignaciones.*.etapa_temp_id' => 'nullable|string',
             'asignaciones.*.user_id' => 'nullable|integer|exists:users,id',
         ], $messages);
 
@@ -450,7 +433,7 @@ class PedidoController extends Controller
             }
             $pedido->productos()->sync($syncData);
         }
-        $this->syncEtapasYAsignaciones($pedido, $request);
+        $this->syncAsignaciones($pedido, $request);
         $this->workflowService->desbloquearTareasSatisfechas($pedido->id);
 
         $pedido->refresh();
@@ -512,59 +495,12 @@ class PedidoController extends Controller
     }
 
     /**
-     * Sincronizar etapas y asignaciones por pedido en un solo lote.
+     * Generar las tareas del pedido y aplicar las asignaciones de responsables.
+     * Las etapas de los productos no se tocan desde acá: se configuran solo desde el producto.
      */
-    private function syncEtapasYAsignaciones(Pedido $pedido, Request $request): void
+    private function syncAsignaciones(Pedido $pedido, Request $request): void
     {
         DB::transaction(function () use ($pedido, $request) {
-            $productIds = $pedido->productos()->pluck('productos.id')->toArray();
-            $tempIdToDbId = [];
-
-            if ($request->has('etapas')) {
-                $incomingEtapas = $request->input('etapas') ?? [];
-                $keptEtapaProductoIds = [];
-
-                foreach ($incomingEtapas as $incomingEtapa) {
-                    $productoId = $incomingEtapa['producto_id'];
-                    if (!in_array($productoId, $productIds)) {
-                        continue;
-                    }
-
-                    $nombre = trim($incomingEtapa['nombre']);
-                    $catalogItem = Etapa::whereRaw('LOWER(nombre) = ?', [mb_strtolower($nombre)])->first();
-                    if (!$catalogItem) {
-                        $catalogItem = Etapa::create(['nombre' => $nombre]);
-                    }
-
-                    if (!empty($incomingEtapa['id'])) {
-                        $etapaProducto = EtapaProducto::withTrashed()->find($incomingEtapa['id']);
-                        if ($etapaProducto) {
-                            $etapaProducto->restore();
-                            $etapaProducto->update([
-                                'etapa_id' => $catalogItem->id,
-                                'orden' => $incomingEtapa['orden']
-                            ]);
-                            $keptEtapaProductoIds[] = $etapaProducto->id;
-                        }
-                    } else {
-                        $etapaProducto = EtapaProducto::create([
-                            'producto_id' => $productoId,
-                            'etapa_id' => $catalogItem->id,
-                            'orden' => $incomingEtapa['orden']
-                        ]);
-                        $keptEtapaProductoIds[] = $etapaProducto->id;
-                        if (!empty($incomingEtapa['temp_id'])) {
-                            $tempIdToDbId[$incomingEtapa['temp_id']] = $etapaProducto->id;
-                        }
-                    }
-                }
-
-                // Borrado lógico de las etapas de producto que no se enviaron
-                EtapaProducto::whereIn('producto_id', $productIds)
-                    ->whereNotIn('id', $keptEtapaProductoIds)
-                    ->delete();
-            }
-
             // Sincronizar tareas
             $pedido->generarTareas();
 
@@ -577,8 +513,6 @@ class PedidoController extends Controller
                         $etapaProductoId = $incomingAsignacion['etapa_producto_id'];
                     } elseif (!empty($incomingAsignacion['etapa_id'])) {
                         $etapaProductoId = $incomingAsignacion['etapa_id'];
-                    } elseif (!empty($incomingAsignacion['etapa_temp_id']) && isset($tempIdToDbId[$incomingAsignacion['etapa_temp_id']])) {
-                        $etapaProductoId = $tempIdToDbId[$incomingAsignacion['etapa_temp_id']];
                     }
 
                     if ($etapaProductoId) {
