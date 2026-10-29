@@ -134,8 +134,12 @@ export default function EditPedidoModal({
       // Precargar etapas y asignaciones
       try {
         if (productIds.length > 0) {
-          const stagesResults = await Promise.all(productIds.map(id => fetchEtapas({ producto_id: id }).catch(() => [])))
-          setLocalEtapas(stagesResults.flat())
+          // Las etapas solo se usan para mostrar/asignar responsables; si alguna falla, avisar
+          const stagesResults = await Promise.all(productIds.map(id => fetchEtapas({ producto_id: id }).catch(() => null)))
+          if (stagesResults.some((r) => r === null)) {
+            setError('No se pudieron cargar las etapas de algunos productos. Cerrá y volvé a abrir el pedido para ver sus responsables.')
+          }
+          setLocalEtapas(stagesResults.flatMap((r) => r ?? []))
         } else {
           setLocalEtapas([])
         }
@@ -172,7 +176,7 @@ export default function EditPedidoModal({
       updatedIds = [...formData.selectedProductIds, productId]
       updatedQuantities[productId] = 1
       try {
-        const productStages = await fetchEtapas({ producto_id: productId }).catch(() => [])
+        const productStages = await fetchEtapas({ producto_id: productId })
         setLocalEtapas((prevEtapas) => {
           const filtered = prevEtapas.filter(s => s.producto_id !== productId)
           return [...filtered, ...productStages]
@@ -262,12 +266,6 @@ export default function EditPedidoModal({
         productos: formData.selectedProductIds.map((id) => ({
           id,
           cantidad: formData.productQuantities[id] || 1
-        })),
-        etapas: localEtapas.map((s, index) => ({
-          id: s.id || undefined,
-          producto_id: s.producto_id,
-          nombre: s.nombre,
-          orden: index + 1
         })),
         asignaciones: Object.entries(localAssignments).map(([key, userId]) => ({
           etapa_id: parseInt(key),

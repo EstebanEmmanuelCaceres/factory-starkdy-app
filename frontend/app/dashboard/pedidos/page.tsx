@@ -169,7 +169,6 @@ export default function PedidosPage() {
   const [isClientDropdownOpen, setIsClientDropdownOpen] = useState(false)
   const [productSearchQuery, setProductSearchQuery] = useState('')
   const [isCreateClienteModalOpen, setIsCreateClienteModalOpen] = useState(false)
-  const [newStageNames, setNewStageNames] = useState<Record<number, string>>({})
   const [localEtapas, setLocalEtapas] = useState<any[]>([])
   const [localAssignments, setLocalAssignments] = useState<Record<string, number | null>>({})
   const [clienteFormData, setClienteFormData] = useState({
@@ -314,40 +313,6 @@ export default function PedidosPage() {
     } catch (err) {
       console.error('Error al recargar etapas:', err)
     }
-  }
-
-  const handleAddStage = (productId: number) => {
-    const name = newStageNames[productId]?.trim()
-    if (!name) return
-
-    const productStages = localEtapas.filter(s => s.producto_id === productId)
-    const nextOrden = productStages.length > 0 ? Math.max(...productStages.map(s => s.orden || 0)) + 1 : 1
-
-    const tempId = `temp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
-    const newStage = {
-      temp_id: tempId,
-      producto_id: productId,
-      nombre: name,
-      orden: nextOrden
-    }
-
-    setLocalEtapas(prev => [...prev, newStage])
-    setNewStageNames(prev => ({ ...prev, [productId]: '' }))
-  }
-
-  const handleDeleteStage = (stageIdOrTempId: number | string) => {
-    setLocalEtapas(prev => prev.filter(s => {
-      if (s.id && s.id === stageIdOrTempId) return false
-      if (s.temp_id && s.temp_id === stageIdOrTempId) return false
-      return true
-    }))
-
-    const key = stageIdOrTempId.toString()
-    setLocalAssignments(prev => {
-      const copy = { ...prev }
-      delete copy[key]
-      return copy
-    })
   }
 
   useEffect(() => {
@@ -693,20 +658,10 @@ export default function PedidosPage() {
           id,
           cantidad: formData.productQuantities[id] || 1
         })),
-        etapas: localEtapas.map((s, index) => ({
-          id: s.id || null,
-          temp_id: s.temp_id || null,
-          producto_id: s.producto_id,
-          nombre: s.nombre,
-          orden: index + 1
-        })),
-        asignaciones: Object.entries(localAssignments).map(([key, userId]) => {
-          if (key.startsWith('temp_')) {
-            return { etapa_temp_id: key, user_id: userId }
-          } else {
-            return { etapa_id: parseInt(key), user_id: userId }
-          }
-        })
+        asignaciones: Object.entries(localAssignments).map(([key, userId]) => ({
+          etapa_id: parseInt(key),
+          user_id: userId
+        }))
       }
       const newPedido = await createPedido(payload)
       showNotification('Pedido creado correctamente')
@@ -766,20 +721,10 @@ export default function PedidosPage() {
           id,
           cantidad: formData.productQuantities[id] || 1
         })),
-        etapas: localEtapas.map((s, index) => ({
-          id: s.id || null,
-          temp_id: s.temp_id || null,
-          producto_id: s.producto_id,
-          nombre: s.nombre,
-          orden: index + 1
-        })),
-        asignaciones: Object.entries(localAssignments).map(([key, userId]) => {
-          if (key.startsWith('temp_')) {
-            return { etapa_temp_id: key, user_id: userId }
-          } else {
-            return { etapa_id: parseInt(key), user_id: userId }
-          }
-        })
+        asignaciones: Object.entries(localAssignments).map(([key, userId]) => ({
+          etapa_id: parseInt(key),
+          user_id: userId
+        }))
       }
 
       await updatePedido(selectedPedido.id, payload)
