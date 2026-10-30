@@ -72,7 +72,8 @@ class EtapaProducto extends Model
     }
 
     /**
-     * Reordena topológicamente (según dependencias) las etapas de un producto y actualiza la columna 'orden'.
+     * Recalcula la columna 'orden' de las etapas de un producto según sus dependencias (por niveles).
+     * El orden es solo visual: el bloqueo de etapas se decide por etapa_producto_dependencias.
      */
     public static function reordenarTopologicamentePorProducto(int $productoId): void
     {
@@ -138,10 +139,22 @@ class EtapaProducto extends Model
         }
 
         if (count($sortedIds) === count($etapas)) {
-            $nuevoOrden = 1;
+            // Orden por niveles: 1 + el mayor orden de sus dependencias.
+            // Las etapas paralelas (que dependen de las mismas etapas) comparten el mismo orden.
+            $nivel = [];
             foreach ($sortedIds as $stageId) {
-                static::where('id', $stageId)->update(['orden' => $nuevoOrden]);
-                $nuevoOrden++;
+                $nivel[$stageId] = 1;
+                foreach ($etapaMap[$stageId]->dependencias as $dep) {
+                    if (isset($nivel[$dep->id])) {
+                        $nivel[$stageId] = max($nivel[$stageId], $nivel[$dep->id] + 1);
+                    }
+                }
+            }
+
+            foreach ($nivel as $stageId => $nuevoOrden) {
+                if ((int) $etapaMap[$stageId]->orden !== $nuevoOrden) {
+                    static::where('id', $stageId)->update(['orden' => $nuevoOrden]);
+                }
             }
         }
     }

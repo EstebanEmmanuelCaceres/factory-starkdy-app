@@ -4,7 +4,6 @@ namespace App\Services;
 
 use App\Entities\ProgresoPedido;
 use App\Entities\ProgresoProducto;
-use App\Models\EtapaProducto;
 use App\Models\Pedido;
 use App\Models\ResponsableEtapa;
 use App\Models\User;
@@ -16,14 +15,16 @@ use Illuminate\Support\Collection;
  * Este servicio solo arma los datos (consultas a la base); las reglas de cálculo
  * viven en las entidades ProgresoProducto y ProgresoPedido.
  *
- * - Etapas totales de un producto: sus etapas_productos configuradas.
- * - Etapas completadas: tareas (responsables_etapas) del pedido en estado 'completado'
- *   que corresponden a esas etapas.
+ * Se cuenta sobre las tareas (responsables_etapas) del pedido, que son la "foto" de las etapas
+ * que tenía cada producto al entrar al pedido. Así, agregar o quitar etapas al producto después
+ * no cambia el progreso de los pedidos existentes.
+ * - Etapas totales de un producto: sus tareas en el pedido.
+ * - Etapas completadas: esas tareas en estado 'completado'.
  */
 class PedidoProgresoService
 {
     /**
-     * Progreso de varios pedidos con dos consultas en total (sin N+1).
+     * Progreso de varios pedidos con una consulta de tareas en total (sin N+1).
      * Los pedidos deben tener cargada la relación 'productos' (si no, se carga).
      *
      * @param Collection<int, Pedido> $pedidos
@@ -36,27 +37,17 @@ class PedidoProgresoService
         }
 
         $pedidos->each(fn(Pedido $pedido) => $pedido->loadMissing('productos'));
-        $productoIds = $pedidos->flatMap(fn(Pedido $pedido) => $pedido->productos->pluck('id'))->unique();
 
-        $etapasPorProducto = EtapaProducto::query()
-            ->whereIn('producto_id', $productoIds)
-            ->get(['id', 'producto_id'])
-            ->groupBy('producto_id')
-            ->map(fn($etapas) => $etapas->pluck('id'));
-
-        $completadasPorPedido = ResponsableEtapa::query()
-            ->completadas()
-            ->whereIn('pedido_id', $pedidos->pluck('id'))
-            ->get(['pedido_id', 'etapa_producto_id'])
-            ->groupBy('pedido_id')
-            ->map(fn($tareas) => $tareas->pluck('etapa_producto_id')->unique());
+        // Tareas de todos los pedidos con el producto de su etapa. El join no filtra las etapas
+        // borradas lógicamente: una etapa quitada del producto sigue contando en los pedidos que la tenían.
+        $tareasPorPedido = ResponsableEtapa::query()
+            ->join('etapas_productos', 'etapas_productos.id', '=', 'responsables_etapas.etapa_producto_id')
+            ->whereIn('responsables_etapas.pedido_id', $pedidos->pluck('id'))
+            ->get(['responsables_etapas.pedido_id', 'etapas_productos.producto_id', 'responsables_etapas.estado'])
+            ->groupBy('pedido_id');
 
         return $pedidos->mapWithKeys(fn(Pedido $pedido) => [
-            $pedido->id => $this->calcular(
-                $pedido,
-                $etapasPorProducto,
-                $completadasPorPedido->get($pedido->id, collect())
-            ),
+            $pedido->id => $this->calcular($pedido, $tareasPorPedido->get($pedido->id, collect())),
         ]);
     }
 
@@ -85,21 +76,20 @@ class PedidoProgresoService
     }
 
     /**
-     * @param Collection<int, Collection<int, int>> $etapasPorProducto
-     * @param Collection<int, int> $etapasCompletadas ids de etapa_producto completadas en el pedido
+     * @param Collection<int, ResponsableEtapa> $tareas tareas del pedido (con producto_id y estado)
      */
-    private function calcular(Pedido $pedido, Collection $etapasPorProducto, Collection $etapasCompletadas): ProgresoPedido
+    private function calcular(Pedido $pedido, Collection $tareas): ProgresoPedido
     {
         $productos = $pedido->productos
             ->unique('id')
-            ->map(function ($producto) use ($etapasPorProducto, $etapasCompletadas) {
-                $etapasDelProducto = $etapasPorProducto->get($producto->id, collect());
+            ->map(function ($producto) use ($tareas) {
+                $tareasDelProducto = $tareas->where('producto_id', $producto->id);
 
                 return new ProgresoProducto(
                     productoId: $producto->id,
                     nombre: $producto->nombre,
-                    etapasTotales: $etapasDelProducto->count(),
-                    etapasCompletadas: $etapasDelProducto->intersect($etapasCompletadas)->count(),
+                    etapasTotales: $tareasDelProducto->count(),
+                    etapasCompletadas: $tareasDelProducto->where('estado', ResponsableEtapa::ESTADO_COMPLETADO)->count(),
                 );
             })
             ->values()

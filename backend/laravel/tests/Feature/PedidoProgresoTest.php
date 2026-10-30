@@ -3,6 +3,8 @@
 namespace Tests\Feature;
 
 use App\Models\Cliente;
+use App\Models\Etapa;
+use App\Models\EtapaProducto;
 use App\Models\Pedido;
 use App\Models\Producto;
 use App\Models\ResponsableEtapa;
@@ -100,7 +102,7 @@ class PedidoProgresoTest extends TestCase
             ->assertJsonPath('data.0.progreso.productos.0.etapas_completadas', 1);
     }
 
-    public function test_el_detalle_del_pedido_incluye_progreso_y_etapas_de_cada_producto(): void
+    public function test_el_detalle_del_pedido_incluye_el_progreso(): void
     {
         $mate = Producto::create(['nombre' => 'Mate', 'precio' => 100]);
         $pedido = $this->crearPedido('PED-5', 'en_progreso', [$mate]);
@@ -109,9 +111,35 @@ class PedidoProgresoTest extends TestCase
         $this->actingAs($this->user)
             ->getJson("/api/pedidos/{$pedido->id}")
             ->assertOk()
-            ->assertJsonPath('data.progreso.porcentaje', 100)
-            ->assertJsonCount(3, 'data.productos.0.etapas_productos')
-            ->assertJsonStructure(['data' => ['productos' => [['etapas_productos' => [['id', 'producto_id', 'orden', 'etapa' => ['nombre'], 'dependencias']]]]]]);
+            ->assertJsonPath('data.progreso.porcentaje', 100);
+    }
+
+    public function test_agregar_una_etapa_al_producto_no_cambia_el_progreso_de_pedidos_existentes(): void
+    {
+        $mate = Producto::create(['nombre' => 'Mate', 'precio' => 100]);
+        $pedido = $this->crearPedido('PED-10', 'en_progreso', [$mate]);
+        $this->completarEtapas($pedido, $mate, 3);
+
+        // Al producto se le agrega una etapa después de crear el pedido
+        EtapaProducto::create([
+            'producto_id' => $mate->id,
+            'etapa_id' => Etapa::create(['nombre' => 'control'])->id,
+            'orden' => 4,
+        ]);
+
+        // El pedido sigue con sus 3 etapas y completo
+        $this->actingAs($this->user)
+            ->getJson("/api/pedidos/{$pedido->id}/progreso")
+            ->assertOk()
+            ->assertJsonPath('data.productos.0.etapas_totales', 3)
+            ->assertJsonPath('data.porcentaje', 100);
+
+        // Un pedido nuevo con el mismo producto tiene las 4
+        $nuevo = $this->crearPedido('PED-11', 'en_progreso', [$mate]);
+        $this->actingAs($this->user)
+            ->getJson("/api/pedidos/{$nuevo->id}/progreso")
+            ->assertOk()
+            ->assertJsonPath('data.productos.0.etapas_totales', 4);
     }
 
     public function test_muestra_el_progreso_de_un_pedido_puntual(): void

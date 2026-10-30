@@ -2,7 +2,6 @@
 
 namespace App\Services;
 
-use App\Models\EtapaProducto;
 use App\Models\Pedido;
 use App\Models\ResponsableEtapa;
 use Illuminate\Support\Facades\Auth;
@@ -175,9 +174,9 @@ class PedidoWorkflowService
             $consultaTareas = fn() => ResponsableEtapa::where('pedido_id', $pedido->id)
                 ->whereHas('etapaProducto', fn($q) => $q->where('producto_id', $productoId));
 
-            // Si faltan tareas para alguna etapa del producto, generarlas antes de completar
-            $etapasDelProducto = EtapaProducto::where('producto_id', $productoId)->count();
-            if ($consultaTareas()->count() < $etapasDelProducto) {
+            // Si el producto todavía no tiene tareas en el pedido, generarlas. Si ya tiene, se respetan
+            // (son la foto de sus etapas: no se le suman las etapas agregadas al producto después).
+            if (!$consultaTareas()->exists()) {
                 $pedido->generarTareas();
             }
 
