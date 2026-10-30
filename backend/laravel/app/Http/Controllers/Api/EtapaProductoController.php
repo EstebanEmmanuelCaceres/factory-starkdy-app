@@ -6,7 +6,6 @@ use App\Http\Controllers\Controller;
 use App\Models\Etapa;
 use App\Models\EtapaProducto;
 use App\Models\Producto;
-use App\Models\Pedido;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\DB;
@@ -29,8 +28,7 @@ class EtapaProductoController extends Controller
             ], 404);
         }
 
-        EtapaProducto::reordenarTopologicamentePorProducto((int) $productId);
-
+        // Solo lectura: el orden se recalcula al guardar las etapas (sync), no al consultarlas
         $etapasProductos = EtapaProducto::query()->where('producto_id', $productId)
             ->with(['etapa.categorias', 'dependencias.etapa.categorias'])
             ->orderBy('orden', 'asc')
@@ -193,8 +191,8 @@ class EtapaProductoController extends Controller
 
             DB::commit();
 
-            // Regenerar tareas para pedidos activos con este producto
-            Pedido::regenerarTareasParaProducto($productId);
+            // No se tocan los pedidos existentes: los cambios de etapas aplican solo a los pedidos
+            // que se creen (o a los que se agregue este producto) a partir de ahora.
 
             $result = EtapaProducto::where('producto_id', $productId)
                 ->with(['etapa.categorias', 'dependencias.etapa.categorias'])

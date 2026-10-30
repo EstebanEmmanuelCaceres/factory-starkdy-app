@@ -7,7 +7,7 @@ import { fetchClientes, type Cliente } from '@/lib/clientes'
 import { fetchProducts, type Product } from '@/lib/products'
 import { fetchUsers, type User } from '@/lib/auth'
 import { fetchEtapas, topologicalSortEtapas, type Etapa } from '@/lib/entities/etapas'
-import { fetchResponsablesEtapas, assignTask, removeTaskAssignment, type ResponsableEtapa } from '@/lib/responsable_etapas'
+import { fetchResponsablesEtapas, assignTask, removeTaskAssignment, etapasDesdeTareas, type ResponsableEtapa } from '@/lib/responsable_etapas'
 
 export interface EditPedidoModalProps {
   pedido: Pedido | null
@@ -53,6 +53,8 @@ export default function EditPedidoModal({
 
   // Etapas y asignaciones
   const [localEtapas, setLocalEtapas] = useState<Etapa[]>([])
+  // Tareas que ya tiene el pedido: definen las etapas de los productos que ya estaban en él
+  const [pedidoTareas, setPedidoTareas] = useState<ResponsableEtapa[]>([])
   const [localAssignments, setLocalAssignments] = useState<Record<string, number | null>>({})
   const [productSearchQuery, setProductSearchQuery] = useState('')
 
@@ -133,9 +135,12 @@ export default function EditPedidoModal({
 
       // Precargar etapas y asignaciones
       try {
+        const assignments = await fetchResponsablesEtapas({ pedido_id: pedido.id }).catch(() => [])
+        setPedidoTareas(assignments)
+
         if (productIds.length > 0) {
           // Las etapas solo se usan para mostrar/asignar responsables; si alguna falla, avisar
-          const stagesResults = await Promise.all(productIds.map(id => fetchEtapas({ producto_id: id }).catch(() => null)))
+          const stagesResults = await Promise.all(productIds.map(id => etapasDeProducto(id, assignments).catch(() => null)))
           if (stagesResults.some((r) => r === null)) {
             setError('No se pudieron cargar las etapas de algunos productos. Cerrá y volvé a abrir el pedido para ver sus responsables.')
           }
@@ -144,7 +149,6 @@ export default function EditPedidoModal({
           setLocalEtapas([])
         }
 
-        const assignments = await fetchResponsablesEtapas({ pedido_id: pedido.id }).catch(() => [])
         const mapped: Record<string, number | null> = {}
         assignments.forEach((a) => {
           const epId = (a as any).etapa_producto_id || a.etapa_id
@@ -163,6 +167,14 @@ export default function EditPedidoModal({
     initFormData()
   }, [isOpen, pedido])
 
+  // Etapas de un producto para este pedido: si el producto ya estaba en el pedido, las de sus tareas
+  // (no cambian aunque se editen las etapas del producto); si es nuevo, las que tiene configuradas hoy.
+  const etapasDeProducto = async (productId: number, tareas: ResponsableEtapa[]): Promise<Etapa[]> => {
+    const tareasDelProducto = tareas.filter((t) => t.etapa?.producto_id === productId)
+    if (tareasDelProducto.length > 0) return etapasDesdeTareas(tareasDelProducto)
+    return fetchEtapas({ producto_id: productId })
+  }
+
   const handleProductCheckboxChange = async (productId: number) => {
     const isSelected = formData.selectedProductIds.includes(productId)
     let updatedIds: number[]
@@ -176,7 +188,7 @@ export default function EditPedidoModal({
       updatedIds = [...formData.selectedProductIds, productId]
       updatedQuantities[productId] = 1
       try {
-        const productStages = await fetchEtapas({ producto_id: productId })
+        const productStages = await etapasDeProducto(productId, pedidoTareas)
         setLocalEtapas((prevEtapas) => {
           const filtered = prevEtapas.filter(s => s.producto_id !== productId)
           return [...filtered, ...productStages]

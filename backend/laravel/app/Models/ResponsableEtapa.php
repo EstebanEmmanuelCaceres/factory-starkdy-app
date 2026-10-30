@@ -37,10 +37,11 @@ class ResponsableEtapa extends Model
 
     /**
      * Relación: La tarea pertenece a una EtapaProducto.
+     * Incluye las etapas quitadas del producto (borrado lógico): los pedidos que ya las tenían las conservan.
      */
     public function etapaProducto(): BelongsTo
     {
-        return $this->belongsTo(EtapaProducto::class, 'etapa_producto_id');
+        return $this->belongsTo(EtapaProducto::class, 'etapa_producto_id')->withTrashed();
     }
 
     /**
@@ -48,7 +49,7 @@ class ResponsableEtapa extends Model
      */
     public function etapa(): BelongsTo
     {
-        return $this->belongsTo(EtapaProducto::class, 'etapa_producto_id');
+        return $this->belongsTo(EtapaProducto::class, 'etapa_producto_id')->withTrashed();
     }
 
     /**
@@ -89,12 +90,7 @@ class ResponsableEtapa extends Model
             return false;
         }
 
-        $ep = $this->etapaProducto;
-        if (!$ep && $this->etapa_producto_id) {
-            $ep = EtapaProducto::find($this->etapa_producto_id);
-        }
-
-        // 1. Dependencias explícitas en etapa_producto_dependencias (incluyendo transitivas)
+        // Dependencias explícitas en etapa_producto_dependencias (incluyendo transitivas)
         $directDeps = \DB::table('etapa_producto_dependencias')
             ->where('etapa_producto_id', $this->etapa_producto_id)
             ->pluck('depende_de_etapa_producto_id')
@@ -116,25 +112,16 @@ class ResponsableEtapa extends Model
             }
         }
 
-        // 2. Todas las etapas anteriores del mismo producto según su orden
-        if ($ep) {
-            $anteriorEtapaIds = EtapaProducto::where('producto_id', $ep->producto_id)
-                ->where('orden', '<', $ep->orden)
-                ->pluck('id')
-                ->toArray();
+        // El bloqueo depende solo de etapa_producto_dependencias. El orden es solo visual:
+        // las etapas paralelas (que dependen de la misma etapa) se habilitan juntas.
+        // Solo cuentan las dependencias que este pedido tiene como tarea: si al producto se le agregó
+        // una etapa después de crear el pedido, el pedido no la tiene y no debe quedar esperándola.
+        if (!empty($allDeps)) {
+            $estadosDependencias = self::where('pedido_id', $this->pedido_id)
+                ->whereIn('etapa_producto_id', array_unique($allDeps))
+                ->pluck('estado');
 
-            $requiredEtapaProductoIds = array_unique(array_merge($allDeps, $anteriorEtapaIds));
-        } else {
-            $requiredEtapaProductoIds = array_unique($allDeps);
-        }
-
-        if (!empty($requiredEtapaProductoIds)) {
-            $completedCount = self::where('pedido_id', $this->pedido_id)
-                ->whereIn('etapa_producto_id', $requiredEtapaProductoIds)
-                ->where('estado', 'completado')
-                ->count();
-
-            if ($completedCount < count($requiredEtapaProductoIds)) {
+            if ($estadosDependencias->contains(fn($estado) => $estado !== 'completado')) {
                 return true;
             }
         }

@@ -2623,7 +2623,6 @@ export default function PedidosPage() {
             setPedidos((prev) => prev.map((p) => (p.id === updated.id ? updated : p)))
             fetchResponsablesEtapas().then(setTaskAssignments).catch(console.error)
           }}
-          allStages={allStages}
           taskAssignments={taskAssignments}
           onOpenGallery={(pedidoToGallery) => handleOpenImagesModal(pedidoToGallery)}
           onOpenPayments={(pedidoToPay) => handleOpenPaymentsModal(pedidoToPay)}
