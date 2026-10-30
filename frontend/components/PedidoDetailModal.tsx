@@ -1076,7 +1076,8 @@ export default function PedidoDetailModal({
                                           )}
                                         </div>
 
-                                        {idx < prodStages.length - 1 && (
+                                        {/* Flecha solo hacia el siguiente nivel: entre etapas paralelas (mismo número) no hay */}
+                                        {idx < prodStages.length - 1 && prodStages[idx + 1].orden > stage.orden && (
                                           <div className="flex items-center justify-center py-1 md:py-0 md:px-2">
                                             <span className="text-slate-600 font-bold hidden md:inline">
                                               ➔

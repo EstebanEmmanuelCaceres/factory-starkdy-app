@@ -147,6 +147,8 @@ export function topologicalSortEtapas(etapas: Etapa[]): Etapa[] {
   queue.sort((a, b) => (originalOrdenMap.get(a) || 0) - (originalOrdenMap.get(b) || 0))
 
   const sortedResult: Etapa[] = []
+  // Nivel de cada etapa: 1 + el mayor nivel de sus dependencias (las paralelas comparten nivel)
+  const nivel = new Map<number | string, number>()
 
   while (queue.length > 0) {
     const currentKey = queue.shift()!
@@ -154,9 +156,11 @@ export function topologicalSortEtapas(etapas: Etapa[]): Etapa[] {
     if (stageObj) {
       sortedResult.push(stageObj)
     }
+    if (!nivel.has(currentKey)) nivel.set(currentKey, 1)
 
     const neighbors = adj.get(currentKey) || []
     neighbors.forEach((neighborKey) => {
+      nivel.set(neighborKey, Math.max(nivel.get(neighborKey) || 1, (nivel.get(currentKey) || 1) + 1))
       const currentInDegree = (inDegree.get(neighborKey) || 0) - 1
       inDegree.set(neighborKey, currentInDegree)
       if (currentInDegree === 0) {
@@ -166,16 +170,23 @@ export function topologicalSortEtapas(etapas: Etapa[]): Etapa[] {
     })
   }
 
+  // Si hay un ciclo no se puede calcular por niveles: se numera en secuencia como antes
   if (sortedResult.length < etapas.length) {
     etapas.forEach((s) => {
       if (!sortedResult.includes(s)) {
         sortedResult.push(s)
       }
     })
+    return sortedResult.map((stage, idx) => ({ ...stage, orden: idx + 1 }))
   }
 
-  return sortedResult.map((stage, idx) => ({
+  const keyDe = (stage: Etapa) => {
+    const idx = etapas.indexOf(stage)
+    return stage.id || (stage as any).temp_id || `idx_${idx}`
+  }
+
+  return sortedResult.map((stage) => ({
     ...stage,
-    orden: idx + 1
+    orden: nivel.get(keyDe(stage)) || 1
   }))
 }
