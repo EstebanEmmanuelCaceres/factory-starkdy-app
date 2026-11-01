@@ -30,6 +30,9 @@ import {
   type Categoria
 } from '@/lib/entities/categorias'
 import ButtonCategoryAdd from '@/components/ButtonCategoryAdd/ButtonCategoryAdd'
+import { useModal } from '@/components/Modal/context/ModalContext'
+import { ProductoAtributosModal } from '@/components/ProductoAtributos/ProductoAtributosModal'
+import { PRODUCTO_ATRIBUTOS_MODAL_ID } from '@/components/ProductoAtributos/modalIds'
 
 export default function ProductosPage() {
   const [products, setProducts] = useState<Product[]>([])
@@ -52,6 +55,10 @@ export default function ProductosPage() {
   // Gestión de Imágenes
   const [isImagesModalOpen, setIsImagesModalOpen] = useState(false)
   const [selectedProductForImages, setSelectedProductForImages] = useState<Product | null>(null)
+
+  // Gestión de Atributos
+  const atributosModal = useModal(PRODUCTO_ATRIBUTOS_MODAL_ID)
+  const [selectedProductForAtributos, setSelectedProductForAtributos] = useState<Product | null>(null)
 
   // Gestión de Etapas
   const [isStagesModalOpen, setIsStagesModalOpen] = useState(false)
@@ -130,6 +137,16 @@ export default function ProductosPage() {
   const handleOpenImagesModal = (product: Product) => {
     setSelectedProductForImages(product)
     setIsImagesModalOpen(true)
+  }
+
+  const handleOpenAtributosModal = (product: Product) => {
+    setSelectedProductForAtributos(product)
+    atributosModal.open()
+  }
+
+  const handleAtributosSaved = (updated: Product) => {
+    setProducts((prev) => prev.map((p) => (p.id === updated.id ? { ...p, atributos: updated.atributos } : p)))
+    showNotification('Atributos guardados correctamente')
   }
 
   const handleOpenStagesModal = (product: Product) => {
@@ -541,6 +558,18 @@ export default function ProductosPage() {
                                 title="Gestionar imágenes"
                               >
                                 🖼️
+                              </button>
+                              <button
+                                onClick={() => handleOpenAtributosModal(product)}
+                                className="relative text-slate-400 hover:text-white p-1 hover:bg-slate-800 rounded transition flex items-center justify-center text-xs"
+                                title={`Gestionar atributos (${product.atributos?.length ?? 0})`}
+                              >
+                                🏷️
+                                {(product.atributos?.length ?? 0) > 0 && (
+                                  <span className="absolute -top-1 -right-1 min-w-[14px] h-[14px] px-0.5 rounded-full bg-blue-600 text-[9px] font-bold leading-[14px] text-white text-center">
+                                    {product.atributos.length}
+                                  </span>
+                                )}
                               </button>
                               <button
                                 onClick={() => handleOpenStagesModal(product)}
@@ -1023,6 +1052,9 @@ export default function ProductosPage() {
             </div>
           </Modal>
         )}
+
+        {/* Modal de Gestión de Atributos */}
+        <ProductoAtributosModal producto={selectedProductForAtributos} onSaved={handleAtributosSaved} />
 
         {/* Modal de Gestión de Imágenes */}
         {isImagesModalOpen && selectedProductForImages && (
