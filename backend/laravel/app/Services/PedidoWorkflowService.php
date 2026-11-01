@@ -159,6 +159,41 @@ class PedidoWorkflowService
     }
 
     /**
+     * Completar de una vez todas las etapas pendientes de un producto dentro de un pedido.
+     * Como se completan todas juntas, no hace falta respetar el orden de dependencias entre ellas.
+     *
+     * @return int cantidad de etapas que se completaron
+     */
+    public function completarEtapasDeProducto(
+        Pedido $pedido,
+        int $productoId,
+        ?int $userId = null,
+        ?string $observacion = 'Etapas del producto completadas en lote'
+    ): int {
+        return DB::transaction(function () use ($pedido, $productoId, $userId, $observacion) {
+            $consultaTareas = fn() => ResponsableEtapa::where('pedido_id', $pedido->id)
+                ->whereHas('etapaProducto', fn($q) => $q->where('producto_id', $productoId));
+
+            // Si el producto todavía no tiene tareas en el pedido, generarlas. Si ya tiene, se respetan
+            // (son la foto de sus etapas: no se le suman las etapas agregadas al producto después).
+            if (!$consultaTareas()->exists()) {
+                $pedido->generarTareas();
+            }
+
+            $taskIds = $consultaTareas()
+                ->where('estado', '!=', ResponsableEtapa::ESTADO_COMPLETADO)
+                ->pluck('id')
+                ->all();
+
+            if (!empty($taskIds)) {
+                $this->completarTareasPorIds($pedido->id, $taskIds, $userId, $observacion);
+            }
+
+            return count($taskIds);
+        });
+    }
+
+    /**
      * Iniciar una etapa (pasar a 'en_progreso').
      */
     public function iniciarTarea(

@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Models\Etapa;
 use App\Models\ResponsableEtapa;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -18,6 +19,8 @@ class Pedido extends Model
     use HasFactory, SoftDeletes;
 
     protected $table = 'pedidos';
+
+    public const ESTADO_EN_PROGRESO = 'en_progreso';
 
     protected $with = ['ultimoEstado'];
 
@@ -111,6 +114,14 @@ class Pedido extends Model
     public function tareas(): HasMany
     {
         return $this->hasMany(ResponsableEtapa::class, 'pedido_id');
+    }
+
+    /**
+     * Scope: pedidos cuyo último estado es 'en_progreso'.
+     */
+    public function scopeEnProgreso(Builder $query): Builder
+    {
+        return $query->whereHas('ultimoEstado', fn(Builder $q) => $q->where('estado', self::ESTADO_EN_PROGRESO));
     }
 
     /**

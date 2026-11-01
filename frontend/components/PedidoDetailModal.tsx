@@ -7,9 +7,11 @@ import {
   type ComentarioPedido,
   getPedido,
   updatePedido,
-  createPedidoComentario
+  createPedidoComentario,
+  completarEtapasProducto
 } from '@/lib/pedidos'
 import { topologicalSortEtapas, type Etapa } from '@/lib/entities/etapas'
+import ProgressBar from '@/components/ProgressBar'
 import { fetchResponsablesEtapas, assignTask, etapasDesdeTareas, type ResponsableEtapa } from '@/lib/responsable_etapas'
 import { completeOperarioTask, uncompleteOperarioTask, startOperarioTask, cancelOperarioTask } from '@/lib/operario_tasks'
 import { getStoredUser } from '@/lib/auth'
@@ -62,6 +64,7 @@ export default function PedidoDetailModal({
   const [notification, setNotification] = useState('')
   const [error, setError] = useState('')
   const [completingTaskId, setCompletingTaskId] = useState<number | null>(null)
+  const [completingProductId, setCompletingProductId] = useState<number | null>(null)
   const [coverIndex, setCoverIndex] = useState(0)
   const [isLightboxOpen, setIsLightboxOpen] = useState(false)
 
@@ -98,7 +101,7 @@ export default function PedidoDetailModal({
     setIsLightboxOpen(false)
   }, [pedido?.id, isOpen])
 
-  // Cargar pedido completo, etapas y asignaciones si no vinieron por props
+  // Cargar pedido completo y sus tareas (de las tareas salen las etapas)
   useEffect(() => {
     if (!isOpen || !pedido) return
 
@@ -106,7 +109,7 @@ export default function PedidoDetailModal({
 
     const loadMissingData = async () => {
       try {
-        // 1. Obtener detalle actualizado del pedido
+        // 1. Obtener detalle actualizado del pedido (incluye el progreso)
         const fullPedido = await getPedido(pedido.id).catch(() => pedido)
         if (isMounted && fullPedido) {
           setCurrentPedido(fullPedido)
@@ -229,6 +232,37 @@ export default function PedidoDetailModal({
       setError(err instanceof Error ? err.message : 'Error al completar la etapa')
     } finally {
       setCompletingTaskId(null)
+    }
+  }
+
+  // Completa todas las etapas de un producto con una sola petición al servidor
+  const handleCompleteAllStages = async (productoId: number, productoNombre: string) => {
+    if (!currentPedido || completingProductId !== null) return
+    if (!confirm(`¿Completar todas las etapas pendientes de "${productoNombre}"?`)) return
+
+    try {
+      setError('')
+      setCompletingProductId(productoId)
+
+      const { completadas } = await completarEtapasProducto(currentPedido.id, productoId)
+      showNotification(
+        completadas > 0
+          ? `✓ ${completadas} etapa(s) de "${productoNombre}" completadas`
+          : `"${productoNombre}" ya tenía todas sus etapas completadas`
+      )
+
+      // Refrescar tareas (etapas y estados) y pedido (estado y progreso)
+      const [updatedAssignments, updatedPedido] = await Promise.all([
+        fetchResponsablesEtapas({ pedido_id: currentPedido.id }).catch(() => assignments),
+        getPedido(currentPedido.id).catch(() => currentPedido)
+      ])
+      setAssignments(updatedAssignments)
+      setCurrentPedido(updatedPedido)
+      if (onUpdatePedido) onUpdatePedido(updatedPedido)
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Error al completar las etapas del producto')
+    } finally {
+      setCompletingProductId(null)
     }
   }
 
@@ -751,6 +785,15 @@ export default function PedidoDetailModal({
                 <span>📦</span> Productos y Etapas de Fabricación
               </h3>
 
+              {currentPedido.progreso && (
+                <div className="bg-slate-950/40 border border-slate-800 rounded-xl px-4 py-3">
+                  <span className="text-[10px] uppercase font-extrabold tracking-wider text-slate-400 block mb-1.5">
+                    Progreso del pedido
+                  </span>
+                  <ProgressBar value={currentPedido.progreso.porcentaje} />
+                </div>
+              )}
+
               {pds.length === 0 ? (
                 <p className="text-xs text-slate-500 italic">
                   No hay productos asociados a este pedido.
@@ -764,6 +807,7 @@ export default function PedidoDetailModal({
                     const qty = prod.pivot?.cantidad || 1
                     const currentStages = getProductCurrentStages(prodStages)
                     const isAccordionOpen = openAccordions[prod.id] || false
+                    const prodProgreso = currentPedido.progreso?.productos.find((p) => p.producto_id === prod.id)
 
                     return (
                       <div
@@ -883,6 +927,31 @@ export default function PedidoDetailModal({
                             <span className="text-xs text-slate-500 italic">Sin etapas</span>
                           )}
                         </div>
+
+                        {/* Progreso del producto: etapas completadas sobre el total */}
+                        {prodProgreso && prodProgreso.porcentaje !== null && (
+                          <div>
+                            <div className="flex items-center justify-between gap-2 mb-1">
+                              <span className="text-[10px] text-slate-500 font-bold uppercase">
+                                {prodProgreso.etapas_completadas} de {prodProgreso.etapas_totales} etapas completadas
+                              </span>
+                              {/* Completar todas las etapas del producto de una vez */}
+                              {prodProgreso.porcentaje < 100 && currentPedido.estado !== 'pendiente' && (
+                                <button
+                                  type="button"
+                                  disabled={completingProductId !== null || completingTaskId !== null}
+                                  onClick={() => handleCompleteAllStages(prod.id, prod.nombre)}
+                                  className="shrink-0 bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-500/40 disabled:opacity-50 disabled:cursor-not-allowed text-emerald-300 text-[11px] font-bold px-2.5 py-1 rounded-lg flex items-center gap-1 transition cursor-pointer"
+                                  title="Marcar todas las etapas pendientes de este producto como completadas"
+                                >
+                                  <span>✓✓</span>
+                                  <span>{completingProductId === prod.id ? 'Completando...' : 'Completar todas'}</span>
+                                </button>
+                              )}
+                            </div>
+                            <ProgressBar value={prodProgreso.porcentaje} />
+                          </div>
+                        )}
 
                         {/* Botón del acordeón */}
                         {prodStages.length > 0 && (

@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -12,6 +13,8 @@ class ResponsableEtapa extends Model
     use HasFactory;
 
     protected $table = 'responsables_etapas';
+
+    public const ESTADO_COMPLETADO = 'completado';
 
     protected $fillable = [
         'pedido_id',
@@ -66,6 +69,14 @@ class ResponsableEtapa extends Model
     public function historiales(): HasMany
     {
         return $this->hasMany(EtapaHistorialEstado::class, 'responsable_etapa_id');
+    }
+
+    /**
+     * Scope: solo las tareas (etapas del pedido) completadas.
+     */
+    public function scopeCompletadas(Builder $query): Builder
+    {
+        return $query->where('estado', self::ESTADO_COMPLETADO);
     }
 
     protected static function booted()
