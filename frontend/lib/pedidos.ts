@@ -76,8 +76,8 @@ export interface CreatePedidoInput {
   medio_pago_inicial?: string | null
   observaciones_pago_inicial?: string | null
   productos?: { id: number; cantidad: number }[]
-  etapas?: { id?: number; producto_id: number; nombre: string; orden: number; temp_id?: string }[]
-  asignaciones?: { etapa_id?: number; etapa_temp_id?: string; user_id: number | null }[]
+  // Solo los responsables de cada etapa: las etapas se configuran en el producto, no en el pedido
+  asignaciones?: { etapa_id?: number; user_id: number | null }[]
 }
 
 export interface UpdatePedidoInput {
@@ -90,8 +90,8 @@ export interface UpdatePedidoInput {
   comentario?: string | null
   tipo_pago?: 'unico' | 'parcial'
   productos?: { id: number; cantidad: number }[]
-  etapas?: { id?: number; producto_id: number; nombre: string; orden: number; temp_id?: string }[]
-  asignaciones?: { etapa_id?: number; etapa_temp_id?: string; user_id: number | null }[]
+  // Solo los responsables de cada etapa: las etapas se configuran en el producto, no en el pedido
+  asignaciones?: { etapa_id?: number; user_id: number | null }[]
 }
 
 export interface PedidoFilters {
@@ -143,6 +143,7 @@ export async function createPedidoPago(pedidoId: number, input: {
   tipo_cobro: 'seña' | 'parcial' | 'saldo' | 'unico'
   observaciones?: string
   fecha_pago?: string
+  comprobante_url?: string | null
 }): Promise<{ status: string; message: string; data: Pago; pedido: Pedido }> {
   const { data } = await api.post<{ status: string; message: string; data: Pago; pedido: Pedido }>(`/pedidos/${pedidoId}/pagos`, input)
   return data
@@ -174,5 +175,10 @@ export async function fetchPedidoComentarios(pedidoId: number): Promise<Comentar
 
 export async function createPedidoComentario(pedidoId: number, cuerpo: string): Promise<ComentarioPedido> {
   const { data } = await api.post<{ status: string; data: ComentarioPedido }>(`/pedidos/${pedidoId}/comentarios`, { cuerpo })
+  return data.data
+}
+
+export async function fetchCompletadosPorCobrar(): Promise<Pedido[]> {
+  const { data } = await api.get<{ status: string; data: Pedido[] }>('/pedidos/completados-por-cobrar')
   return data.data
 }

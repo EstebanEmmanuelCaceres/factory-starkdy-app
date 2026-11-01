@@ -7,12 +7,20 @@ use App\Models\ResponsableEtapa;
 use App\Models\Pedido;
 use App\Models\EtapaProducto;
 use App\Models\User;
+use App\Services\PedidoWorkflowService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Http\JsonResponse;
 
 class ResponsableEtapaController extends Controller
 {
+    protected PedidoWorkflowService $workflowService;
+
+    public function __construct(PedidoWorkflowService $workflowService)
+    {
+        $this->workflowService = $workflowService;
+    }
+
     /**
      * Listar asignaciones de tareas (Supervisor).
      */
@@ -20,14 +28,18 @@ class ResponsableEtapaController extends Controller
     {
         $query = ResponsableEtapa::with([
             'pedido.cliente',
-            'etapaProducto.producto',
+            'pedido.imagenes',
+            'pedido.imagenPrincipal',
+            'etapaProducto.producto.imagenes',
+            'etapaProducto.producto.imagenPrincipal',
             'etapaProducto.etapa',
+            'etapaProducto.dependencias:etapas_productos.id',
             'user'
         ]);
 
         if ($request->has('pedido_id')) {
             $pedidoId = $request->input('pedido_id');
-            ResponsableEtapa::unblockAllSatisfiedTasksForPedido($pedidoId);
+            $this->workflowService->desbloquearTareasSatisfechas($pedidoId);
             $query->where('pedido_id', $pedidoId);
         } else {
             $query->whereHas('pedido.ultimoEstado', function ($q) {
@@ -88,6 +100,8 @@ class ResponsableEtapaController extends Controller
                     'orden' => $ep->orden,
                     'producto_id' => $ep->producto_id,
                     'producto' => $ep->producto,
+                    // Para armar el flujo de etapas del pedido desde sus tareas (etapasDesdeTareas en el front)
+                    'dependencias' => $ep->dependencias->map(fn($dep) => ['id' => $dep->id])->values(),
                 ]);
             }
         }
@@ -145,19 +159,23 @@ class ResponsableEtapaController extends Controller
             ->where('etapa_producto_id', $etapaProducto->id)
             ->first();
 
-        if ($requestedEstado === 'completado') {
+        if ($requestedEstado === 'completado' || $requestedEstado === 'en_progreso') {
             $tempTask = $existingTask ?? new ResponsableEtapa([
                 'pedido_id' => $pedido->id,
                 'etapa_producto_id' => $etapaProducto->id,
             ]);
 
             if ($tempTask->isBlockedByDependencies()) {
+                $verbo = $requestedEstado === 'en_progreso' ? 'iniciar' : 'completar';
                 return response()->json([
                     'status' => 'error',
-                    'message' => 'No puedes completar esta etapa porque requiere que se completen las etapas previas'
+                    'message' => "No puedes {$verbo} esta etapa porque requiere que se completen las etapas previas"
                 ], 422);
             }
         }
+
+        $estadoAnterior = $existingTask?->estado;
+        $targetEstado = $requestedEstado ?? ($existingTask ? $existingTask->estado : 'pendiente');
 
         // 3. Crear o actualizar la asignación de la tarea
         $asignacion = ResponsableEtapa::updateOrCreate(
@@ -167,9 +185,17 @@ class ResponsableEtapaController extends Controller
             ],
             [
                 'user_id' => $user?->id,
-                'estado' => $requestedEstado ?? ($existingTask ? $existingTask->estado : 'pendiente'),
+                'estado' => $targetEstado,
             ]
         );
+
+        if ($targetEstado === 'completado') {
+            $this->workflowService->completarTarea($asignacion, $user?->id, 'Asignada y completada por supervisor');
+        } elseif ($targetEstado === 'en_progreso') {
+            $this->workflowService->iniciarTarea($asignacion, $user?->id, 'Asignada e iniciada por supervisor');
+        } elseif ($estadoAnterior !== null && $estadoAnterior !== $targetEstado) {
+            $this->workflowService->cambiarEstadoTarea($asignacion, $targetEstado, $user?->id, 'Estado actualizado por supervisor');
+        }
 
         $asignacion->load(['pedido.cliente', 'etapaProducto.producto', 'etapaProducto.etapa', 'user']);
 
@@ -296,27 +322,20 @@ class ResponsableEtapaController extends Controller
 
         $completedTaskIds = $request->input('task_ids_completadas', []);
 
-        // Tareas de diseño pertenecientes a este pedido
-        $disenoTasks = ResponsableEtapa::where('pedido_id', $pedidoId)
+        // Tareas de diseño pertenecientes a este pedido a completar
+        $tasksToComplete = ResponsableEtapa::where('pedido_id', $pedidoId)
+            ->whereIn('id', $completedTaskIds)
             ->whereHas('etapaProducto.etapa', function ($q) {
                 $q->whereRaw('LOWER(nombre) LIKE ? OR LOWER(nombre) LIKE ?', ['%diseño%', '%diseno%']);
             })
-            ->get();
+            ->pluck('id')
+            ->toArray();
 
-        foreach ($disenoTasks as $task) {
-            if (in_array($task->id, $completedTaskIds)) {
-                if ($task->estado !== 'completado') {
-                    $task->update([
-                        'estado' => 'completado',
-                        'fecha_inicio' => $task->fecha_inicio ?? now(),
-                        'fecha_fin' => now(),
-                    ]);
-                }
-            }
+        if (!empty($tasksToComplete)) {
+            $this->workflowService->completarTareasPorIds($pedidoId, $tasksToComplete, \Illuminate\Support\Facades\Auth::id(), 'Diseño completado');
+        } else {
+            $this->workflowService->desbloquearTareasSatisfechas($pedidoId);
         }
-
-        // Desbloquear etapas dependientes del pedido
-        ResponsableEtapa::unblockAllSatisfiedTasksForPedido($pedidoId);
 
         return response()->json([
             'status' => 'success',

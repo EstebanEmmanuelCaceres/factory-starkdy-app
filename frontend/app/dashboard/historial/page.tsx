@@ -81,7 +81,7 @@ export default function HistorialPage() {
   }
 
   return (
-    <RoleGuard allowedRoles={['admin', 'supervisor', 'encargado', 'operario']}>
+    <RoleGuard allowedRoles={['admin', 'supervisor', 'encargado', 'operario', 'operator', 'disenador', 'disenadora']}>
       <main className="page-content p-6 max-w-7xl mx-auto text-white">
         {error && (
           <div className="mb-6 bg-rose-500/10 border border-rose-500/20 text-rose-200 px-5 py-4 rounded-xl flex items-center gap-3 text-base font-semibold">

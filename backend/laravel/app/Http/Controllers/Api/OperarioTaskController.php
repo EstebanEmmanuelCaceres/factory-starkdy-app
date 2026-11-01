@@ -4,8 +4,8 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\ResponsableEtapa;
-use App\Models\EtapaProducto;
 use App\Models\User;
+use App\Services\PedidoWorkflowService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Validator;
@@ -13,6 +13,13 @@ use Illuminate\Http\JsonResponse;
 
 class OperarioTaskController extends Controller
 {
+    protected PedidoWorkflowService $workflowService;
+
+    public function __construct(PedidoWorkflowService $workflowService)
+    {
+        $this->workflowService = $workflowService;
+    }
+
     /**
      * Listar tareas pendientes asignadas al operario autenticado.
      */
@@ -23,7 +30,12 @@ class OperarioTaskController extends Controller
 
         $query = ResponsableEtapa::with([
             'pedido.cliente',
-            'etapaProducto.producto',
+            'pedido.imagenes',
+            'pedido.imagenPrincipal',
+            'pedido.productos.imagenes',
+            'pedido.productos.imagenPrincipal',
+            'etapaProducto.producto.imagenes',
+            'etapaProducto.producto.imagenPrincipal',
             'etapaProducto.etapa.categorias',
             'etapaProducto.dependencias.etapa',
             'user'
@@ -82,24 +94,8 @@ class OperarioTaskController extends Controller
                             'estado' => $tareaPrevia ? $tareaPrevia->estado : 'pendiente'
                         ];
                     }
-                } else {
-                    $etapaAnterior = EtapaProducto::where('producto_id', $ep->producto_id)
-                        ->where('orden', '<', $ep->orden)
-                        ->orderBy('orden', 'desc')
-                        ->first();
-
-                    if ($etapaAnterior) {
-                        $tareaPrevia = ResponsableEtapa::where('pedido_id', $task->pedido_id)
-                            ->where('etapa_producto_id', $etapaAnterior->id)
-                            ->first();
-
-                        $depsInfo[] = [
-                            'id' => $etapaAnterior->id,
-                            'nombre' => $etapaAnterior->etapa->nombre ?? 'Etapa',
-                            'estado' => $tareaPrevia ? $tareaPrevia->estado : 'pendiente'
-                        ];
-                    }
                 }
+                // Sin dependencias = etapa inicial del producto: no tiene etapas previas
             }
 
             $task->setAttribute('dependencias_info', $depsInfo);
@@ -122,27 +118,49 @@ class OperarioTaskController extends Controller
     }
 
     /**
-     * Marcar una tarea asignada como "en_progreso".
+     * Puede operar la tarea: admin/encargado/supervisor, quien la tiene asignada,
+     * o un usuario con alguna de las categorías de la etapa (misma regla que el listado).
+     */
+    private function puedeOperarTarea(?User $user, ResponsableEtapa $task): bool
+    {
+        if (!$user) {
+            return false;
+        }
+
+        if ($user->isAdminOrEncargado() || (int) $task->user_id === (int) $user->id) {
+            return true;
+        }
+
+        $userCategoryIds = $user->categorias()->pluck('categorias.id')->toArray();
+        if (empty($userCategoryIds)) {
+            return false;
+        }
+
+        return $task->etapaProducto()
+            ->whereHas('etapa.categorias', function ($q) use ($userCategoryIds) {
+                $q->whereIn('categorias.id', $userCategoryIds);
+            })
+            ->exists();
+    }
+
+    /**
+     * Marcar una tarea como "en_progreso".
      */
     public function start($id): JsonResponse
     {
+        /** @var User|null $user */
         $user = Auth::user();
-        if ($user && ($user->isAdmin() || $user->isEncargado() || $user->isSupervisor())) {
-            $task = ResponsableEtapa::find($id);
-        } else {
-            $task = ResponsableEtapa::where('id', $id)
-                ->where('user_id', $user?->id)
-                ->first();
-        }
+        $task = ResponsableEtapa::find($id);
 
-        if (!$task) {
+        if (!$task || !$this->puedeOperarTarea($user, $task)) {
             return response()->json([
                 'status' => 'error',
-                'message' => 'Tarea no encontrada o no está asignada a tu usuario'
+                'message' => 'Tarea no encontrada o no corresponde a tus categorías'
             ], 404);
         }
 
-        if ($task->estado === 'bloqueada' || $task->isBlockedByDependencies()) {
+        // Se decide por las dependencias reales: si estaba 'bloqueada' pero ya se cumplieron, pasa a 'pendiente'
+        if ($task->isBlockedByDependencies()) {
             if ($task->estado !== 'bloqueada') {
                 $task->update(['estado' => 'bloqueada']);
             }
@@ -159,16 +177,10 @@ class OperarioTaskController extends Controller
             ], 422);
         }
 
-        $updateData = [
-            'estado' => 'en_progreso',
-            'fecha_inicio' => now(),
-        ];
+        // El operario que la toma queda como responsable (los encargados no se la quedan al operar)
+        $assignedUserId = ($user && (empty($task->user_id) || !$user->isAdminOrEncargado())) ? $user->id : null;
 
-        if (empty($task->user_id) && $user) {
-            $updateData['user_id'] = $user->id;
-        }
-
-        $task->update($updateData);
+        $task = $this->workflowService->iniciarTarea($task, $assignedUserId);
 
         return response()->json([
             'status' => 'success',
@@ -192,7 +204,8 @@ class OperarioTaskController extends Controller
             ], 404);
         }
 
-        if ($task->estado === 'bloqueada' || $task->isBlockedByDependencies()) {
+        // Se decide por las dependencias reales: si estaba 'bloqueada' pero ya se cumplieron, pasa a 'pendiente'
+        if ($task->isBlockedByDependencies()) {
             if ($task->estado !== 'bloqueada') {
                 $task->update(['estado' => 'bloqueada']);
             }
@@ -209,23 +222,57 @@ class OperarioTaskController extends Controller
             ], 422);
         }
 
-        $fechaInicio = $task->fecha_inicio ?? now();
+        // Quien la completa queda como responsable, así aparece en su historial
+        $assignedUserId = ($user && (empty($task->user_id) || !$user->isAdminOrEncargado())) ? $user->id : null;
 
-        $updateData = [
-            'estado' => 'completado',
-            'fecha_inicio' => $fechaInicio,
-            'fecha_fin' => now(),
-        ];
-
-        if (empty($task->user_id) && $user) {
-            $updateData['user_id'] = $user->id;
-        }
-
-        $task->update($updateData);
+        $task = $this->workflowService->completarTarea($task, $assignedUserId, 'Tarea completada por operario');
 
         return response()->json([
             'status' => 'success',
             'message' => 'Tarea completada correctamente',
+            'data' => [
+                'task' => $task
+            ]
+        ]);
+    }
+
+    /**
+     * Revertir una tarea completada a "sin completar" (pendiente).
+     */
+    public function uncomplete(Request $request, $id): JsonResponse
+    {
+        /** @var User|null $user */
+        $user = Auth::user();
+        $task = ResponsableEtapa::find($id);
+
+        if (!$task) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Tarea no encontrada'
+            ], 404);
+        }
+
+        if ($task->estado !== 'completado') {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Solo se pueden desmarcar tareas que se encuentran completadas'
+            ], 422);
+        }
+
+        $task->update([
+            'fecha_fin' => null,
+        ]);
+
+        $task = $this->workflowService->cambiarEstadoTarea(
+            $task,
+            'pendiente',
+            $user?->id,
+            'Tarea desmarcada (vuelta a sin completar)'
+        );
+
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Tarea marcada como sin completar',
             'data' => [
                 'task' => $task
             ]
@@ -273,12 +320,14 @@ class OperarioTaskController extends Controller
      */
     public function cancel($id): JsonResponse
     {
+        /** @var User|null $user */
+        $user = Auth::user();
         $task = ResponsableEtapa::find($id);
 
-        if (!$task) {
+        if (!$task || !$this->puedeOperarTarea($user, $task)) {
             return response()->json([
                 'status' => 'error',
-                'message' => 'Tarea no encontrada'
+                'message' => 'Tarea no encontrada o no corresponde a tus categorías'
             ], 404);
         }
 
@@ -289,10 +338,14 @@ class OperarioTaskController extends Controller
             ], 422);
         }
 
+        $estadoAnterior = $task->estado;
         $task->update([
             'estado' => 'pendiente',
             'fecha_inicio' => null,
         ]);
+
+        $this->workflowService->logStateChange($task, $estadoAnterior, 'pendiente', 'Tarea pausada y restablecida a pendiente', $user?->id);
+        $this->workflowService->sincronizarEstadoPedido($task->pedido_id);
 
         return response()->json([
             'status' => 'success',
@@ -357,22 +410,6 @@ class OperarioTaskController extends Controller
 
                     if ($tareaPrevia) {
                         $fechaFinEtapaAnterior = $tareaPrevia->fecha_fin;
-                    }
-                } else {
-                    $etapaAnterior = EtapaProducto::where('producto_id', $ep->producto_id)
-                        ->where('orden', '<', $ep->orden)
-                        ->orderBy('orden', 'desc')
-                        ->first();
-
-                    if ($etapaAnterior) {
-                        $tareaPrevia = ResponsableEtapa::where('pedido_id', $task->pedido_id)
-                            ->where('etapa_producto_id', $etapaAnterior->id)
-                            ->where('estado', 'completado')
-                            ->first();
-
-                        if ($tareaPrevia) {
-                            $fechaFinEtapaAnterior = $tareaPrevia->fecha_fin;
-                        }
                     }
                 }
             }

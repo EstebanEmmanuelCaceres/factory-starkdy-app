@@ -85,7 +85,9 @@ class Pedido extends Model
         return $this->belongsToMany(Producto::class, 'pedido_productos', 'pedido_id', 'producto_id')
             ->using(PedidoProducto::class)
             ->withPivot('cantidad')
-            ->withTimestamps();
+            ->withTimestamps()
+            // Al quitar un producto del pedido la fila se borra lógicamente: no debe seguir apareciendo
+            ->wherePivotNull('deleted_at');
     }
 
     /**
@@ -188,89 +190,78 @@ class Pedido extends Model
     }
 
     /**
-     * Generar/Sincronizar las tareas (responsables_etapas) del pedido a partir de las etapas de sus productos.
+     * Generar las tareas (responsables_etapas) del pedido a partir de las etapas de sus productos.
+     *
+     * Las tareas son la "foto" de las etapas que tenía cada producto al entrar al pedido:
+     * - Un producto que todavía no tiene tareas en el pedido (pedido nuevo o producto recién agregado)
+     *   recibe una tarea por cada etapa que tenga configurada en este momento.
+     * - Un producto que ya tiene tareas no se toca: agregar o quitar etapas del producto
+     *   solo afecta a los pedidos que se creen (o a los que se agregue el producto) después.
+     * - Se borran solo las tareas de los productos que se quitaron del pedido.
      */
     public function generarTareas(): void
     {
-        $productIds = $this->productos()->pluck('productos.id')->toArray();
+        $productIds = $this->productos()->pluck('productos.id')->all();
 
-        // Obtener todas las etapas_productos asociadas a estos productos
-        $etapasProductos = EtapaProducto::whereIn('producto_id', $productIds)->get();
-        $etapaProductoIds = $etapasProductos->pluck('id')->toArray();
+        // Tareas actuales con su etapa (incluye etapas ya quitadas del producto)
+        $tareas = ResponsableEtapa::where('pedido_id', $this->id)->with('etapaProducto.etapa')->get();
 
-        // Obtener dependencias entre etapas del producto
-        $dependencies = DB::table('etapa_producto_dependencias')
-            ->whereIn('etapa_producto_id', $etapaProductoIds)
-            ->get()
-            ->groupBy('etapa_producto_id');
-
-        // Eliminar asignaciones viejas de etapas que ya no pertenecen a los productos asociados
-        ResponsableEtapa::where('pedido_id', $this->id)
-            ->whereNotIn('etapa_producto_id', $etapaProductoIds)
-            ->delete();
+        // Borrar las tareas de productos que ya no están en el pedido
+        $tareasDeProductosQuitados = $tareas->filter(
+            fn($tarea) => !$tarea->etapaProducto || !in_array($tarea->etapaProducto->producto_id, $productIds)
+        );
+        if ($tareasDeProductosQuitados->isNotEmpty()) {
+            ResponsableEtapa::whereIn('id', $tareasDeProductosQuitados->pluck('id'))->delete();
+        }
+        $tareas = $tareas->diff($tareasDeProductosQuitados);
 
         $adminUser = User::whereHas('role', function ($q) {
             $q->where('slug', 'admin');
         })->first() ?? User::first();
         $adminUserId = $adminUser?->id;
 
-        foreach ($etapasProductos as $etapaProducto) {
-            // Verificar si la etapa corresponde a diseño (etapa_id 5 o por nombre)
-            $etapaNombre = mb_strtolower($etapaProducto->etapa->nombre ?? '');
-            $isDiseno = ((int) $etapaProducto->etapa_id === 5) || str_contains($etapaNombre, 'diseño') || str_contains($etapaNombre, 'diseno');
-            $assignedUserId = $isDiseno ? ($this->user_id ?? $adminUserId) : $adminUserId;
+        // Productos que ya tienen tareas: se respeta su foto, solo se asegura el responsable de diseño
+        $productosConTareas = $tareas->map(fn($tarea) => $tarea->etapaProducto->producto_id)->unique()->all();
+        foreach ($tareas as $tarea) {
+            if ($this->esEtapaDiseno($tarea->etapaProducto) && !empty($this->user_id) && $tarea->user_id !== $this->user_id) {
+                $tarea->update(['user_id' => $this->user_id]);
+            }
+        }
 
-            // Verificar si ya existe la tarea
-            $tarea = ResponsableEtapa::where('pedido_id', $this->id)
-                ->where('etapa_producto_id', $etapaProducto->id)
-                ->first();
+        // Productos sin tareas: crear una tarea por cada etapa configurada hoy
+        $productosSinTareas = array_diff($productIds, $productosConTareas);
+        if (!empty($productosSinTareas)) {
+            $etapasProductos = EtapaProducto::whereIn('producto_id', $productosSinTareas)->with('etapa')->get();
 
-            $tieneDependencias = isset($dependencies[$etapaProducto->id]) && $dependencies[$etapaProducto->id]->count() > 0;
-            $estadoInicial = $tieneDependencias ? 'bloqueada' : 'pendiente';
+            $conDependencias = DB::table('etapa_producto_dependencias')
+                ->whereIn('etapa_producto_id', $etapasProductos->pluck('id'))
+                ->pluck('etapa_producto_id')
+                ->unique()
+                ->all();
 
-            if (!$tarea) {
+            foreach ($etapasProductos as $etapaProducto) {
                 ResponsableEtapa::create([
                     'pedido_id' => $this->id,
                     'etapa_producto_id' => $etapaProducto->id,
-                    'user_id' => $assignedUserId,
-                    'estado' => $estadoInicial
+                    'user_id' => $this->esEtapaDiseno($etapaProducto) ? ($this->user_id ?? $adminUserId) : $adminUserId,
+                    'estado' => in_array($etapaProducto->id, $conDependencias) ? 'bloqueada' : 'pendiente',
                 ]);
-            } else {
-                $updates = [];
-
-                // Si es etapa de diseño, asegurar asignación al vendedor del pedido
-                if ($isDiseno && !empty($this->user_id) && $tarea->user_id !== $this->user_id) {
-                    $updates['user_id'] = $this->user_id;
-                }
-
-                // Si la tarea existe y estaba bloqueada pero ahora no tiene dependencias (o viceversa)
-                if ($tarea->estado === 'bloqueada' && !$tieneDependencias) {
-                    $updates['estado'] = 'pendiente';
-                } elseif ($tarea->estado === 'pendiente' && $tieneDependencias) {
-                    $updates['estado'] = 'bloqueada';
-                }
-
-                if (!empty($updates)) {
-                    $tarea->update($updates);
-                }
             }
         }
     }
 
     /**
-     * Regenerar/Sincronizar tareas para todos los pedidos activos que contengan un producto específico.
+     * La etapa de diseño se asigna al vendedor del pedido (etapa_id 5 o por nombre).
      */
-    public static function regenerarTareasParaProducto($productoId): void
+    private function esEtapaDiseno(?EtapaProducto $etapaProducto): bool
     {
-        $pedidos = self::whereHas('productos', function ($q) use ($productoId) {
-            $q->where('productos.id', $productoId);
-        })->whereHas('ultimoEstado', function ($q) {
-            $q->whereNotIn('estado', ['completado', 'cancelado']);
-        })->get();
-
-        foreach ($pedidos as $pedido) {
-            $pedido->generarTareas();
+        if (!$etapaProducto) {
+            return false;
         }
+
+        $nombre = mb_strtolower($etapaProducto->etapa->nombre ?? '');
+
+        return (int) $etapaProducto->etapa_id === 5 || str_contains($nombre, 'diseño') || str_contains($nombre, 'diseno');
     }
 
     /**

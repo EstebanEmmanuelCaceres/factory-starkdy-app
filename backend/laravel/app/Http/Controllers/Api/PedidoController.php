@@ -5,9 +5,6 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Pedido;
 use App\Models\PedidoProducto;
-use App\Models\Etapa;
-use App\Models\EtapaProducto;
-
 use App\Models\ResponsableEtapa;
 use App\Models\Cliente;
 use App\Models\ComentarioPedido;
@@ -16,9 +13,17 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Auth;
+use App\Services\PedidoWorkflowService;
 
 class PedidoController extends Controller
 {
+    protected PedidoWorkflowService $workflowService;
+
+    public function __construct(PedidoWorkflowService $workflowService)
+    {
+        $this->workflowService = $workflowService;
+    }
+
     /**
      * Display a listing of the resource.
      */
@@ -40,7 +45,7 @@ class PedidoController extends Controller
 
         $hasSearch = $request->has('search') && !empty(trim($request->input('search')));
 
-        // Búsqueda opcional por código de pedido, nombre de empresa, nombre de cliente o correo del cliente relacionado
+        // Búsqueda opcional por código de pedido, nombre de empresa, nombre de cliente, correo del cliente o productos del pedido
         if ($hasSearch) {
             $searchTerm = mb_strtolower(trim($request->input('search')));
             $query->where(function ($q) use ($searchTerm) {
@@ -49,6 +54,9 @@ class PedidoController extends Controller
                         $cq->whereRaw('LOWER(nombre_empresa) LIKE ?', ['%' . $searchTerm . '%'])
                             ->orWhereRaw('LOWER(nombre_cliente) LIKE ?', ['%' . $searchTerm . '%'])
                             ->orWhereRaw('LOWER(email) LIKE ?', ['%' . $searchTerm . '%']);
+                    })
+                    ->orWhereHas('productos', function ($pq) use ($searchTerm) {
+                        $pq->whereRaw('LOWER(productos.nombre) LIKE ?', ['%' . $searchTerm . '%']);
                     });
             });
         }
@@ -187,15 +195,8 @@ class PedidoController extends Controller
             'productos' => 'nullable|array',
             'productos.*.id' => 'required|exists:productos,id',
             'productos.*.cantidad' => 'required|integer|min:1',
-            'etapas' => 'nullable|array',
-            'etapas.*.id' => 'nullable',
-            'etapas.*.producto_id' => 'required|exists:productos,id',
-            'etapas.*.nombre' => 'required|string|max:255',
-            'etapas.*.orden' => 'required|integer',
-            'etapas.*.temp_id' => 'nullable|string',
             'asignaciones' => 'nullable|array',
             'asignaciones.*.etapa_id' => 'nullable|integer',
-            'asignaciones.*.etapa_temp_id' => 'nullable|string',
             'asignaciones.*.user_id' => 'nullable|integer|exists:users,id',
         ], $messages);
 
@@ -285,7 +286,7 @@ class PedidoController extends Controller
             }
             $pedido->productos()->sync($syncData);
         }
-        $this->syncEtapasYAsignaciones($pedido, $request);
+        $this->syncAsignaciones($pedido, $request);
 
         // Registrar pago inicial si fue proporcionado
         if ($montoInicial > 0) {
@@ -322,7 +323,7 @@ class PedidoController extends Controller
      */
     public function show($id): JsonResponse
     {
-        ResponsableEtapa::unblockAllSatisfiedTasksForPedido($id);
+        $this->workflowService->desbloquearTareasSatisfechas($id);
 
         $pedido = Pedido::with([
             'cliente',
@@ -400,15 +401,8 @@ class PedidoController extends Controller
             'productos' => 'sometimes|array',
             'productos.*.id' => 'required|exists:productos,id',
             'productos.*.cantidad' => 'required|integer|min:1',
-            'etapas' => 'nullable|array',
-            'etapas.*.id' => 'nullable',
-            'etapas.*.producto_id' => 'required|exists:productos,id',
-            'etapas.*.nombre' => 'required|string|max:255',
-            'etapas.*.orden' => 'required|integer',
-            'etapas.*.temp_id' => 'nullable|string',
             'asignaciones' => 'nullable|array',
             'asignaciones.*.etapa_id' => 'nullable|integer',
-            'asignaciones.*.etapa_temp_id' => 'nullable|string',
             'asignaciones.*.user_id' => 'nullable|integer|exists:users,id',
         ], $messages);
 
@@ -439,8 +433,8 @@ class PedidoController extends Controller
             }
             $pedido->productos()->sync($syncData);
         }
-        $this->syncEtapasYAsignaciones($pedido, $request);
-        ResponsableEtapa::unblockAllSatisfiedTasksForPedido($pedido->id);
+        $this->syncAsignaciones($pedido, $request);
+        $this->workflowService->desbloquearTareasSatisfechas($pedido->id);
 
         $pedido->refresh();
         $pedido->load(['cliente', 'user', 'productos', 'pago', 'pagos', 'ultimoEstado']);
@@ -501,59 +495,12 @@ class PedidoController extends Controller
     }
 
     /**
-     * Sincronizar etapas y asignaciones por pedido en un solo lote.
+     * Generar las tareas del pedido y aplicar las asignaciones de responsables.
+     * Las etapas de los productos no se tocan desde acá: se configuran solo desde el producto.
      */
-    private function syncEtapasYAsignaciones(Pedido $pedido, Request $request): void
+    private function syncAsignaciones(Pedido $pedido, Request $request): void
     {
         DB::transaction(function () use ($pedido, $request) {
-            $productIds = $pedido->productos()->pluck('productos.id')->toArray();
-            $tempIdToDbId = [];
-
-            if ($request->has('etapas')) {
-                $incomingEtapas = $request->input('etapas') ?? [];
-                $keptEtapaProductoIds = [];
-
-                foreach ($incomingEtapas as $incomingEtapa) {
-                    $productoId = $incomingEtapa['producto_id'];
-                    if (!in_array($productoId, $productIds)) {
-                        continue;
-                    }
-
-                    $nombre = trim($incomingEtapa['nombre']);
-                    $catalogItem = Etapa::whereRaw('LOWER(nombre) = ?', [mb_strtolower($nombre)])->first();
-                    if (!$catalogItem) {
-                        $catalogItem = Etapa::create(['nombre' => $nombre]);
-                    }
-
-                    if (!empty($incomingEtapa['id'])) {
-                        $etapaProducto = EtapaProducto::withTrashed()->find($incomingEtapa['id']);
-                        if ($etapaProducto) {
-                            $etapaProducto->restore();
-                            $etapaProducto->update([
-                                'etapa_id' => $catalogItem->id,
-                                'orden' => $incomingEtapa['orden']
-                            ]);
-                            $keptEtapaProductoIds[] = $etapaProducto->id;
-                        }
-                    } else {
-                        $etapaProducto = EtapaProducto::create([
-                            'producto_id' => $productoId,
-                            'etapa_id' => $catalogItem->id,
-                            'orden' => $incomingEtapa['orden']
-                        ]);
-                        $keptEtapaProductoIds[] = $etapaProducto->id;
-                        if (!empty($incomingEtapa['temp_id'])) {
-                            $tempIdToDbId[$incomingEtapa['temp_id']] = $etapaProducto->id;
-                        }
-                    }
-                }
-
-                // Borrado lógico de las etapas de producto que no se enviaron
-                EtapaProducto::whereIn('producto_id', $productIds)
-                    ->whereNotIn('id', $keptEtapaProductoIds)
-                    ->delete();
-            }
-
             // Sincronizar tareas
             $pedido->generarTareas();
 
@@ -566,8 +513,6 @@ class PedidoController extends Controller
                         $etapaProductoId = $incomingAsignacion['etapa_producto_id'];
                     } elseif (!empty($incomingAsignacion['etapa_id'])) {
                         $etapaProductoId = $incomingAsignacion['etapa_id'];
-                    } elseif (!empty($incomingAsignacion['etapa_temp_id']) && isset($tempIdToDbId[$incomingAsignacion['etapa_temp_id']])) {
-                        $etapaProductoId = $tempIdToDbId[$incomingAsignacion['etapa_temp_id']];
                     }
 
                     if ($etapaProductoId) {
@@ -640,5 +585,42 @@ class PedidoController extends Controller
             'message' => 'Comentario agregado correctamente',
             'data' => $comentario->load('user')
         ], 201);
+    }
+
+    /**
+     * Obtener pedidos completados con saldo pendiente de cobro.
+     */
+    public function completadosPorCobrar(): JsonResponse
+    {
+        $currentUser = auth()->user();
+
+        $query = Pedido::select('id', 'cliente_id', 'user_id', 'codigo', 'prioridad', 'precio', 'created_at', 'updated_at')
+            ->with([
+                'cliente:id,nombre_empresa,nombre_cliente,telefono,email',
+                'user:id,name',
+                'pago',
+                'pagos',
+                'comentarios:id,pedido_id,user_id,cuerpo,created_at,updated_at',
+                'comentarios.user:id,name'
+            ])
+            ->whereHas('ultimoEstado', function ($q) {
+                $q->whereIn('estado', ['completado', 'completado_pd']);
+            });
+
+        // Restricción por rol: si es vendedor, solo sus pedidos
+        if ($currentUser && $currentUser->role?->slug === 'vendedor') {
+            $query->where('user_id', $currentUser->id);
+        }
+
+        $pedidos = $query->latest()->get()->filter(function ($pedido) {
+            $precio = (float) ($pedido->precio ?? 0);
+            $paid = $pedido->pagos ? (float) $pedido->pagos->where('estado', 'pagado')->sum('monto') : 0.0;
+            return ($precio - $paid) > 0.001;
+        })->values();
+
+        return response()->json([
+            'status' => 'success',
+            'data' => $pedidos
+        ]);
     }
 }

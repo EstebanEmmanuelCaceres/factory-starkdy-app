@@ -37,10 +37,11 @@ class ResponsableEtapa extends Model
 
     /**
      * Relación: La tarea pertenece a una EtapaProducto.
+     * Incluye las etapas quitadas del producto (borrado lógico): los pedidos que ya las tenían las conservan.
      */
     public function etapaProducto(): BelongsTo
     {
-        return $this->belongsTo(EtapaProducto::class, 'etapa_producto_id');
+        return $this->belongsTo(EtapaProducto::class, 'etapa_producto_id')->withTrashed();
     }
 
     /**
@@ -48,7 +49,7 @@ class ResponsableEtapa extends Model
      */
     public function etapa(): BelongsTo
     {
-        return $this->belongsTo(EtapaProducto::class, 'etapa_producto_id');
+        return $this->belongsTo(EtapaProducto::class, 'etapa_producto_id')->withTrashed();
     }
 
     /**
@@ -80,118 +81,53 @@ class ResponsableEtapa extends Model
                 }
             }
         });
-
-        static::created(function ($task) {
-            self::logStateChange($task, null, $task->estado, 'Creación automática/manual de tarea');
-        });
-
-        static::updating(function ($task) {
-            if ($task->isDirty('estado')) {
-                self::logStateChange($task, $task->getOriginal('estado'), $task->estado, 'Cambio de estado');
-            }
-        });
-
-        static::updated(function ($task) {
-            if ($task->wasChanged('estado')) {
-                if ($task->estado === 'completado') {
-                    self::unblockDependentTasks($task);
-                }
-                self::checkAndCompletePedidoIfAllTasksDone($task->pedido_id);
-            }
-        });
-    }
-
-    public static function logStateChange($task, $estadoAnterior, $estadoNuevo, $observacion = null)
-    {
-        \DB::table('etapa_historial_estado')->insert([
-            'responsable_etapa_id' => $task->id,
-            'user_id' => \Auth::id() ?? $task->pedido->user_id ?? 1,
-            'estado_anterior' => $estadoAnterior,
-            'estado_nuevo' => $estadoNuevo,
-            'observacion' => $observacion,
-            'created_at' => now(),
-        ]);
     }
 
     public function isBlockedByDependencies(): bool
     {
-        $requiredEtapaProductoIds = \DB::table('etapa_producto_dependencias')
+        // "para este caso no bloquees las que ya estan completas despuse de la que quiero revisar, eso traería problemas."
+        if ($this->estado === 'completado') {
+            return false;
+        }
+
+        // Dependencias explícitas en etapa_producto_dependencias (incluyendo transitivas)
+        $directDeps = \DB::table('etapa_producto_dependencias')
             ->where('etapa_producto_id', $this->etapa_producto_id)
             ->pluck('depende_de_etapa_producto_id')
             ->toArray();
 
-        if (!empty($requiredEtapaProductoIds)) {
-            $completedCount = self::where('pedido_id', $this->pedido_id)
-                ->whereIn('etapa_producto_id', $requiredEtapaProductoIds)
-                ->where('estado', 'completado')
-                ->count();
+        $allDeps = $directDeps;
+        $toCheck = $directDeps;
+        while (!empty($toCheck)) {
+            $curr = array_pop($toCheck);
+            $parentDeps = \DB::table('etapa_producto_dependencias')
+                ->where('etapa_producto_id', $curr)
+                ->pluck('depende_de_etapa_producto_id')
+                ->toArray();
+            foreach ($parentDeps as $pId) {
+                if (!in_array($pId, $allDeps)) {
+                    $allDeps[] = $pId;
+                    $toCheck[] = $pId;
+                }
+            }
+        }
 
-            if ($completedCount < count($requiredEtapaProductoIds)) {
+        // El bloqueo depende solo de etapa_producto_dependencias. El orden es solo visual:
+        // las etapas paralelas (que dependen de la misma etapa) se habilitan juntas.
+        // Solo cuentan las dependencias que este pedido tiene como tarea: si al producto se le agregó
+        // una etapa después de crear el pedido, el pedido no la tiene y no debe quedar esperándola.
+        if (!empty($allDeps)) {
+            $estadosDependencias = self::where('pedido_id', $this->pedido_id)
+                ->whereIn('etapa_producto_id', array_unique($allDeps))
+                ->pluck('estado');
+
+            if ($estadosDependencias->contains(fn($estado) => $estado !== 'completado')) {
                 return true;
             }
         }
 
         if ($this->estado === 'bloqueada') {
             $this->update(['estado' => 'pendiente']);
-        }
-
-        return false;
-    }
-
-    public static function unblockDependentTasks($task)
-    {
-        self::unblockAllSatisfiedTasksForPedido($task->pedido_id);
-    }
-
-    public static function unblockAllSatisfiedTasksForPedido($pedidoId)
-    {
-        $blockedTasks = self::where('pedido_id', $pedidoId)
-            ->where('estado', 'bloqueada')
-            ->get();
-
-        foreach ($blockedTasks as $bTask) {
-            if (!$bTask->isBlockedByDependencies()) {
-                $bTask->update([
-                    'estado' => 'pendiente'
-                ]);
-            }
-        }
-
-        // No se fuerza el estado del pedido a 'completado' acá: este método corre en cada consulta/guardado
-        // del pedido y pisaría el estado elegido a mano. El pase automático lo hace el observer 'updated'
-        // solo cuando una etapa cambia de estado.
-    }
-
-    /**
-     * Verifica si todas las etapas/tareas de todos los productos del pedido están completadas.
-     * Si es así, cambia automáticamente el estado del pedido a 'completado'.
-     */
-    public static function checkAndCompletePedidoIfAllTasksDone($pedidoId): bool
-    {
-        if (!$pedidoId) return false;
-
-        $totalTasks = self::where('pedido_id', $pedidoId)->count();
-        if ($totalTasks === 0) return false;
-
-        $incompleteTasks = self::where('pedido_id', $pedidoId)
-            ->where('estado', '!=', 'completado')
-            ->count();
-
-        $pedido = Pedido::find($pedidoId);
-        if (!$pedido) return false;
-
-        if ($incompleteTasks === 0) {
-            if (!in_array($pedido->estado, ['completado', 'completado_pd', 'enviado', 'enviado_faltante', 'cancelado'])) {
-                $pedido->estado = 'completado';
-                $pedido->save();
-                return true;
-            }
-        } else {
-            if ($pedido->estado === 'completado') {
-                $pedido->estado = 'en_produccion';
-                $pedido->save();
-                return true;
-            }
         }
 
         return false;

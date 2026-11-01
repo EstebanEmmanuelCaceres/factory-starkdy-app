@@ -11,6 +11,8 @@ use App\Http\Controllers\Api\ResponsableEtapaController;
 use App\Http\Controllers\Api\OperarioTaskController;
 use App\Http\Controllers\Api\EtapaDependenciaController;
 use App\Http\Controllers\Api\PagoController;
+use App\Http\Controllers\Api\MetricaController;
+use App\Http\Controllers\Api\Admin\CobroController;
 use App\Http\Controllers\Api\ProductoImagenController;
 use App\Http\Controllers\Api\PedidoImagenController;
 use App\Http\Controllers\Api\UserController;
@@ -48,6 +50,16 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::patch('users/{id}/password', [UserController::class, 'changePassword']);
         Route::delete('users/{id}', [UserController::class, 'destroy']);
         Route::get('roles', [UserController::class, 'roles']);
+
+        // Cobros (CRUD solo admin; cancelar = anular, no se borran)
+        Route::get('cobros', [CobroController::class, 'index']);
+        Route::post('cobros', [CobroController::class, 'store']);
+        // 'buscar' y 'exportar' van antes de {cobro} para que no se tomen como un id
+        Route::get('cobros/buscar', [CobroController::class, 'search']);
+        Route::get('cobros/exportar', [CobroController::class, 'export']);
+        Route::get('cobros/{cobro}', [CobroController::class, 'show']);
+        Route::patch('cobros/{cobro}', [CobroController::class, 'update']);
+        Route::patch('cobros/{cobro}/cancelar', [CobroController::class, 'cancel']);
     });
 
     // ── Módulos de fábrica ──────────────────────────────
@@ -98,6 +110,7 @@ Route::middleware('auth:sanctum')->group(function () {
     // ── Pedidos ───────────────────────────────────────────────────
     Route::get('pedidos', [PedidoController::class, 'index']);
     Route::post('pedidos', [PedidoController::class, 'store']);
+    Route::get('pedidos/completados-por-cobrar', [PedidoController::class, 'completadosPorCobrar']);
     Route::get('pedidos/{id}', [PedidoController::class, 'show']);
     Route::patch('pedidos/{id}', [PedidoController::class, 'update']);
     Route::delete('pedidos/{id}', [PedidoController::class, 'destroy']);
@@ -114,10 +127,14 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('pedidos/{id}/imagenes/reordenar', [PedidoImagenController::class, 'reorder']);
 
     // ── Pagos de Pedidos ───────────────────────────────────────────
+    Route::post('pagos/comprobante', [PagoController::class, 'uploadComprobante']);
     Route::get('pedidos/{pedido}/pagos', [PagoController::class, 'index']);
     Route::post('pedidos/{pedido}/pagos', [PagoController::class, 'store']);
     Route::patch('pagos/{pago}', [PagoController::class, 'update']);
     Route::delete('pagos/{pago}', [PagoController::class, 'destroy']);
+
+    // ── Métricas ──────────────────────────────────────────────────
+    Route::get('metricas/cobros', [MetricaController::class, 'cobros']);
 
     // ── Responsabilidades ──────────────────────────────────────────
     Route::get('responsabilidades', [ResponsabilidadController::class, 'index']);
@@ -132,6 +149,10 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::delete('responsables-etapas/{id}', [ResponsableEtapaController::class, 'destroy']);
     Route::get('disenos-pendientes', [ResponsableEtapaController::class, 'disenosPendientes']);
     Route::post('pedidos/{id}/completar-disenos', [ResponsableEtapaController::class, 'completarDisenosPedido']);
+    Route::post('responsables-etapas/{id}/start', [OperarioTaskController::class, 'start']);
+    Route::post('responsables-etapas/{id}/cancel', [OperarioTaskController::class, 'cancel']);
+    Route::post('responsables-etapas/{id}/complete', [OperarioTaskController::class, 'complete']);
+    Route::post('responsables-etapas/{id}/uncomplete', [OperarioTaskController::class, 'uncomplete']);
 
     // ── Panel del Operario ─────────────────────────────────────────
     Route::prefix('operario')->group(function () {
@@ -140,6 +161,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('tasks/{id}/start', [OperarioTaskController::class, 'start']);
         Route::post('tasks/{id}/cancel', [OperarioTaskController::class, 'cancel']);
         Route::post('tasks/{id}/complete', [OperarioTaskController::class, 'complete']);
+        Route::post('tasks/{id}/uncomplete', [OperarioTaskController::class, 'uncomplete']);
         Route::get('historial', [OperarioTaskController::class, 'historial']);
     });
 });

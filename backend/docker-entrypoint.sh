@@ -158,8 +158,9 @@ setup_laravel() {
     fi
 
     # Permisos
-    chown -R www-data:www-data "$LARAVEL_PATH/storage" "$LARAVEL_PATH/bootstrap/cache" 2>/dev/null || true
-    chmod -R 775 "$LARAVEL_PATH/storage" "$LARAVEL_PATH/bootstrap/cache"
+    chown -R www-data:www-data "$LARAVEL_PATH" 2>/dev/null || true
+    chmod -R 755 "$LARAVEL_PATH" 2>/dev/null || true
+    chmod -R 775 "$LARAVEL_PATH/storage" "$LARAVEL_PATH/bootstrap/cache" 2>/dev/null || true
 
     # Migraciones
     #

@@ -12,9 +12,14 @@ return [
 
     'allowed_methods' => ['*'],
 
-    'allowed_origins' => [env('CORS_ALLOWED_ORIGINS', 'http://localhost:3000')],
+    'allowed_origins' => array_values(array_filter(array_map(
+        fn ($origin) => rtrim(trim($origin), '/'),
+        explode(',', env('CORS_ALLOWED_ORIGINS', 'http://localhost:3000'))
+    ))),
 
-    'allowed_origins_patterns' => [],
+    'allowed_origins_patterns' => [
+        '#^https?://.*starkdy\.com\.ar(:\d+)?$#',
+    ],
 
     'allowed_headers' => ['*'],
 
