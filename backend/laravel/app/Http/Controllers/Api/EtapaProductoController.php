@@ -6,15 +6,19 @@ use App\Http\Controllers\Controller;
 use App\Models\Etapa;
 use App\Models\EtapaProducto;
 use App\Models\Producto;
-use App\Models\Pedido;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Http\JsonResponse;
 use App\Http\Resources\EtapaProductoResource;
+use App\Services\PedidoWorkflowService;
 
 class EtapaProductoController extends Controller
 {
+    public function __construct(private PedidoWorkflowService $workflowService)
+    {
+    }
+
     /**
      * Listar las etapas configuradas para un producto.
      */
@@ -29,8 +33,7 @@ class EtapaProductoController extends Controller
             ], 404);
         }
 
-        EtapaProducto::reordenarTopologicamentePorProducto((int) $productId);
-
+        // Solo lectura: el orden se recalcula al guardar las etapas (sync), no al consultarlas
         $etapasProductos = EtapaProducto::query()->where('producto_id', $productId)
             ->with(['etapa.categorias', 'dependencias.etapa.categorias'])
             ->orderBy('orden', 'asc')
@@ -191,10 +194,11 @@ class EtapaProductoController extends Controller
             // Reordenar topológicamente según dependencias
             EtapaProducto::reordenarTopologicamentePorProducto((int) $productId);
 
-            DB::commit();
+            // Los pedidos activos (pendiente, en progreso, listo para producción) reciben los cambios;
+            // el resto conserva las etapas que tenía (no es retroactivo)
+            $pedidosActualizados = $this->workflowService->aplicarEtapasDeProductoAPedidosActivos((int) $productId);
 
-            // Regenerar tareas para pedidos activos con este producto
-            Pedido::regenerarTareasParaProducto($productId);
+            DB::commit();
 
             $result = EtapaProducto::where('producto_id', $productId)
                 ->with(['etapa.categorias', 'dependencias.etapa.categorias'])
@@ -204,6 +208,7 @@ class EtapaProductoController extends Controller
             return response()->json([
                 'status' => 'success',
                 'message' => 'Etapas sincronizadas correctamente',
+                'pedidos_actualizados' => $pedidosActualizados,
                 'data' => $result
             ]);
         } catch (\Exception $e) {

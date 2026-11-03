@@ -10,6 +10,36 @@ use Illuminate\Support\Facades\DB;
 class PedidoWorkflowService
 {
     /**
+     * Estados en los que un pedido recibe los cambios de etapas de sus productos.
+     * Los pedidos en cualquier otro estado (completado, enviado, cancelado...) conservan
+     * las etapas que tenían: modificar el producto no es retroactivo para ellos.
+     */
+    public const ESTADOS_CON_ETAPAS_ACTUALIZABLES = ['pendiente', 'en_progreso', 'listo_para_produccion'];
+
+    /**
+     * Aplicar la configuración actual de etapas de un producto a los pedidos activos que lo tienen.
+     *
+     * @return int cantidad de pedidos cuyas tareas cambiaron
+     */
+    public function aplicarEtapasDeProductoAPedidosActivos(int $productoId): int
+    {
+        $pedidos = Pedido::whereHas('productos', fn($q) => $q->where('productos.id', $productoId))->get()
+            ->filter(fn(Pedido $pedido) => in_array($pedido->estado, self::ESTADOS_CON_ETAPAS_ACTUALIZABLES, true));
+
+        $actualizados = 0;
+        foreach ($pedidos as $pedido) {
+            if (!$pedido->sincronizarTareasDeProducto($productoId)) {
+                continue;
+            }
+            $this->actualizarBloqueosPedido($pedido->id);
+            $this->sincronizarEstadoPedido($pedido->id);
+            $actualizados++;
+        }
+
+        return $actualizados;
+    }
+
+    /**
      * Sincroniza el estado general del pedido según el avance de sus etapas.
      * - Si todas las etapas están completadas -> pasa a "completado".
      * - Si al menos una etapa se completó y estaba en "pendiente" o "listo_para_produccion" -> pasa a "en_progreso".
@@ -156,6 +186,41 @@ class PedidoWorkflowService
 
         $this->actualizarBloqueosPedido($pedidoId);
         $this->sincronizarEstadoPedido($pedidoId);
+    }
+
+    /**
+     * Completar de una vez todas las etapas pendientes de un producto dentro de un pedido.
+     * Como se completan todas juntas, no hace falta respetar el orden de dependencias entre ellas.
+     *
+     * @return int cantidad de etapas que se completaron
+     */
+    public function completarEtapasDeProducto(
+        Pedido $pedido,
+        int $productoId,
+        ?int $userId = null,
+        ?string $observacion = 'Etapas del producto completadas en lote'
+    ): int {
+        return DB::transaction(function () use ($pedido, $productoId, $userId, $observacion) {
+            $consultaTareas = fn() => ResponsableEtapa::where('pedido_id', $pedido->id)
+                ->whereHas('etapaProducto', fn($q) => $q->where('producto_id', $productoId));
+
+            // Si el producto todavía no tiene tareas en el pedido, generarlas. Si ya tiene, se respetan
+            // (son la foto de sus etapas: no se le suman las etapas agregadas al producto después).
+            if (!$consultaTareas()->exists()) {
+                $pedido->generarTareas();
+            }
+
+            $taskIds = $consultaTareas()
+                ->where('estado', '!=', ResponsableEtapa::ESTADO_COMPLETADO)
+                ->pluck('id')
+                ->all();
+
+            if (!empty($taskIds)) {
+                $this->completarTareasPorIds($pedido->id, $taskIds, $userId, $observacion);
+            }
+
+            return count($taskIds);
+        });
     }
 
     /**

@@ -4,7 +4,6 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\ResponsableEtapa;
-use App\Models\EtapaProducto;
 use App\Models\User;
 use App\Services\PedidoWorkflowService;
 use Illuminate\Http\Request;
@@ -95,24 +94,8 @@ class OperarioTaskController extends Controller
                             'estado' => $tareaPrevia ? $tareaPrevia->estado : 'pendiente'
                         ];
                     }
-                } else {
-                    $etapaAnterior = EtapaProducto::where('producto_id', $ep->producto_id)
-                        ->where('orden', '<', $ep->orden)
-                        ->orderBy('orden', 'desc')
-                        ->first();
-
-                    if ($etapaAnterior) {
-                        $tareaPrevia = ResponsableEtapa::where('pedido_id', $task->pedido_id)
-                            ->where('etapa_producto_id', $etapaAnterior->id)
-                            ->first();
-
-                        $depsInfo[] = [
-                            'id' => $etapaAnterior->id,
-                            'nombre' => $etapaAnterior->etapa->nombre ?? 'Etapa',
-                            'estado' => $tareaPrevia ? $tareaPrevia->estado : 'pendiente'
-                        ];
-                    }
                 }
+                // Sin dependencias = etapa inicial del producto: no tiene etapas previas
             }
 
             $task->setAttribute('dependencias_info', $depsInfo);
@@ -176,7 +159,8 @@ class OperarioTaskController extends Controller
             ], 404);
         }
 
-        if ($task->estado === 'bloqueada' || $task->isBlockedByDependencies()) {
+        // Se decide por las dependencias reales: si estaba 'bloqueada' pero ya se cumplieron, pasa a 'pendiente'
+        if ($task->isBlockedByDependencies()) {
             if ($task->estado !== 'bloqueada') {
                 $task->update(['estado' => 'bloqueada']);
             }
@@ -220,7 +204,8 @@ class OperarioTaskController extends Controller
             ], 404);
         }
 
-        if ($task->estado === 'bloqueada' || $task->isBlockedByDependencies()) {
+        // Se decide por las dependencias reales: si estaba 'bloqueada' pero ya se cumplieron, pasa a 'pendiente'
+        if ($task->isBlockedByDependencies()) {
             if ($task->estado !== 'bloqueada') {
                 $task->update(['estado' => 'bloqueada']);
             }
@@ -425,22 +410,6 @@ class OperarioTaskController extends Controller
 
                     if ($tareaPrevia) {
                         $fechaFinEtapaAnterior = $tareaPrevia->fecha_fin;
-                    }
-                } else {
-                    $etapaAnterior = EtapaProducto::where('producto_id', $ep->producto_id)
-                        ->where('orden', '<', $ep->orden)
-                        ->orderBy('orden', 'desc')
-                        ->first();
-
-                    if ($etapaAnterior) {
-                        $tareaPrevia = ResponsableEtapa::where('pedido_id', $task->pedido_id)
-                            ->where('etapa_producto_id', $etapaAnterior->id)
-                            ->where('estado', 'completado')
-                            ->first();
-
-                        if ($tareaPrevia) {
-                            $fechaFinEtapaAnterior = $tareaPrevia->fecha_fin;
-                        }
                     }
                 }
             }

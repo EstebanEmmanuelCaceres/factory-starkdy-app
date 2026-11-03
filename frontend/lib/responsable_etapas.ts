@@ -38,6 +38,24 @@ export async function fetchResponsablesEtapas(filters?: {
   return data.data
 }
 
+// Etapas de un pedido armadas desde sus tareas: cada pedido conserva las etapas que tenía cada producto
+// cuando entró al pedido (agregar o quitar etapas al producto después no lo afecta).
+// Solo se conservan las dependencias que el pedido también tiene como tarea.
+export function etapasDesdeTareas(tareas: ResponsableEtapa[]): Etapa[] {
+  const etapas = tareas.map((t) => t.etapa).filter((e): e is Etapa => !!e)
+  const idsDelPedido = new Set(etapas.map((e) => e.id))
+
+  return etapas.map((e) => ({
+    id: e.id,
+    producto_id: e.producto_id,
+    nombre: e.nombre,
+    orden: e.orden,
+    dependencias: (e.dependencias || [])
+      .filter((dep) => idsDelPedido.has(dep.id))
+      .map((dep) => ({ id: dep.id, producto_id: e.producto_id, nombre: '', orden: 0 }))
+  }))
+}
+
 export async function assignTask(input: AssignTaskInput): Promise<ResponsableEtapa> {
   const { data } = await api.post<{ status: string; data: ResponsableEtapa }>('/responsables-etapas', input)
   return data.data

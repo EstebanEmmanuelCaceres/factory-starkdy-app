@@ -49,28 +49,33 @@ export async function createEtapaCatalog(nombre: string, descripcion?: string): 
   return data.data
 }
 
+// Convierte una etapa de producto (etapas_productos) de la API al formato Etapa del frontend
+export function mapEtapaProducto(item: any): Etapa {
+  return {
+    id: item.id,
+    producto_id: item.producto_id,
+    etapa_id: item.etapa_id,
+    nombre: item.etapa?.nombre || item.nombre || '',
+    orden: item.orden,
+    created_at: item.created_at,
+    updated_at: item.updated_at,
+    dependencias: item.dependencias?.map((d: any) => ({
+      id: d.id,
+      producto_id: d.producto_id,
+      nombre: d.etapa?.nombre || d.nombre || '',
+      orden: d.orden,
+      categorias: d.etapa?.categorias || d.categorias || []
+    })),
+    etapa: item.etapa,
+    categorias: item.etapa?.categorias || item.categorias || []
+  }
+}
+
 // Obtener las etapas configuradas para un producto
 export async function fetchEtapas(filters?: { producto_id?: number }): Promise<Etapa[]> {
   if (filters?.producto_id) {
     const { data } = await api.get<{ status: string; data: any[] }>(`/productos/${filters.producto_id}/etapas`)
-    return data.data.map(item => ({
-      id: item.id,
-      producto_id: item.producto_id,
-      etapa_id: item.etapa_id,
-      nombre: item.etapa?.nombre || item.nombre || '',
-      orden: item.orden,
-      created_at: item.created_at,
-      updated_at: item.updated_at,
-      dependencias: item.dependencias?.map((d: any) => ({
-        id: d.id,
-        producto_id: d.producto_id,
-        nombre: d.etapa?.nombre || d.nombre || '',
-        orden: d.orden,
-        categorias: d.etapa?.categorias || d.categorias || []
-      })),
-      etapa: item.etapa,
-      categorias: item.etapa?.categorias || item.categorias || []
-    }))
+    return data.data.map(mapEtapaProducto)
   }
   
   const { data } = await api.get<{ status: string; data: EtapaCatalog[] }>('/etapas')
@@ -147,6 +152,8 @@ export function topologicalSortEtapas(etapas: Etapa[]): Etapa[] {
   queue.sort((a, b) => (originalOrdenMap.get(a) || 0) - (originalOrdenMap.get(b) || 0))
 
   const sortedResult: Etapa[] = []
+  // Nivel de cada etapa: 1 + el mayor nivel de sus dependencias (las paralelas comparten nivel)
+  const nivel = new Map<number | string, number>()
 
   while (queue.length > 0) {
     const currentKey = queue.shift()!
@@ -154,9 +161,11 @@ export function topologicalSortEtapas(etapas: Etapa[]): Etapa[] {
     if (stageObj) {
       sortedResult.push(stageObj)
     }
+    if (!nivel.has(currentKey)) nivel.set(currentKey, 1)
 
     const neighbors = adj.get(currentKey) || []
     neighbors.forEach((neighborKey) => {
+      nivel.set(neighborKey, Math.max(nivel.get(neighborKey) || 1, (nivel.get(currentKey) || 1) + 1))
       const currentInDegree = (inDegree.get(neighborKey) || 0) - 1
       inDegree.set(neighborKey, currentInDegree)
       if (currentInDegree === 0) {
@@ -166,16 +175,23 @@ export function topologicalSortEtapas(etapas: Etapa[]): Etapa[] {
     })
   }
 
+  // Si hay un ciclo no se puede calcular por niveles: se numera en secuencia como antes
   if (sortedResult.length < etapas.length) {
     etapas.forEach((s) => {
       if (!sortedResult.includes(s)) {
         sortedResult.push(s)
       }
     })
+    return sortedResult.map((stage, idx) => ({ ...stage, orden: idx + 1 }))
   }
 
-  return sortedResult.map((stage, idx) => ({
+  const keyDe = (stage: Etapa) => {
+    const idx = etapas.indexOf(stage)
+    return stage.id || (stage as any).temp_id || `idx_${idx}`
+  }
+
+  return sortedResult.map((stage) => ({
     ...stage,
-    orden: idx + 1
+    orden: nivel.get(keyDe(stage)) || 1
   }))
 }

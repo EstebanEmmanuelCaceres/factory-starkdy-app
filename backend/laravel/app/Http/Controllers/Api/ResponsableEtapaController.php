@@ -33,6 +33,7 @@ class ResponsableEtapaController extends Controller
             'etapaProducto.producto.imagenes',
             'etapaProducto.producto.imagenPrincipal',
             'etapaProducto.etapa',
+            'etapaProducto.dependencias:etapas_productos.id',
             'user'
         ]);
 
@@ -99,6 +100,8 @@ class ResponsableEtapaController extends Controller
                     'orden' => $ep->orden,
                     'producto_id' => $ep->producto_id,
                     'producto' => $ep->producto,
+                    // Para armar el flujo de etapas del pedido desde sus tareas (etapasDesdeTareas en el front)
+                    'dependencias' => $ep->dependencias->map(fn($dep) => ['id' => $dep->id])->values(),
                 ]);
             }
         }
