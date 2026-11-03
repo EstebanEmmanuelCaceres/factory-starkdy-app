@@ -10,6 +10,36 @@ use Illuminate\Support\Facades\DB;
 class PedidoWorkflowService
 {
     /**
+     * Estados en los que un pedido recibe los cambios de etapas de sus productos.
+     * Los pedidos en cualquier otro estado (completado, enviado, cancelado...) conservan
+     * las etapas que tenían: modificar el producto no es retroactivo para ellos.
+     */
+    public const ESTADOS_CON_ETAPAS_ACTUALIZABLES = ['pendiente', 'en_progreso', 'listo_para_produccion'];
+
+    /**
+     * Aplicar la configuración actual de etapas de un producto a los pedidos activos que lo tienen.
+     *
+     * @return int cantidad de pedidos cuyas tareas cambiaron
+     */
+    public function aplicarEtapasDeProductoAPedidosActivos(int $productoId): int
+    {
+        $pedidos = Pedido::whereHas('productos', fn($q) => $q->where('productos.id', $productoId))->get()
+            ->filter(fn(Pedido $pedido) => in_array($pedido->estado, self::ESTADOS_CON_ETAPAS_ACTUALIZABLES, true));
+
+        $actualizados = 0;
+        foreach ($pedidos as $pedido) {
+            if (!$pedido->sincronizarTareasDeProducto($productoId)) {
+                continue;
+            }
+            $this->actualizarBloqueosPedido($pedido->id);
+            $this->sincronizarEstadoPedido($pedido->id);
+            $actualizados++;
+        }
+
+        return $actualizados;
+    }
+
+    /**
      * Sincroniza el estado general del pedido según el avance de sus etapas.
      * - Si todas las etapas están completadas -> pasa a "completado".
      * - Si al menos una etapa se completó y estaba en "pendiente" o "listo_para_produccion" -> pasa a "en_progreso".

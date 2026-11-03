@@ -114,10 +114,10 @@ class PedidoProgresoTest extends TestCase
             ->assertJsonPath('data.progreso.porcentaje', 100);
     }
 
-    public function test_agregar_una_etapa_al_producto_no_cambia_el_progreso_de_pedidos_existentes(): void
+    public function test_agregar_una_etapa_al_producto_no_cambia_el_progreso_de_pedidos_viejos(): void
     {
         $mate = Producto::create(['nombre' => 'Mate', 'precio' => 100]);
-        $pedido = $this->crearPedido('PED-10', 'en_progreso', [$mate]);
+        $pedido = $this->crearPedido('PED-10', 'completado', [$mate]);
         $this->completarEtapas($pedido, $mate, 3);
 
         // Al producto se le agrega una etapa después de crear el pedido

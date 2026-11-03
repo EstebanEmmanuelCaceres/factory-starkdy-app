@@ -11,9 +11,14 @@ use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Http\JsonResponse;
 use App\Http\Resources\EtapaProductoResource;
+use App\Services\PedidoWorkflowService;
 
 class EtapaProductoController extends Controller
 {
+    public function __construct(private PedidoWorkflowService $workflowService)
+    {
+    }
+
     /**
      * Listar las etapas configuradas para un producto.
      */
@@ -189,10 +194,11 @@ class EtapaProductoController extends Controller
             // Reordenar topológicamente según dependencias
             EtapaProducto::reordenarTopologicamentePorProducto((int) $productId);
 
-            DB::commit();
+            // Los pedidos activos (pendiente, en progreso, listo para producción) reciben los cambios;
+            // el resto conserva las etapas que tenía (no es retroactivo)
+            $pedidosActualizados = $this->workflowService->aplicarEtapasDeProductoAPedidosActivos((int) $productId);
 
-            // No se tocan los pedidos existentes: los cambios de etapas aplican solo a los pedidos
-            // que se creen (o a los que se agregue este producto) a partir de ahora.
+            DB::commit();
 
             $result = EtapaProducto::where('producto_id', $productId)
                 ->with(['etapa.categorias', 'dependencias.etapa.categorias'])
@@ -202,6 +208,7 @@ class EtapaProductoController extends Controller
             return response()->json([
                 'status' => 'success',
                 'message' => 'Etapas sincronizadas correctamente',
+                'pedidos_actualizados' => $pedidosActualizados,
                 'data' => $result
             ]);
         } catch (\Exception $e) {

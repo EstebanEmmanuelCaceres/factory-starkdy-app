@@ -13,6 +13,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Collection;
 
 class Pedido extends Model
 {
@@ -206,8 +207,8 @@ class Pedido extends Model
      * Las tareas son la "foto" de las etapas que tenía cada producto al entrar al pedido:
      * - Un producto que todavía no tiene tareas en el pedido (pedido nuevo o producto recién agregado)
      *   recibe una tarea por cada etapa que tenga configurada en este momento.
-     * - Un producto que ya tiene tareas no se toca: agregar o quitar etapas del producto
-     *   solo afecta a los pedidos que se creen (o a los que se agregue el producto) después.
+     * - Un producto que ya tiene tareas no se toca acá. Los cambios de etapas del producto llegan
+     *   solo a los pedidos activos, vía sincronizarTareasDeProducto() (ver PedidoWorkflowService).
      * - Se borran solo las tareas de los productos que se quitaron del pedido.
      */
     public function generarTareas(): void
@@ -226,11 +227,6 @@ class Pedido extends Model
         }
         $tareas = $tareas->diff($tareasDeProductosQuitados);
 
-        $adminUser = User::whereHas('role', function ($q) {
-            $q->where('slug', 'admin');
-        })->first() ?? User::first();
-        $adminUserId = $adminUser?->id;
-
         // Productos que ya tienen tareas: se respeta su foto, solo se asegura el responsable de diseño
         $productosConTareas = $tareas->map(fn($tarea) => $tarea->etapaProducto->producto_id)->unique()->all();
         foreach ($tareas as $tarea) {
@@ -242,22 +238,73 @@ class Pedido extends Model
         // Productos sin tareas: crear una tarea por cada etapa configurada hoy
         $productosSinTareas = array_diff($productIds, $productosConTareas);
         if (!empty($productosSinTareas)) {
-            $etapasProductos = EtapaProducto::whereIn('producto_id', $productosSinTareas)->with('etapa')->get();
+            $this->crearTareas(EtapaProducto::whereIn('producto_id', $productosSinTareas)->with('etapa')->get());
+        }
+    }
 
-            $conDependencias = DB::table('etapa_producto_dependencias')
-                ->whereIn('etapa_producto_id', $etapasProductos->pluck('id'))
-                ->pluck('etapa_producto_id')
-                ->unique()
-                ->all();
+    /**
+     * Alinear las tareas de un producto del pedido con las etapas que el producto tiene configuradas hoy.
+     * Solo se usa en pedidos activos (ver PedidoWorkflowService::ESTADOS_CON_ETAPAS_ACTUALIZABLES).
+     * - Etapas nuevas del producto: se les crea la tarea.
+     * - Etapas quitadas del producto: se borra su tarea si todavía no se empezó (pendiente o bloqueada).
+     *   Si ya está en progreso o completada se conserva, para no perder el trabajo hecho.
+     *
+     * @return bool si se creó o borró alguna tarea
+     */
+    public function sincronizarTareasDeProducto(int $productoId): bool
+    {
+        $etapasActuales = EtapaProducto::where('producto_id', $productoId)->with('etapa')->get();
+        // Incluye las etapas borradas (soft delete) para reconocer las tareas de etapas quitadas
+        $todasLasEtapas = EtapaProducto::withTrashed()->where('producto_id', $productoId)->pluck('id');
 
-            foreach ($etapasProductos as $etapaProducto) {
-                ResponsableEtapa::create([
-                    'pedido_id' => $this->id,
-                    'etapa_producto_id' => $etapaProducto->id,
-                    'user_id' => $this->esEtapaDiseno($etapaProducto) ? ($this->user_id ?? $adminUserId) : $adminUserId,
-                    'estado' => in_array($etapaProducto->id, $conDependencias) ? 'bloqueada' : 'pendiente',
-                ]);
-            }
+        $tareas = ResponsableEtapa::where('pedido_id', $this->id)
+            ->whereIn('etapa_producto_id', $todasLasEtapas)
+            ->get();
+
+        $tareasDeEtapasQuitadas = $tareas->filter(
+            fn($tarea) => !$etapasActuales->contains('id', $tarea->etapa_producto_id)
+                && in_array($tarea->estado, ['pendiente', 'bloqueada'], true)
+        );
+        if ($tareasDeEtapasQuitadas->isNotEmpty()) {
+            ResponsableEtapa::whereIn('id', $tareasDeEtapasQuitadas->pluck('id'))->delete();
+        }
+
+        $etapasNuevas = $etapasActuales->reject(fn($ep) => $tareas->contains('etapa_producto_id', $ep->id));
+        $this->crearTareas($etapasNuevas);
+
+        return $tareasDeEtapasQuitadas->isNotEmpty() || $etapasNuevas->isNotEmpty();
+    }
+
+    /**
+     * Crear una tarea por cada etapa de producto. Las que tienen dependencias arrancan bloqueadas;
+     * la de diseño se asigna al vendedor del pedido y el resto al admin.
+     *
+     * @param Collection<int, EtapaProducto> $etapasProductos con la relación etapa cargada
+     */
+    private function crearTareas(Collection $etapasProductos): void
+    {
+        if ($etapasProductos->isEmpty()) {
+            return;
+        }
+
+        $adminUser = User::whereHas('role', function ($q) {
+            $q->where('slug', 'admin');
+        })->first() ?? User::first();
+        $adminUserId = $adminUser?->id;
+
+        $conDependencias = DB::table('etapa_producto_dependencias')
+            ->whereIn('etapa_producto_id', $etapasProductos->pluck('id'))
+            ->pluck('etapa_producto_id')
+            ->unique()
+            ->all();
+
+        foreach ($etapasProductos as $etapaProducto) {
+            ResponsableEtapa::create([
+                'pedido_id' => $this->id,
+                'etapa_producto_id' => $etapaProducto->id,
+                'user_id' => $this->esEtapaDiseno($etapaProducto) ? ($this->user_id ?? $adminUserId) : $adminUserId,
+                'estado' => in_array($etapaProducto->id, $conDependencias) ? 'bloqueada' : 'pendiente',
+            ]);
         }
     }
 
