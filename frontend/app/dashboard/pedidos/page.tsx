@@ -5,6 +5,7 @@ import RoleGuard from '@/components/RoleGuard'
 import OrderImageGallery from '@/components/OrderImageGallery'
 import Modal from '@/components/Modal'
 import PedidoDetailModal from '@/components/PedidoDetailModal'
+import ProgressBar from '@/components/ProgressBar'
 import EditPedidoModal from '@/components/EditPedidoModal'
 import PaymentModal from '@/components/PaymentModal'
 import { fetchOrderImages } from '@/lib/entities/orderImages'
@@ -1228,6 +1229,13 @@ export default function PedidosPage() {
                         )}
                       </div>
 
+                      {pedido.progreso && (
+                        <div>
+                          <span className="text-slate-500 block text-[11px] font-medium mb-1">Progreso</span>
+                          <ProgressBar value={pedido.progreso.porcentaje} />
+                        </div>
+                      )}
+
                       {/* Detalles breves: Fecha, Registrador, Precio */}
                       <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-800 text-xs">
                         <div>
@@ -1400,6 +1408,9 @@ export default function PedidosPage() {
                               <span className={`inline-flex items-center whitespace-nowrap px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide ${getStatusBadgeClass(pedido.estado)}`}>
                                 {getStatusLabel(pedido.estado)}
                               </span>
+                              {pedido.progreso && (
+                                <ProgressBar value={pedido.progreso.porcentaje} className="w-40" title="Etapas completadas del pedido" />
+                              )}
                               {pedido.estado === 'pendiente' && (
                                 <button
                                   onClick={async () => {

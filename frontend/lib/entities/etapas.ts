@@ -49,28 +49,33 @@ export async function createEtapaCatalog(nombre: string, descripcion?: string): 
   return data.data
 }
 
+// Convierte una etapa de producto (etapas_productos) de la API al formato Etapa del frontend
+export function mapEtapaProducto(item: any): Etapa {
+  return {
+    id: item.id,
+    producto_id: item.producto_id,
+    etapa_id: item.etapa_id,
+    nombre: item.etapa?.nombre || item.nombre || '',
+    orden: item.orden,
+    created_at: item.created_at,
+    updated_at: item.updated_at,
+    dependencias: item.dependencias?.map((d: any) => ({
+      id: d.id,
+      producto_id: d.producto_id,
+      nombre: d.etapa?.nombre || d.nombre || '',
+      orden: d.orden,
+      categorias: d.etapa?.categorias || d.categorias || []
+    })),
+    etapa: item.etapa,
+    categorias: item.etapa?.categorias || item.categorias || []
+  }
+}
+
 // Obtener las etapas configuradas para un producto
 export async function fetchEtapas(filters?: { producto_id?: number }): Promise<Etapa[]> {
   if (filters?.producto_id) {
     const { data } = await api.get<{ status: string; data: any[] }>(`/productos/${filters.producto_id}/etapas`)
-    return data.data.map(item => ({
-      id: item.id,
-      producto_id: item.producto_id,
-      etapa_id: item.etapa_id,
-      nombre: item.etapa?.nombre || item.nombre || '',
-      orden: item.orden,
-      created_at: item.created_at,
-      updated_at: item.updated_at,
-      dependencias: item.dependencias?.map((d: any) => ({
-        id: d.id,
-        producto_id: d.producto_id,
-        nombre: d.etapa?.nombre || d.nombre || '',
-        orden: d.orden,
-        categorias: d.etapa?.categorias || d.categorias || []
-      })),
-      etapa: item.etapa,
-      categorias: item.etapa?.categorias || item.categorias || []
-    }))
+    return data.data.map(mapEtapaProducto)
   }
   
   const { data } = await api.get<{ status: string; data: EtapaCatalog[] }>('/etapas')

@@ -36,6 +36,23 @@ export interface ComentarioPedido {
   user?: User
 }
 
+// Progreso de producción: % de etapas completadas por producto y promedio del pedido
+export interface ProgresoProducto {
+  producto_id: number
+  nombre: string
+  etapas_totales: number
+  etapas_completadas: number
+  porcentaje: number | null // null si el producto no tiene etapas
+}
+
+export interface ProgresoPedido {
+  pedido_id: number
+  codigo: string
+  estado: string
+  porcentaje: number
+  productos: ProgresoProducto[]
+}
+
 export interface Pedido {
   id: number
   cliente_id: number
@@ -53,6 +70,7 @@ export interface Pedido {
   user?: User
   // Una entrada por línea: un producto puede repetirse con distintos atributos
   productos?: (Product & { pivot?: LineaPedidoPivot })[]
+  progreso?: ProgresoPedido
   pago?: Pago
   pagos?: Pago[]
   monto_pagado?: number
@@ -130,6 +148,30 @@ export async function createPedido(input: CreatePedidoInput): Promise<Pedido> {
 
 export async function getPedido(id: number): Promise<Pedido> {
   const { data } = await api.get<{ status: string; data: Pedido }>(`/pedidos/${id}`)
+  return data.data
+}
+
+// Progreso de todos los pedidos en progreso (el listado y el detalle ya lo traen en 'progreso')
+export async function fetchPedidosProgreso(): Promise<ProgresoPedido[]> {
+  const { data } = await api.get<{ status: string; data: ProgresoPedido[] }>('/pedidos/progreso')
+  return data.data
+}
+
+export async function getPedidoProgreso(id: number): Promise<ProgresoPedido> {
+  const { data } = await api.get<{ status: string; data: ProgresoPedido }>(`/pedidos/${id}/progreso`)
+  return data.data
+}
+
+// Completa en una sola petición todas las etapas pendientes de un producto del pedido
+export async function completarEtapasProducto(pedidoId: number, productoId: number): Promise<{
+  completadas: number
+  estado: string
+  progreso: ProgresoPedido
+}> {
+  const { data } = await api.post<{
+    status: string
+    data: { completadas: number; estado: string; progreso: ProgresoPedido }
+  }>(`/pedidos/${pedidoId}/productos/${productoId}/completar-etapas`)
   return data.data
 }
 
