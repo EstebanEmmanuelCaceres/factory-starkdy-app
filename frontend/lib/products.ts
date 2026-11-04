@@ -1,5 +1,6 @@
 import api from './api'
 import type { ProductImage } from './entities/productImages'
+import type { AtributoProducto } from './entities/atributos'
 
 export interface Product {
   id: number
@@ -9,6 +10,8 @@ export interface Product {
   updated_at: string
   imagenes?: ProductImage[]
   imagen_principal?: ProductImage | null
+  precio: number | null
+  atributos: AtributoProducto[]
 }
 
 export interface CreateProductInput {
@@ -19,6 +22,8 @@ export interface CreateProductInput {
 export interface UpdateProductInput {
   nombre?: string
   descripcion?: string | null
+  // Lista completa: reemplaza los atributos que tenía el producto
+  atributos?: AtributoProducto[]
 }
 
 export async function fetchProducts(filters?: { nombre?: string }): Promise<Product[]> {

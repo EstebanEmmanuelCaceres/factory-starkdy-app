@@ -13,8 +13,13 @@ interface Props {
     onClose?: () => void;
     loading?: boolean;
     loadingText?: string;
+    // Clases del marco del modal (ancho, alto, etc.)
     className?: string;
+    // Clases del cuerpo con scroll (padding, etc.). Por defecto tiene p-6.
+    bodyClassName?: string;
     containerClassName?: string;
+    // Se renderiza fuera del área con scroll, anclado al marco (ej. un footer fijo o un panel lateral)
+    footer?: React.ReactNode;
     zIndexClass?: string;
 }
 
@@ -27,7 +32,9 @@ export const Modal = ({
     loading = false,
     loadingText = "Cargando...",
     className = "",
+    bodyClassName = "",
     containerClassName = "",
+    footer,
     zIndexClass = "z-[150]",
 }: Props) => {
 
@@ -80,26 +87,30 @@ export const Modal = ({
             style={usesStack ? { zIndex: BASE_Z_INDEX + level(id) * 10 } : undefined}
             onClick={closeModal}
         >
-            <div className={`modal bg-slate-900 border border-slate-800 rounded-2xl w-full lg:w-4xl max-h-[90vh] shadow-2xl relative my-auto animate-in fade-in zoom-in-95 duration-150 overflow-y-auto text-slate-300 max-w-4xl flex flex-col overflow-hidden p-6 ${className}`} onClick={handleClick} ref={modalRef}>
-                <button
-                    type="button"
-                    onClick={closeModal}
-                    className="absolute top-4 right-4 z-50 text-slate-400 hover:text-white hover:bg-slate-800/80 p-2 rounded-xl transition cursor-pointer flex items-center justify-center"
-                    title="Cerrar modal"
-                    aria-label="Cerrar modal"
-                >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                </button>
-                {loading ? (
-                    <div className="flex flex-col items-center justify-center gap-3 py-16" role="status">
-                        <div className="w-10 h-10 border-4 border-slate-700 border-t-sky-400 rounded-full animate-spin" />
-                        <p className="text-sm text-slate-400">{loadingText}</p>
-                    </div>
-                ) : (
-                    children
-                )}
+            <div className={`modal bg-slate-900 border border-slate-800 rounded-2xl w-full max-h-[90vh] shadow-2xl relative my-auto animate-in fade-in zoom-in-95 duration-150 text-slate-300 flex flex-col overflow-hidden ${className}`} onClick={handleClick} ref={modalRef}>
+                {/* El scroll vive acá adentro: la X queda arriba del contenido y se va al scrollear */}
+                <div className={`modal-body relative flex flex-1 min-h-0 flex-col overflow-y-auto p-6 ${bodyClassName}`}>
+                    <button
+                        type="button"
+                        onClick={closeModal}
+                        className="absolute top-4 right-4 z-10 text-slate-400 hover:text-white hover:bg-slate-800/80 p-2 rounded-xl transition cursor-pointer flex items-center justify-center"
+                        title="Cerrar modal"
+                        aria-label="Cerrar modal"
+                    >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    </button>
+                    {loading ? (
+                        <div className="flex flex-col items-center justify-center gap-3 py-16" role="status">
+                            <div className="w-10 h-10 border-4 border-slate-700 border-t-sky-400 rounded-full animate-spin" />
+                            <p className="text-sm text-slate-400">{loadingText}</p>
+                        </div>
+                    ) : (
+                        children
+                    )}
+                </div>
+                {footer}
             </div>
         </div>,
         modalRoot

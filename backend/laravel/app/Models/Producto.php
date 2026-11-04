@@ -19,7 +19,20 @@ class Producto extends Model
         'nombre',
         'descripcion',
         'precio',
+        'atributos',
     ];
+
+    protected $attributes = [
+        'atributos' => '[]',
+    ];
+
+    protected function casts(): array
+    {
+        return [
+            // Array de atributos del configurador; ver App\Rules\AtributosProducto
+            'atributos' => 'array',
+        ];
+    }
 
     /**
      * Relación Muchos a Muchos con Pedidos.
