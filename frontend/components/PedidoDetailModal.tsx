@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useMemo } from 'react'
+import { AtributosLineaResumen } from '@/components/PedidoAtributos/AtributosLineaResumen'
 import { Modal } from '@/components/Modal/Modal'
 import {
   type Pedido,
@@ -368,9 +369,16 @@ export default function PedidoDetailModal({
   const moveCover = (step: number) =>
     setCoverIndex((safeCoverIndex + step + coverImages.length) % coverImages.length)
 
-  // Productos (se muestran todos directamente)
+  // Cada entrada de productos es una línea; un producto puede repetirse con distintos atributos.
+  // Se muestra una tarjeta por producto (las etapas son por producto) con sus líneas adentro.
   const pds = currentPedido.productos || []
-  const displayedProducts = pds
+  const displayedProducts = pds.reduce((acc, linea) => {
+    const existente = acc.find((p) => p.id === linea.id)
+    const datosLinea = { cantidad: linea.pivot?.cantidad || 1, atributos: linea.pivot?.atributos ?? {} }
+    if (existente) existente.lineas.push(datosLinea)
+    else acc.push({ ...linea, lineas: [datosLinea] })
+    return acc
+  }, [] as (NonNullable<typeof currentPedido.productos>[number] & { lineas: { cantidad: number; atributos: Record<string, string> }[] })[])
 
   // Tarea de este pedido para una etapa del producto
   const findStageTask = (stageId: number) =>
@@ -402,7 +410,7 @@ export default function PedidoDetailModal({
     <Modal
       id={PEDIDO_DETAIL_MODAL_ID}
       onClose={onClose}
-      className="max-w-4xl"
+      className=""
       bodyClassName="!p-0"
     >
       {/* Header de Imagen / Portada */}
@@ -762,7 +770,8 @@ export default function PedidoDetailModal({
                     const prodStages = topologicalSortEtapas(
                       stages.filter((s) => s.producto_id === prod.id)
                     )
-                    const qty = prod.pivot?.cantidad || 1
+                    const qty = prod.lineas.reduce((acc, l) => acc + l.cantidad, 0)
+                    const mostrarLineas = prod.lineas.length > 1 || prod.lineas.some((l) => Object.keys(l.atributos).length > 0)
                     const currentStages = getProductCurrentStages(prodStages)
                     const isAccordionOpen = openAccordions[prod.id] || false
 
@@ -780,6 +789,17 @@ export default function PedidoDetailModal({
                             <span className="text-[10px] text-slate-500 font-bold uppercase">
                               Cantidad: {qty}
                             </span>
+                            {/* Líneas del producto: cantidad y atributos de cada una */}
+                            {mostrarLineas && (
+                              <ul className="mt-1.5 space-y-1">
+                                {prod.lineas.map((linea, i) => (
+                                  <li key={i} className="flex flex-wrap items-center gap-1.5">
+                                    <span className="text-[11px] font-mono font-semibold text-slate-400">x{linea.cantidad}</span>
+                                    <AtributosLineaResumen product={prod} valores={linea.atributos} />
+                                  </li>
+                                ))}
+                              </ul>
+                            )}
                           </div>
 
                           {/* Etapas actuales a la vista (varias si hay etapas paralelas habilitadas) */}

@@ -17,6 +17,9 @@ import { ProductDrawer } from './order-cart/ProductDrawer'
 import { OrderSummary } from './order-cart/OrderSummary'
 import { OrderCreated } from './order-cart/OrderCreated'
 import { buildCreatePedidoPayload, generatePedidoCodigo } from './order-cart/buildPedidoPayload'
+import { AtributosLineaResumen } from './PedidoAtributos/AtributosLineaResumen'
+import { claveLinea } from './PedidoAtributos/helpers'
+import type { OrderLine } from './order-cart/Types'
 
 export const CREATE_PEDIDO_MODAL_ID = 'create-pedido'
 const CREATE_CLIENTE_FORM_ID = 'wizard-create-cliente'
@@ -92,10 +95,22 @@ export const CreatePedidoModal = ({
   const [submitting, setSubmitting] = useState(false)
 
   const methods = useForm<OrderFormValues>({ defaultValues: getDefaultOrderValues() })
-  const { fields: lineFields, append: appendLine, remove: removeLine } = useFieldArray({
+  const { fields: lineFields, append: appendLine, remove: removeLine, update: updateLine } = useFieldArray({
     control: methods.control,
     name: 'lines',
   })
+
+  // Un producto puede repetirse solo con atributos distintos: si ya hay una línea igual, se suma la cantidad
+  const handleAddLine = (line: OrderLine) => {
+    const lines = methods.getValues('lines')
+    const key = claveLinea(line.productId, line.attributes)
+    const index = lines.findIndex((l) => claveLinea(l.productId, l.attributes) === key)
+    if (index >= 0) {
+      updateLine(index, { ...lines[index], quantity: lines[index].quantity + line.quantity })
+    } else {
+      appendLine(line)
+    }
+  }
   const watchedLines = useWatch({ control: methods.control, name: 'lines' })
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
 
@@ -323,7 +338,7 @@ export const CreatePedidoModal = ({
               <ProductDrawer
                 key={selectedProduct.id}
                 product={selectedProduct}
-                onAdd={appendLine}
+                onAdd={handleAddLine}
                 onClose={() => setSelectedProduct(null)}
               />
             )}
@@ -854,6 +869,11 @@ export const CreatePedidoModal = ({
                           <p className="text-[12px] text-[#a8b3c8]">
                             {line.quantity} u.{line.unitPriceOverride != null && ` · $ ${line.unitPriceOverride} c/u`}
                           </p>
+                          <AtributosLineaResumen
+                            product={productosList.find((p) => p.id === line.productId)}
+                            valores={line.attributes}
+                            className="mt-1"
+                          />
                         </div>
                         <button
                           type="button"

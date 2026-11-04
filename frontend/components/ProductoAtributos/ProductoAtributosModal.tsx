@@ -3,6 +3,7 @@
 import { Modal } from '@/components/Modal/Modal'
 import { useModal } from '@/components/Modal/context/ModalContext'
 import type { Product } from '@/lib/products'
+import { estaHabilitado } from '@/lib/entities/atributos'
 import { PRODUCTO_ATRIBUTOS_MODAL_ID } from './modalIds'
 import { useAtributosProducto } from './useAtributosProducto'
 import { AtributoCard } from './AtributoCard'
@@ -17,6 +18,10 @@ export const ProductoAtributosModal = ({ producto, onSaved }: ProductoAtributosM
   const { isOpen, close } = useModal(PRODUCTO_ATRIBUTOS_MODAL_ID)
   const editor = useAtributosProducto(producto, isOpen)
   const { atributos, errores, guardando, hayCambios } = editor
+
+  // Los atributos de tipos ocultos (color, extra) no se muestran pero se conservan al guardar.
+  // Se guarda el índice original porque el editor trabaja sobre la lista completa.
+  const visibles = atributos.map((atributo, index) => ({ atributo, index })).filter(({ atributo }) => estaHabilitado(atributo))
 
   const cerrar = () => {
     if (hayCambios && !confirm('Hay cambios sin guardar en los atributos. ¿Cerrar y descartarlos?')) return
@@ -85,14 +90,21 @@ export const ProductoAtributosModal = ({ producto, onSaved }: ProductoAtributosM
           </div>
 
           <div className="-mr-3 min-h-0 flex-1 space-y-4 overflow-y-auto pr-3">
-            {atributos.length === 0 ? (
+            {visibles.length === 0 ? (
               <p className="rounded-xl border border-slate-800 bg-slate-950/40 px-4 py-6 text-center text-sm text-slate-500">
                 Este producto todavía no tiene atributos.
               </p>
             ) : (
               <div className="space-y-3">
-                {atributos.map((atributo, index) => (
-                  <AtributoCard key={atributo.clave} atributo={atributo} index={index} total={atributos.length} editor={editor} />
+                {visibles.map(({ atributo, index }, posicion) => (
+                  <AtributoCard
+                    key={atributo.clave}
+                    atributo={atributo}
+                    index={index}
+                    esPrimero={posicion === 0}
+                    esUltimo={posicion === visibles.length - 1}
+                    editor={editor}
+                  />
                 ))}
               </div>
             )}

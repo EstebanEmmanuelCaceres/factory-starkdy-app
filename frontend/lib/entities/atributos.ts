@@ -46,3 +46,16 @@ export const TIPOS_ATRIBUTO: { value: TipoAtributo; label: string; icon: string;
 ]
 
 export const tieneOpciones = (atributo: AtributoProducto): atributo is AtributoOpciones => atributo.tipo === 'opciones'
+
+/**
+ * Tipos en uso: los únicos que se pueden agregar a un producto y que se cargan en el pedido.
+ * Color y extra quedan ocultos por ahora (se van a usar más adelante): para habilitarlos, sumarlos acá
+ * y en PedidoLineasService::TIPOS_EN_PEDIDO del backend.
+ */
+export const TIPOS_HABILITADOS: TipoAtributo[] = ['texto', 'opciones']
+
+export const estaHabilitado = (atributo: AtributoProducto): atributo is AtributoTexto | AtributoOpciones =>
+  TIPOS_HABILITADOS.includes(atributo.tipo)
+
+// Valores elegidos en una línea del pedido (pedido_productos.atributos): {clave: valor}
+export type ValoresAtributos = Record<string, string>

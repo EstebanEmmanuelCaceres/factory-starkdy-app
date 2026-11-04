@@ -14,14 +14,37 @@ use Illuminate\Support\Facades\Validator;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Auth;
 use App\Services\PedidoWorkflowService;
+use App\Services\PedidoLineasService;
 
 class PedidoController extends Controller
 {
     protected PedidoWorkflowService $workflowService;
 
-    public function __construct(PedidoWorkflowService $workflowService)
+    public function __construct(PedidoWorkflowService $workflowService, private PedidoLineasService $lineasService)
     {
         $this->workflowService = $workflowService;
+    }
+
+    /**
+     * Normaliza las líneas del request (producto + cantidad + atributos).
+     * Devuelve [líneas o null si no vinieron productos, respuesta 422 si hay errores].
+     */
+    private function lineasDelRequest(Request $request): array
+    {
+        if (!$request->has('productos')) {
+            return [null, null];
+        }
+
+        [$lineas, $errores] = $this->lineasService->normalizar($request->input('productos', []));
+        if (!empty($errores)) {
+            return [null, response()->json([
+                'status' => 'error',
+                'message' => implode(' ', $errores),
+                'errors' => ['productos' => $errores],
+            ], 422)];
+        }
+
+        return [$lineas, null];
     }
 
     /**
@@ -195,6 +218,7 @@ class PedidoController extends Controller
             'productos' => 'nullable|array',
             'productos.*.id' => 'required|exists:productos,id',
             'productos.*.cantidad' => 'required|integer|min:1',
+            'productos.*.atributos' => 'nullable|array',
             'asignaciones' => 'nullable|array',
             'asignaciones.*.etapa_id' => 'nullable|integer',
             'asignaciones.*.user_id' => 'nullable|integer|exists:users,id',
@@ -218,6 +242,12 @@ class PedidoController extends Controller
                     'monto_pago_inicial' => ['El pago inicial excede el precio total del pedido.']
                 ]
             ], 422);
+        }
+
+        // Las líneas se validan antes de crear nada (cliente o pedido), para no dejar datos a medias
+        [$lineas, $errorLineas] = $this->lineasDelRequest($request);
+        if ($errorLineas) {
+            return $errorLineas;
         }
 
         $clienteId = $request->input('cliente_id');
@@ -263,6 +293,8 @@ class PedidoController extends Controller
         }
 
         $data = $request->only(['codigo', 'prioridad', 'fecha_entrega', 'precio', 'comentario', 'tipo_pago']);
+        // El detalle de atributos de cada producto queda al final del comentario
+        $data['comentario'] = $this->lineasService->comentarioConAtributos($data['comentario'] ?? null, $lineas ?? []);
         $data['tipo_pago'] = $data['tipo_pago'] ?? ($montoInicial >= $precioPedido && $precioPedido > 0 ? 'unico' : 'parcial');
         $data['cliente_id'] = $clienteId;
         $data['user_id'] = $request->input('user_id') ?? $request->input('vendedor_id') ?? Auth::id() ?? 1; // Asocia el vendedor/usuario del pedido
@@ -274,17 +306,8 @@ class PedidoController extends Controller
 
         $pedido = Pedido::create($data);
 
-        // Sincronizar productos si se especifican
-        if ($request->has('productos')) {
-            $syncData = [];
-            foreach ($request->input('productos') as $item) {
-                if (is_array($item)) {
-                    $syncData[$item['id']] = ['cantidad' => $item['cantidad'] ?? 1];
-                } else {
-                    $syncData[$item] = ['cantidad' => 1];
-                }
-            }
-            $pedido->productos()->sync($syncData);
+        if ($lineas !== null) {
+            $this->lineasService->sincronizar($pedido, $lineas);
         }
         $this->syncAsignaciones($pedido, $request);
 
@@ -401,6 +424,7 @@ class PedidoController extends Controller
             'productos' => 'sometimes|array',
             'productos.*.id' => 'required|exists:productos,id',
             'productos.*.cantidad' => 'required|integer|min:1',
+            'productos.*.atributos' => 'nullable|array',
             'asignaciones' => 'nullable|array',
             'asignaciones.*.etapa_id' => 'nullable|integer',
             'asignaciones.*.user_id' => 'nullable|integer|exists:users,id',
@@ -414,24 +438,28 @@ class PedidoController extends Controller
             ], 422);
         }
 
+        [$lineas, $errorLineas] = $this->lineasDelRequest($request);
+        if ($errorLineas) {
+            return $errorLineas;
+        }
+
         $updateData = $request->only(['cliente_id', 'codigo', 'estado', 'prioridad', 'fecha_entrega', 'precio', 'comentario', 'tipo_pago', 'user_id', 'vendedor_id']);
+        // Si cambian los productos o el comentario, se regenera el detalle de atributos al final del comentario
+        // (con las líneas nuevas o, si no vinieron, con las que ya tiene el pedido)
+        if ($lineas !== null || $request->has('comentario')) {
+            $updateData['comentario'] = $this->lineasService->comentarioConAtributos(
+                $request->has('comentario') ? $request->input('comentario') : $pedido->comentario,
+                $lineas ?? $this->lineasService->lineasActuales($pedido)
+            );
+        }
         if (isset($updateData['vendedor_id']) && !isset($updateData['user_id'])) {
             $updateData['user_id'] = $updateData['vendedor_id'];
             unset($updateData['vendedor_id']);
         }
         $pedido->update($updateData);
 
-        // Sincronizar productos si se enviaron
-        if ($request->has('productos')) {
-            $syncData = [];
-            foreach ($request->input('productos') as $item) {
-                if (is_array($item)) {
-                    $syncData[$item['id']] = ['cantidad' => $item['cantidad'] ?? 1];
-                } else {
-                    $syncData[$item] = ['cantidad' => 1];
-                }
-            }
-            $pedido->productos()->sync($syncData);
+        if ($lineas !== null) {
+            $this->lineasService->sincronizar($pedido, $lineas);
         }
         $this->syncAsignaciones($pedido, $request);
         $this->workflowService->desbloquearTareasSatisfechas($pedido->id);

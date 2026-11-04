@@ -1,22 +1,25 @@
 'use client'
 
 import { useState } from 'react'
-import { TIPOS_ATRIBUTO, type TipoAtributo } from '@/lib/entities/atributos'
+import { TIPOS_ATRIBUTO, TIPOS_HABILITADOS, type TipoAtributo } from '@/lib/entities/atributos'
 import { inputClass, labelClass } from './styles'
 
 interface AgregarAtributoProps {
   onAgregar: (tipo: TipoAtributo, etiqueta: string) => void
 }
 
+// Solo se ofrecen los tipos en uso (texto y opciones); color y extra quedan ocultos por ahora
+const TIPOS_DISPONIBLES = TIPOS_ATRIBUTO.filter((t) => TIPOS_HABILITADOS.includes(t.value))
+
 // Paso para sumar un atributo: elegir el tipo y la etiqueta. El resto se completa en su tarjeta.
 export const AgregarAtributo = ({ onAgregar }: AgregarAtributoProps) => {
   const [abierto, setAbierto] = useState(false)
-  const [tipo, setTipo] = useState<TipoAtributo>('opciones')
+  const [tipo, setTipo] = useState<TipoAtributo>('texto')
   const [etiqueta, setEtiqueta] = useState('')
 
   const cerrar = () => {
     setAbierto(false)
-    setTipo('opciones')
+    setTipo('texto')
     setEtiqueta('')
   }
 
@@ -42,8 +45,8 @@ export const AgregarAtributo = ({ onAgregar }: AgregarAtributoProps) => {
     <div className="rounded-xl border border-blue-500/30 bg-blue-500/5 p-4 space-y-3">
       <div>
         <span className={labelClass}>Tipo</span>
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-          {TIPOS_ATRIBUTO.map((t) => (
+        <div className="grid grid-cols-2 gap-2">
+          {TIPOS_DISPONIBLES.map((t) => (
             <button
               key={t.value}
               type="button"

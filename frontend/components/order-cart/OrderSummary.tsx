@@ -2,6 +2,7 @@
 
 import { useFormContext, useWatch } from 'react-hook-form'
 import type { Product } from '@/lib/products'
+import { AtributosLineaResumen } from '@/components/PedidoAtributos/AtributosLineaResumen'
 import { OrderFormValues, getInitials, getLineSubtotal, getOrderTotal } from './Types'
 import { PRIORIDADES } from './PriorityField'
 import { MEDIOS_PAGO } from './PaymentMethodField'
@@ -82,6 +83,7 @@ export const OrderSummary = ({ products }: OrderSummaryProps) => {
                                 <p className="text-[12px] text-[#a8b3c8] tabular-nums">
                                     {line.quantity} u × {money.format(line.unitPriceOverride ?? 0)}
                                 </p>
+                                <AtributosLineaResumen product={getProduct(line.productId)} valores={line.attributes} className="mt-1" />
                                 {line.notes.trim() && <p className="mt-0.5 text-[12px] text-[#8390ab]">{line.notes}</p>}
                             </div>
                             <p className="shrink-0 text-[14px] font-bold tabular-nums">{money.format(getLineSubtotal(line))}</p>

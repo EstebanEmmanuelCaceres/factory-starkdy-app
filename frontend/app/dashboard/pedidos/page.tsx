@@ -38,6 +38,7 @@ import SelectFilter from '@/components/SelectFilter/SelectFilter'
 import { PRIORITY_OPTIONS, PEDIDO_STATE_OPTIONS } from '@/lib/order-status'
 import ImagePedido from '@/components/ImagePedido/ImagePedido'
 import { CreatePedidoModal } from '@/components/CreatePedidoModal'
+import { AtributosLineaResumen } from '@/components/PedidoAtributos/AtributosLineaResumen'
 import { useModalContext } from '@/components/Modal/context/ModalContext'
 import PedidoThumbnail from '@/components/PedidoThumbnail'
 import ClientQuickPasteBox from '@/components/ClientQuickPasteBox'
@@ -1201,14 +1202,18 @@ export default function PedidosPage() {
                         <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">PRODUCTOS</span>
                         {pedido.productos && pedido.productos.length > 0 ? (
                           <div className="flex flex-col gap-1.5">
-                            {pedido.productos.map((prod) => {
-                              const qty = (prod as any).pivot?.cantidad
+                            {pedido.productos.map((prod, i) => {
+                              const qty = prod.pivot?.cantidad
                               return (
                                 <div
-                                  key={prod.id}
-                                  className="bg-slate-950 border border-slate-800 text-slate-200 text-xs px-3 py-2 rounded-xl font-medium shadow-sm flex items-center justify-between"
+                                  // Un producto puede repetirse (líneas con distintos atributos): la key es la línea
+                                  key={prod.pivot?.id ?? `${prod.id}-${i}`}
+                                  className="bg-slate-950 border border-slate-800 text-slate-200 text-xs px-3 py-2 rounded-xl font-medium shadow-sm flex items-center justify-between gap-2"
                                 >
-                                  <span className="truncate">{prod.nombre}</span>
+                                  <div className="min-w-0">
+                                    <span className="block truncate">{prod.nombre}</span>
+                                    <AtributosLineaResumen product={prod} valores={prod.pivot?.atributos} className="mt-1" />
+                                  </div>
                                   {qty && (
                                     <span className="text-slate-400 text-[11px] font-mono shrink-0 ml-2">
                                       (x{qty})
@@ -1364,16 +1369,17 @@ export default function PedidosPage() {
                           <td className={CELL_MID}>
                             {pedido.productos && pedido.productos.length > 0 ? (
                               <div className="flex flex-col items-start gap-1.5">
-                                {pedido.productos.slice(0, 2).map((prod) => {
-                                  const qty = (prod as any).pivot?.cantidad
+                                {pedido.productos.slice(0, 2).map((prod, i) => {
+                                  const qty = prod.pivot?.cantidad
                                   return (
                                     <span
-                                      key={prod.id}
+                                      key={prod.pivot?.id ?? `${prod.id}-${i}`}
                                       title={prod.descripcion || ''}
                                       className="inline-block max-w-[20rem] rounded-lg border border-slate-700/60 bg-slate-800/40 px-2.5 py-1 text-sm font-medium leading-snug text-slate-200"
                                     >
                                       {prod.nombre}
                                       {qty ? <> <span className="ml-0.5 whitespace-nowrap text-xs font-semibold text-slate-400">x{qty}</span></> : null}
+                                      <AtributosLineaResumen product={prod} valores={prod.pivot?.atributos} className="mt-1" />
                                     </span>
                                   )
                                 })}

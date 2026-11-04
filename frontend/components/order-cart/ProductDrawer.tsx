@@ -3,6 +3,8 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useForm } from 'react-hook-form'
 import type { Product } from '@/lib/products'
+import { AtributosLineaFields } from '@/components/PedidoAtributos/AtributosLineaFields'
+import { atributosDelPedido, normalizarValores, valoresPorDefecto } from '@/components/PedidoAtributos/helpers'
 import { OrderLine, getDefaultLine } from './Types'
 
 interface ProductDrawerProps {
@@ -19,9 +21,11 @@ export const ProductDrawer = ({ product, onAdd, onClose }: ProductDrawerProps) =
 
     // Borrador local de la línea: recién se suma al pedido al confirmar
     const { register, handleSubmit, setValue, watch } = useForm<OrderLine>({
-        defaultValues: getDefaultLine(product.id, product.precio),
+        defaultValues: { ...getDefaultLine(product.id, product.precio), attributes: valoresPorDefecto(product) },
     })
     const quantity = watch('quantity')
+    const attributes = watch('attributes')
+    const tieneAtributos = atributosDelPedido(product).length > 0
     const setQuantity = (n: number) => setValue('quantity', Math.max(1, n), { shouldDirty: true })
 
     // Animación de entrada fluida al montar
@@ -68,7 +72,7 @@ export const ProductDrawer = ({ product, onAdd, onClose }: ProductDrawerProps) =
     }, [])
 
     const submitLine = handleSubmit((line) => {
-        onAdd(line)
+        onAdd({ ...line, attributes: normalizarValores(product, line.attributes) })
         handleClose()
     })
 
@@ -140,6 +144,18 @@ export const ProductDrawer = ({ product, onAdd, onClose }: ProductDrawerProps) =
                             ))}
                         </div>
                     </section>
+
+                    {/* Atributos del producto (texto, opciones) */}
+                    {tieneAtributos && (
+                        <section className="border-b border-[#1b263d] py-4">
+                            <span className={`${label} mb-3 block`}>Personalización</span>
+                            <AtributosLineaFields
+                                product={product}
+                                value={attributes}
+                                onChange={(valores) => setValue('attributes', valores, { shouldDirty: true })}
+                            />
+                        </section>
+                    )}
                 </div>
 
                 {/* Pie */}

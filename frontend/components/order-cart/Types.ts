@@ -1,3 +1,5 @@
+import type { ValoresAtributos } from '@/lib/entities/atributos'
+
 export type Prioridad = 'baja' | 'normal' | 'alta' | 'critica'
 
 export type MedioPago = 'transferencia' | 'efectivo' | 'mercadopago' | 'tarjeta'
@@ -10,7 +12,8 @@ export interface ClienteResumen {
 
 export interface OrderLine {
     productId: number
-    attributes: Record<string, string | boolean>
+    // Valores de los atributos del producto {clave: valor}; ver components/PedidoAtributos
+    attributes: ValoresAtributos
     quantity: number
     unitPriceOverride: number | null
     notes: string

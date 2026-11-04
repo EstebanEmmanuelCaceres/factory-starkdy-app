@@ -9,11 +9,13 @@ import { iconButtonClass, inputClass, labelClass } from './styles'
 interface AtributoCardProps {
   atributo: AtributoProducto
   index: number
-  total: number
+  // Posición entre los atributos visibles (los de tipos ocultos no se muestran)
+  esPrimero: boolean
+  esUltimo: boolean
   editor: EditorAtributos
 }
 
-export const AtributoCard = ({ atributo, index, total, editor }: AtributoCardProps) => {
+export const AtributoCard = ({ atributo, index, esPrimero, esUltimo, editor }: AtributoCardProps) => {
   const tipo = TIPOS_ATRIBUTO.find((t) => t.value === atributo.tipo)
 
   return (
@@ -32,10 +34,10 @@ export const AtributoCard = ({ atributo, index, total, editor }: AtributoCardPro
           aria-label="Etiqueta del atributo"
         />
         <div className="flex shrink-0 items-center">
-          <button type="button" onClick={() => editor.mover(index, -1)} disabled={index === 0} className={iconButtonClass} title="Subir">
+          <button type="button" onClick={() => editor.mover(index, -1)} disabled={esPrimero} className={iconButtonClass} title="Subir">
             ↑
           </button>
-          <button type="button" onClick={() => editor.mover(index, 1)} disabled={index === total - 1} className={iconButtonClass} title="Bajar">
+          <button type="button" onClick={() => editor.mover(index, 1)} disabled={esUltimo} className={iconButtonClass} title="Bajar">
             ↓
           </button>
           <button type="button" onClick={() => editor.quitar(index)} className={`${iconButtonClass} hover:!text-rose-400`} title="Quitar atributo">

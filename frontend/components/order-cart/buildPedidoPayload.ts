@@ -1,19 +1,25 @@
-import type { CreatePedidoInput } from '@/lib/pedidos'
+import type { CreatePedidoInput, LineaPedidoInput } from '@/lib/pedidos'
+import { claveLinea } from '@/components/PedidoAtributos/helpers'
 import { OrderFormValues, OrderLine, getOrderTotal } from './Types'
 
 export const generatePedidoCodigo = () => `PD-${Date.now().toString().slice(-6)}`
 
 /**
- * El back guarda los productos con `sync()` sobre la tabla pivote (producto_id => cantidad),
- * así que un mismo producto agregado en varias líneas se tiene que mandar una sola vez
- * con la cantidad sumada; si no, la última línea pisa a las anteriores.
+ * Una entrada por línea del pedido (producto + atributos). Un mismo producto puede ir varias veces
+ * si los atributos son distintos; las líneas iguales se unen sumando la cantidad (el back hace lo mismo).
  */
-export function groupLinesByProduct(lines: OrderLine[]): { id: number; cantidad: number }[] {
-    const quantities = new Map<number, number>()
+export function groupLines(lines: OrderLine[]): LineaPedidoInput[] {
+    const grouped = new Map<string, LineaPedidoInput>()
     for (const line of lines) {
-        quantities.set(line.productId, (quantities.get(line.productId) ?? 0) + line.quantity)
+        const key = claveLinea(line.productId, line.attributes)
+        const existing = grouped.get(key)
+        if (existing) {
+            existing.cantidad += line.quantity
+        } else {
+            grouped.set(key, { id: line.productId, cantidad: line.quantity, atributos: line.attributes })
+        }
     }
-    return Array.from(quantities, ([id, cantidad]) => ({ id, cantidad }))
+    return Array.from(grouped.values())
 }
 
 interface BuildPedidoPayloadOptions {
@@ -46,6 +52,6 @@ export function buildCreatePedidoPayload(
         // tipo_pago se omite: el back lo calcula (unico si el pago cubre el total, si no parcial)
         monto_pago_inicial: paid > 0 ? paid : null,
         medio_pago_inicial: paid > 0 ? values.payment.method : null,
-        productos: groupLinesByProduct(values.lines),
+        productos: groupLines(values.lines),
     }
 }

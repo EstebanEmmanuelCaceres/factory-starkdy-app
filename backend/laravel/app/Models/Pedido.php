@@ -84,7 +84,9 @@ class Pedido extends Model
     {
         return $this->belongsToMany(Producto::class, 'pedido_productos', 'pedido_id', 'producto_id')
             ->using(PedidoProducto::class)
-            ->withPivot('cantidad')
+            // Un producto puede repetirse en varias líneas con distintos atributos: cada una trae su pivot
+            ->withPivot(['id', 'cantidad', 'atributos'])
+            ->orderBy('pedido_productos.id') // las líneas en el orden en que se cargaron
             ->withTimestamps()
             // Al quitar un producto del pedido la fila se borra lógicamente: no debe seguir apareciendo
             ->wherePivotNull('deleted_at');

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { updateProduct, type Product } from '@/lib/products'
-import { tieneOpciones, type AtributoProducto, type OpcionAtributo, type TipoAtributo } from '@/lib/entities/atributos'
+import { estaHabilitado, tieneOpciones, type AtributoProducto, type OpcionAtributo, type TipoAtributo } from '@/lib/entities/atributos'
 import { crearAtributo, crearOpcion, limpiarAtributos, validarAtributos } from './helpers'
 
 // Campos editables del atributo (cada tipo usa los suyos)
@@ -57,7 +57,9 @@ export const useAtributosProducto = (producto: Product | null, abierto: boolean)
   const mover = useCallback(
     (index: number, direccion: -1 | 1) =>
       modificar((prev) => {
-        const destino = index + direccion
+        // Se intercambia con el siguiente visible: los atributos de tipos ocultos no cuentan
+        let destino = index + direccion
+        while (destino >= 0 && destino < prev.length && !estaHabilitado(prev[destino])) destino += direccion
         if (destino < 0 || destino >= prev.length) return prev
         const lista = [...prev]
         ;[lista[index], lista[destino]] = [lista[destino], lista[index]]
