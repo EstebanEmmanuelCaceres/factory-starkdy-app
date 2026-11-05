@@ -61,6 +61,7 @@ export default function PedidoDetailModal({
   const [nuevoComentario, setNuevoComentario] = useState('')
   const [isSubmittingComment, setIsSubmittingComment] = useState(false)
   const [openAccordions, setOpenAccordions] = useState<Record<number, boolean>>({})
+  const [isLoadingStages, setIsLoadingStages] = useState(true)
   const [notification, setNotification] = useState('')
   const [error, setError] = useState('')
   const [completingTaskId, setCompletingTaskId] = useState<number | null>(null)
@@ -92,7 +93,7 @@ export default function PedidoDetailModal({
   useEffect(() => {
     setCurrentPedido(pedido)
     if (pedido) {
-      setTempComentario(pedido.comentario || '')
+      setTempComentario(pedido.comentario || pedido.descripcion || '')
     }
   }, [pedido, isOpen])
 
@@ -108,12 +109,13 @@ export default function PedidoDetailModal({
     let isMounted = true
 
     const loadMissingData = async () => {
+      setIsLoadingStages(true)
       try {
         // 1. Obtener detalle actualizado del pedido (incluye el progreso)
         const fullPedido = await getPedido(pedido.id).catch(() => pedido)
         if (isMounted && fullPedido) {
           setCurrentPedido(fullPedido)
-          setTempComentario(fullPedido.comentario || '')
+          setTempComentario(fullPedido.comentario || fullPedido.descripcion || '')
         }
 
         // 2. Obtener las tareas del pedido (de ahí salen sus etapas, responsables y estados)
@@ -124,6 +126,10 @@ export default function PedidoDetailModal({
         }
       } catch (err) {
         console.error('Error al cargar información del pedido o etapas:', err)
+      } finally {
+        if (isMounted) {
+          setIsLoadingStages(false)
+        }
       }
     }
 
@@ -142,7 +148,11 @@ export default function PedidoDetailModal({
     return (u.role as any).slug || ''
   })()
   const isOperario = userRole === 'operario' || userRole === 'operator'
+  const isVendedor = userRole === 'vendedor'
+  const isAdminOrEncargado = ['admin', 'encargado', 'supervisor'].includes(userRole)
   const isAuthorizedRole = !userRole || ['admin', 'encargado', 'vendedor'].includes(userRole)
+  // Operarios y administradores/encargados pueden accionar etapas; los vendedores solo ven el estado
+  const canManageStages = !isVendedor
 
   if (!isOpen || !currentPedido) return null
 
@@ -166,7 +176,7 @@ export default function PedidoDetailModal({
   const handleSaveDescription = async () => {
     try {
       setError('')
-      const updated = await updatePedido(currentPedido.id, { comentario: tempComentario })
+      const updated = await updatePedido(currentPedido.id, { comentario: tempComentario, descripcion: tempComentario })
       setCurrentPedido(updated)
       if (onUpdatePedido) onUpdatePedido(updated)
       setIsEditCommentActive(false)
@@ -750,7 +760,7 @@ export default function PedidoDetailModal({
                       type="button"
                       onClick={() => {
                         // Descartar lo escrito y volver a la descripción guardada
-                        setTempComentario(currentPedido.comentario || '')
+                        setTempComentario(currentPedido.comentario || currentPedido.descripcion || '')
                         setIsEditCommentActive(false)
                       }}
                       className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 hover:text-white text-slate-300 rounded text-xs font-semibold transition"
@@ -765,9 +775,9 @@ export default function PedidoDetailModal({
                   className="bg-slate-950/40 border border-slate-850 p-4 rounded-xl cursor-pointer hover:border-blue-500/50 hover:bg-slate-900/60 transition group"
                   title="Haz clic para editar la descripción"
                 >
-                  {currentPedido.comentario ? (
+                  {(currentPedido.comentario || currentPedido.descripcion) ? (
                     <p className="text-sm text-slate-300 whitespace-pre-wrap group-hover:text-white transition">
-                      {currentPedido.comentario}
+                      {currentPedido.comentario || currentPedido.descripcion}
                     </p>
                   ) : (
                     <p className="text-sm text-slate-500 italic group-hover:text-slate-400 transition flex items-center justify-between">
@@ -826,7 +836,7 @@ export default function PedidoDetailModal({
                           </div>
 
                           {/* Completar todas las etapas del producto de una vez */}
-                          {prodProgreso && prodProgreso.porcentaje !== null && prodProgreso.porcentaje < 100 && currentPedido.estado !== 'pendiente' && (
+                          {isAdminOrEncargado && prodProgreso && prodProgreso.porcentaje !== null && prodProgreso.porcentaje < 100 && currentPedido.estado !== 'pendiente' && (
                             <button
                               type="button"
                               disabled={completingProductId !== null || completingTaskId !== null}
@@ -871,6 +881,10 @@ export default function PedidoDetailModal({
                                           🔒 Requiere etapa previa
                                         </span>
                                       )
+                                    }
+
+                                    if (!canManageStages) {
+                                      return null
                                     }
 
                                     const isCurrentInProgress = currentInfo.task?.estado === 'en_progreso'
@@ -928,7 +942,7 @@ export default function PedidoDetailModal({
                                     )
                                   })()
                                 )}
-                                {currentInfo.task?.estado === 'completado' && (
+                                {canManageStages && currentInfo.task?.estado === 'completado' && (
                                   <button
                                     type="button"
                                     disabled={completingTaskId === (currentInfo.task?.id || currentInfo.stage.id)}
@@ -944,7 +958,14 @@ export default function PedidoDetailModal({
                             ))}
                           </div>
                         ) : (
+                          isLoadingStages ? (
+                          <div className="flex items-center gap-2 py-2 text-xs text-slate-400">
+                            <span className="inline-block w-3.5 h-3.5 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
+                            <span>Cargando etapas...</span>
+                          </div>
+                        ) : (
                           <span className="text-xs text-slate-500 italic block">Sin etapas</span>
+                        )
                         )}
 
                         {/* Botón del acordeón */}
@@ -1064,7 +1085,7 @@ export default function PedidoDetailModal({
                                               Desde: {startDate}
                                             </span>
                                           )}
-                                          {state === 'completado' && (
+                                           {canManageStages && state === 'completado' && (
                                             <button
                                               type="button"
                                               disabled={completingTaskId === (task?.id || stage.id)}
@@ -1078,6 +1099,7 @@ export default function PedidoDetailModal({
                                           )}
                                           {state !== 'completado' && currentPedido.estado !== 'pendiente' && (
                                             !isBlockedNode ? (
+                                              canManageStages ? (
                                               <div className="mt-2 flex flex-col gap-1.5">
                                                 {state === 'en_progreso' ? (
                                                   <>
@@ -1127,6 +1149,7 @@ export default function PedidoDetailModal({
                                                   </>
                                                 )}
                                               </div>
+                                              ) : null
                                             ) : (
                                               <div
                                                 className="mt-2 w-full text-[10px] font-semibold px-2 py-1 rounded-lg bg-slate-900/90 text-rose-400/80 border border-rose-500/20 flex items-center justify-center gap-1 opacity-80"

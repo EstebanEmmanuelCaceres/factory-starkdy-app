@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import Modal from '@/components/Modal'
-import { type Pedido, updatePedido, type UpdatePedidoInput } from '@/lib/pedidos'
+import { type Pedido, updatePedido, getPedido, type UpdatePedidoInput } from '@/lib/pedidos'
 import { fetchClientes, type Cliente } from '@/lib/clientes'
 import { fetchProducts, type Product } from '@/lib/products'
 import { fetchUsers, type User } from '@/lib/auth'
@@ -107,7 +107,17 @@ export default function EditPedidoModal({
     setLoading(true)
 
     const initFormData = async () => {
-      const productIds = pedido.productos?.map((p) => p.id) || []
+      let current = pedido
+      if (pedido?.id) {
+        try {
+          const fresh = await getPedido(pedido.id)
+          if (fresh) current = fresh
+        } catch (err) {
+          console.error('Error al obtener datos frescos del pedido:', err)
+        }
+      }
+
+      const productIds = current.productos?.map((p) => p.id) || []
       const quantities = pedido.productos?.reduce((acc, curr) => {
         const qty = (curr as any).pivot?.cantidad || 1
         acc[curr.id] = qty
@@ -121,14 +131,14 @@ export default function EditPedidoModal({
       })()
 
       setFormData({
-        cliente_id: pedido.cliente_id ? pedido.cliente_id.toString() : '',
-        codigo: pedido.codigo || '',
-        prioridad: pedido.prioridad || 'normal',
-        fecha_entrega: pedido.fecha_entrega || defaultDeliveryDate,
-        estado: pedido.estado || 'pendiente',
-        precio: pedido.precio !== null && pedido.precio !== undefined ? pedido.precio.toString() : '',
-        comentario: pedido.comentario || '',
-        tipo_pago: pedido.tipo_pago || 'parcial',
+        cliente_id: current.cliente_id ? pedido.cliente_id.toString() : '',
+        codigo: current.codigo || '',
+        prioridad: current.prioridad || 'normal',
+        fecha_entrega: current.fecha_entrega || defaultDeliveryDate,
+        estado: current.estado || 'pendiente',
+        precio: current.precio !== null && pedido.precio !== undefined ? pedido.precio.toString() : '',
+        comentario: current.comentario || current.descripcion || '',
+        tipo_pago: current.tipo_pago || 'parcial',
         selectedProductIds: productIds,
         productQuantities: quantities
       })
@@ -274,6 +284,7 @@ export default function EditPedidoModal({
         fecha_entrega: formData.fecha_entrega,
         precio: precioNum,
         comentario: formData.comentario || null,
+        descripcion: formData.comentario || null,
         tipo_pago: formData.tipo_pago,
         productos: formData.selectedProductIds.map((id) => ({
           id,
@@ -519,11 +530,16 @@ export default function EditPedidoModal({
                           {product?.nombre}
                         </span>
                         <span className="text-[10px] bg-slate-800 text-slate-400 px-2 py-0.5 rounded-full">
-                          {productStages.length} etapas
+                          {loading ? 'Cargando...' : `${productStages.length} etapas`}
                         </span>
                       </div>
 
-                      {productStages.length === 0 ? (
+                      {loading ? (
+                        <div className="flex items-center gap-2 py-1.5 text-xs text-slate-400">
+                          <span className="inline-block w-3 h-3 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
+                          <span>Cargando etapas...</span>
+                        </div>
+                      ) : productStages.length === 0 ? (
                         <span className="text-xs text-slate-500 italic block py-1">Sin etapas configuradas.</span>
                       ) : (
                         <div className="space-y-1.5">

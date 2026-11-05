@@ -77,7 +77,7 @@ class ResponsableEtapaController extends Controller
 
         /** @var User|null $currentUser */
         $currentUser = auth()->user();
-        if ($currentUser && !$currentUser->isAdminOrEncargado()) {
+        if (!$request->has('pedido_id') && $currentUser && !$currentUser->isAdminOrEncargado()) {
             $userCategoryIds = $currentUser->categorias()->pluck('categorias.id')->toArray();
             $query->where(function ($q) use ($currentUser, $userCategoryIds) {
                 $q->where('user_id', $currentUser->id);

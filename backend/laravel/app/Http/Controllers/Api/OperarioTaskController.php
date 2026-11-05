@@ -133,7 +133,7 @@ class OperarioTaskController extends Controller
 
         $userCategoryIds = $user->categorias()->pluck('categorias.id')->toArray();
         if (empty($userCategoryIds)) {
-            return false;
+            return $user->isOperator();
         }
 
         return $task->etapaProducto()

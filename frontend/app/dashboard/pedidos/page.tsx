@@ -426,7 +426,7 @@ export default function PedidosPage() {
       selectedProductIds: productIds,
       productQuantities: quantities,
       precio: pedido.precio !== null && pedido.precio !== undefined ? pedido.precio.toString() : '',
-      comentario: pedido.comentario || '',
+      comentario: pedido.comentario || (pedido as any).descripcion || '',
       tipo_pago: pedido.tipo_pago || 'parcial',
       monto_pago_inicial: '',
       medio_pago_inicial: 'transferencia',
@@ -651,6 +651,7 @@ export default function PedidosPage() {
         fecha_entrega: formData.fecha_entrega,
         precio: precioNum,
         comentario: formData.comentario || null,
+        descripcion: formData.comentario || null,
         tipo_pago: formData.tipo_pago,
         monto_pago_inicial: montoInicialNum > 0 ? montoInicialNum : null,
         medio_pago_inicial: montoInicialNum > 0 ? formData.medio_pago_inicial : null,
@@ -717,6 +718,7 @@ export default function PedidosPage() {
         estado: formData.estado,
         precio: formData.precio ? parseFloat(formData.precio) : null,
         comentario: formData.comentario || null,
+        descripcion: formData.comentario || null,
         tipo_pago: formData.tipo_pago,
         productos: formData.selectedProductIds.map((id) => ({
           id,
@@ -780,7 +782,7 @@ export default function PedidosPage() {
 
   const handleOpenViewModal = async (pedido: Pedido) => {
     setSelectedPedidoForView(pedido)
-    setTempComentario(pedido.comentario || '')
+    setTempComentario(pedido.comentario || (pedido as any).descripcion || '')
     setNuevoComentario('')
     setIsEditCommentActive(false)
     setOpenAccordions({})
@@ -2114,10 +2116,10 @@ export default function PedidosPage() {
 
                 <div>
                   <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
-                    Comentario
+                    Descripción / Observaciones
                   </label>
                   <textarea
-                    placeholder="Escribe un comentario o notas adicionales para el pedido..."
+                    placeholder="Escribe una descripción, notas o especificaciones para el pedido..."
                     value={formData.comentario}
                     onChange={(e) => setFormData({ ...formData, comentario: e.target.value })}
                     className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition h-20 resize-none"
@@ -2632,7 +2634,7 @@ export default function PedidosPage() {
           onUpdatePedido={(updated) => {
             setSelectedPedidoForView(updated)
             setPedidos((prev) => prev.map((p) => (p.id === updated.id ? updated : p)))
-            fetchResponsablesEtapas().then(setTaskAssignments).catch(console.error)
+            fetchResponsablesEtapas({ pedido_id: updated.id }).then(setTaskAssignments).catch(console.error)
           }}
           taskAssignments={taskAssignments}
           onOpenGallery={(pedidoToGallery) => handleOpenImagesModal(pedidoToGallery)}

@@ -38,6 +38,7 @@ class Pedido extends Model
         'fecha_entrega',
         'precio',
         'comentario',
+        'descripcion',
         'tipo_pago',
     ];
 
@@ -47,6 +48,7 @@ class Pedido extends Model
         'saldo_pendiente',
         'porcentaje_pagado',
         'estado_pago',
+        'descripcion',
     ];
 
     public ?string $pendingInitialState = null;
@@ -199,6 +201,22 @@ class Pedido extends Model
             return 'pagado';
         }
         return 'parcial';
+    }
+
+    /**
+     * Accesor para descripcion (alias de comentario).
+     */
+    public function getDescripcionAttribute(): ?string
+    {
+        return $this->comentario;
+    }
+
+    /**
+     * Mutador para descripcion (alias de comentario).
+     */
+    public function setDescripcionAttribute(?string $value): void
+    {
+        $this->attributes['comentario'] = $value;
     }
 
     /**

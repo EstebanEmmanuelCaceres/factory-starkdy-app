@@ -47,7 +47,7 @@ class PedidoController extends Controller
      */
     public function index(Request $request): JsonResponse
     {
-        $query = Pedido::select('id', 'cliente_id', 'user_id', 'codigo', 'prioridad', 'precio', 'created_at', 'updated_at')
+        $query = Pedido::select('id', 'cliente_id', 'user_id', 'codigo', 'prioridad', 'fecha_entrega', 'precio', 'comentario', 'tipo_pago', 'created_at', 'updated_at')
             ->with([
                 'cliente:id,nombre_empresa,nombre_cliente,telefono',
                 'user:id,name',
@@ -144,7 +144,7 @@ class PedidoController extends Controller
         $pedidos = $query->latest()->get();
         $this->adjuntarProgreso($pedidos);
 
-        $pedidos->makeHidden(['porcentaje_pagado', 'comentario', 'fecha_entrega']);
+        $pedidos->makeHidden(['porcentaje_pagado']);
         if ($currentUser && in_array($currentUser->role?->slug, ['operario', 'operator'])) {
             $pedidos->makeHidden(['precio', 'monto_pagado', 'saldo_pendiente', 'pagos']);
         }
@@ -207,6 +207,7 @@ class PedidoController extends Controller
             'fecha_entrega' => 'required|date',
             'precio' => 'required|numeric|min:0',
             'comentario' => 'nullable|string',
+            'descripcion' => 'nullable|string',
             'tipo_pago' => 'nullable|string|in:unico,parcial',
             'monto_pago_inicial' => 'nullable|numeric|min:0',
             'medio_pago_inicial' => 'nullable|string|max:255',
@@ -282,6 +283,9 @@ class PedidoController extends Controller
         }
 
         $data = $request->only(['codigo', 'prioridad', 'fecha_entrega', 'precio', 'comentario', 'tipo_pago']);
+        if ($request->filled('descripcion') && empty($data['comentario'])) {
+            $data['comentario'] = $request->input('descripcion');
+        }
         $data['tipo_pago'] = $data['tipo_pago'] ?? ($montoInicial >= $precioPedido && $precioPedido > 0 ? 'unico' : 'parcial');
         $data['cliente_id'] = $clienteId;
         $data['user_id'] = $request->input('user_id') ?? $request->input('vendedor_id') ?? Auth::id() ?? 1; // Asocia el vendedor/usuario del pedido
@@ -419,6 +423,7 @@ class PedidoController extends Controller
             'fecha_entrega' => 'sometimes|nullable|date',
             'precio' => 'sometimes|nullable|numeric|min:0',
             'comentario' => 'sometimes|nullable|string',
+            'descripcion' => 'sometimes|nullable|string',
             'tipo_pago' => 'sometimes|nullable|string|in:unico,parcial',
             'productos' => 'sometimes|array',
             'productos.*.id' => 'required|exists:productos,id',
@@ -437,6 +442,9 @@ class PedidoController extends Controller
         }
 
         $updateData = $request->only(['cliente_id', 'codigo', 'estado', 'prioridad', 'fecha_entrega', 'precio', 'comentario', 'tipo_pago', 'user_id', 'vendedor_id']);
+        if ($request->has('descripcion') && !isset($updateData['comentario'])) {
+            $updateData['comentario'] = $request->input('descripcion');
+        }
         if (isset($updateData['vendedor_id']) && !isset($updateData['user_id'])) {
             $updateData['user_id'] = $updateData['vendedor_id'];
             unset($updateData['vendedor_id']);
@@ -649,6 +657,15 @@ class PedidoController extends Controller
      */
     public function completarEtapasProducto($id, $productoId): JsonResponse
     {
+        /** @var User|null $currentUser */
+        $currentUser = Auth::user();
+        if (!$currentUser || !$currentUser->isAdminOrEncargado()) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'No autorizado. Solo administradores o encargados pueden completar todas las etapas del producto.'
+            ], 403);
+        }
+
         $pedido = Pedido::find($id);
 
         if (!$pedido) {

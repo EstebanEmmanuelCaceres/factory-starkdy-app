@@ -62,6 +62,7 @@ export interface Pedido {
   fecha_entrega: string | null
   precio: number | null
   comentario?: string | null
+  descripcion?: string | null
   tipo_pago?: 'unico' | 'parcial'
   created_at: string
   updated_at: string
@@ -89,6 +90,7 @@ export interface CreatePedidoInput {
   fecha_entrega?: string | null
   precio?: number | null
   comentario?: string | null
+  descripcion?: string | null
   tipo_pago?: 'unico' | 'parcial'
   monto_pago_inicial?: number | null
   medio_pago_inicial?: string | null
@@ -106,6 +108,7 @@ export interface UpdatePedidoInput {
   fecha_entrega?: string | null
   precio?: number | null
   comentario?: string | null
+  descripcion?: string | null
   tipo_pago?: 'unico' | 'parcial'
   productos?: { id: number; cantidad: number }[]
   // Solo los responsables de cada etapa: las etapas se configuran en el producto, no en el pedido
