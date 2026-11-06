@@ -27,7 +27,7 @@ export const OrderBar = ({ onChangeClient }: { onChangeClient: () => void }) => 
             <PriorityField />
             <div className="flex flex-col gap-2">
                 <div className="flex items-baseline justify-between">
-                    <label className="text-[#a8b3c8] text-[11px] font-bold tracking-[.08em] uppercase">Comentario</label>
+                    <label className="text-[#a8b3c8] text-[11px] font-bold tracking-[.08em] uppercase">Descripción / Observaciones</label>
                     <span className="text-xs text-[#8390ab]">Opcional</span>
                 </div>
                 <textarea

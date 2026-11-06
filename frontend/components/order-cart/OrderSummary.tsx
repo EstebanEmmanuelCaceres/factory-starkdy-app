@@ -61,7 +61,7 @@ export const OrderSummary = ({ products }: OrderSummaryProps) => {
                 </div>
                 {comment.trim() && (
                     <div className="sm:col-span-3">
-                        <p className={label}>Comentario</p>
+                        <p className={label}>Descripción / Observaciones</p>
                         <p className="whitespace-pre-line text-[13px] text-[#a8b3c8]">{comment}</p>
                     </div>
                 )}
