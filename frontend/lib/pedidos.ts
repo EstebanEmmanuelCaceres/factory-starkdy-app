@@ -1,4 +1,5 @@
 import api from './api'
+import type { ValoresAtributos } from './entities/atributos'
 import { type Cliente } from './clientes'
 import { type Product } from './products'
 import { type User } from './auth'
@@ -68,7 +69,8 @@ export interface Pedido {
   updated_at: string
   cliente?: Cliente
   user?: User
-  productos?: (Product & { pivot?: { cantidad: number } })[]
+  // Una entrada por línea: un producto puede repetirse con distintos atributos
+  productos?: (Product & { pivot?: LineaPedidoPivot })[]
   progreso?: ProgresoPedido
   pago?: Pago
   pagos?: Pago[]
@@ -80,6 +82,19 @@ export interface Pedido {
   tareas?: any[]
   imagenes?: OrderImage[]
   imagen_principal?: OrderImage
+}
+
+// Datos de la línea del pedido (pedido_productos)
+export interface LineaPedidoPivot {
+  id?: number
+  cantidad: number
+  atributos?: ValoresAtributos
+}
+
+export interface LineaPedidoInput {
+  id: number              // id del producto
+  cantidad: number
+  atributos?: ValoresAtributos
 }
 
 export interface CreatePedidoInput {
@@ -95,7 +110,7 @@ export interface CreatePedidoInput {
   monto_pago_inicial?: number | null
   medio_pago_inicial?: string | null
   observaciones_pago_inicial?: string | null
-  productos?: { id: number; cantidad: number }[]
+  productos?: LineaPedidoInput[]
   // Solo los responsables de cada etapa: las etapas se configuran en el producto, no en el pedido
   asignaciones?: { etapa_id?: number; user_id: number | null }[]
 }
@@ -110,7 +125,7 @@ export interface UpdatePedidoInput {
   comentario?: string | null
   descripcion?: string | null
   tipo_pago?: 'unico' | 'parcial'
-  productos?: { id: number; cantidad: number }[]
+  productos?: LineaPedidoInput[]
   // Solo los responsables de cada etapa: las etapas se configuran en el producto, no en el pedido
   asignaciones?: { etapa_id?: number; user_id: number | null }[]
 }

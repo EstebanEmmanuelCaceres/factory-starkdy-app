@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import Modal from '@/components/Modal'
 import { type Pedido, updatePedido, getPedido, type UpdatePedidoInput } from '@/lib/pedidos'
 import { fetchClientes, type Cliente } from '@/lib/clientes'
@@ -8,6 +8,17 @@ import { fetchProducts, type Product } from '@/lib/products'
 import { fetchUsers, type User } from '@/lib/auth'
 import { fetchEtapas, topologicalSortEtapas, type Etapa } from '@/lib/entities/etapas'
 import { fetchResponsablesEtapas, assignTask, removeTaskAssignment, etapasDesdeTareas, type ResponsableEtapa } from '@/lib/responsable_etapas'
+import type { ValoresAtributos } from '@/lib/entities/atributos'
+import { AtributosLineaFields } from '@/components/PedidoAtributos/AtributosLineaFields'
+import { claveLinea, normalizarValores, valoresPorDefecto } from '@/components/PedidoAtributos/helpers'
+
+// Línea del pedido en edición: un producto puede repetirse con distintos atributos
+interface LineaEdicion {
+  uid: string
+  productId: number
+  cantidad: number
+  atributos: ValoresAtributos
+}
 
 export interface EditPedidoModalProps {
   pedido: Pedido | null
@@ -47,9 +58,10 @@ export default function EditPedidoModal({
     precio: '',
     comentario: '',
     tipo_pago: 'parcial' as 'unico' | 'parcial',
-    selectedProductIds: [] as number[],
-    productQuantities: {} as Record<number, number>
   })
+  const [lineas, setLineas] = useState<LineaEdicion[]>([])
+  const nextUid = useRef(0)
+  const nuevoUid = () => `nueva-${nextUid.current++}`
 
   // Etapas y asignaciones
   const [localEtapas, setLocalEtapas] = useState<Etapa[]>([])
@@ -107,6 +119,7 @@ export default function EditPedidoModal({
     setLoading(true)
 
     const initFormData = async () => {
+      // Se trae el pedido actualizado del servidor; si falla, se usa el que vino por props
       let current = pedido
       if (pedido?.id) {
         try {
@@ -117,12 +130,15 @@ export default function EditPedidoModal({
         }
       }
 
-      const productIds = current.productos?.map((p) => p.id) || []
-      const quantities = current.productos?.reduce((acc, curr) => {
-        const qty = (curr as any).pivot?.cantidad || 1
-        acc[curr.id] = qty
-        return acc
-      }, {} as Record<number, number>) || {}
+      const productIds = Array.from(new Set(current.productos?.map((p) => p.id) || []))
+      // Cada entrada de current.productos es una línea (con su pivot)
+      setLineas((current.productos || []).map((p, i) => ({
+        uid: `linea-${p.pivot?.id ?? `${p.id}-${i}`}`,
+        productId: p.id,
+        cantidad: p.pivot?.cantidad || 1,
+        // Las opciones que la línea no tenga guardadas arrancan con su valor por defecto
+        atributos: { ...valoresPorDefecto(p), ...(p.pivot?.atributos ?? {}) },
+      })))
 
       const defaultDeliveryDate = (() => {
         const d = new Date()
@@ -139,8 +155,6 @@ export default function EditPedidoModal({
         precio: current.precio !== null && current.precio !== undefined ? current.precio.toString() : '',
         comentario: current.comentario || current.descripcion || '',
         tipo_pago: current.tipo_pago || 'parcial',
-        selectedProductIds: productIds,
-        productQuantities: quantities
       })
 
       // Precargar etapas y asignaciones
@@ -185,44 +199,55 @@ export default function EditPedidoModal({
     return fetchEtapas({ producto_id: productId })
   }
 
-  const handleProductCheckboxChange = async (productId: number) => {
-    const isSelected = formData.selectedProductIds.includes(productId)
-    let updatedIds: number[]
-    let updatedQuantities = { ...formData.productQuantities }
+  const getProduct = (productId: number) =>
+    productosList.find((p) => p.id === productId) ?? pedido?.productos?.find((p) => p.id === productId)
 
-    if (isSelected) {
-      updatedIds = formData.selectedProductIds.filter((id) => id !== productId)
-      delete updatedQuantities[productId]
-      setLocalEtapas((prevEtapas) => prevEtapas.filter(s => s.producto_id !== productId))
-    } else {
-      updatedIds = [...formData.selectedProductIds, productId]
-      updatedQuantities[productId] = 1
-      try {
-        const productStages = await etapasDeProducto(productId, pedidoTareas)
-        setLocalEtapas((prevEtapas) => {
-          const filtered = prevEtapas.filter(s => s.producto_id !== productId)
-          return [...filtered, ...productStages]
-        })
-      } catch (err) {
-        console.error('Error al obtener etapas del producto:', err)
-      }
+  // Productos distintos del pedido (para las etapas y responsables)
+  const productIdsDelPedido = useMemo(() => Array.from(new Set(lineas.map((l) => l.productId))), [lineas])
+
+  // Líneas repetidas: mismo producto con los mismos atributos (no se pueden guardar así)
+  const lineasRepetidas = useMemo(() => {
+    const vistas = new Map<string, number>()
+    for (const l of lineas) {
+      const key = claveLinea(l.productId, normalizarValores(getProduct(l.productId), l.atributos))
+      vistas.set(key, (vistas.get(key) ?? 0) + 1)
     }
+    return new Set(
+      lineas
+        .filter((l) => (vistas.get(claveLinea(l.productId, normalizarValores(getProduct(l.productId), l.atributos))) ?? 0) > 1)
+        .map((l) => l.uid)
+    )
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lineas, productosList])
 
-    setFormData((prev) => ({
+  const handleAgregarLinea = async (productId: number) => {
+    const yaEstaba = lineas.some((l) => l.productId === productId)
+    setLineas((prev) => [
       ...prev,
-      selectedProductIds: updatedIds,
-      productQuantities: updatedQuantities
-    }))
+      { uid: nuevoUid(), productId, cantidad: 1, atributos: valoresPorDefecto(getProduct(productId)) },
+    ])
+
+    // Las etapas son por producto: se cargan solo la primera vez que entra al pedido
+    if (yaEstaba) return
+    try {
+      const productStages = await etapasDeProducto(productId, pedidoTareas)
+      setLocalEtapas((prevEtapas) => [...prevEtapas.filter((s) => s.producto_id !== productId), ...productStages])
+    } catch (err) {
+      console.error('Error al obtener etapas del producto:', err)
+    }
   }
 
-  const handleProductQuantityChange = (productId: number, val: number) => {
-    setFormData((prev) => ({
-      ...prev,
-      productQuantities: {
-        ...prev.productQuantities,
-        [productId]: val
-      }
-    }))
+  const handleQuitarLinea = (uid: string) => {
+    const linea = lineas.find((l) => l.uid === uid)
+    const restantes = lineas.filter((l) => l.uid !== uid)
+    setLineas(restantes)
+    if (linea && !restantes.some((l) => l.productId === linea.productId)) {
+      setLocalEtapas((prevEtapas) => prevEtapas.filter((s) => s.producto_id !== linea.productId))
+    }
+  }
+
+  const handleCambiarLinea = (uid: string, cambios: Partial<Pick<LineaEdicion, 'cantidad' | 'atributos'>>) => {
+    setLineas((prev) => prev.map((l) => (l.uid === uid ? { ...l, ...cambios } : l)))
   }
 
   const handleAssignTask = async (stageId: number | string, userIdVal: string) => {
@@ -274,6 +299,11 @@ export default function EditPedidoModal({
 
     const precioNum = parseFloat(formData.precio)
 
+    if (lineasRepetidas.size > 0) {
+      setError('Hay productos repetidos con los mismos atributos. Cambiá algún atributo o dejá una sola línea con la cantidad total.')
+      return
+    }
+
     try {
       setSaving(true)
       const payload: UpdatePedidoInput = {
@@ -286,9 +316,10 @@ export default function EditPedidoModal({
         comentario: formData.comentario || null,
         descripcion: formData.comentario || null,
         tipo_pago: formData.tipo_pago,
-        productos: formData.selectedProductIds.map((id) => ({
-          id,
-          cantidad: formData.productQuantities[id] || 1
+        productos: lineas.map((l) => ({
+          id: l.productId,
+          cantidad: l.cantidad || 1,
+          atributos: normalizarValores(getProduct(l.productId), l.atributos),
         })),
         asignaciones: Object.entries(localAssignments).map(([key, userId]) => ({
           etapa_id: parseInt(key),
@@ -453,12 +484,15 @@ export default function EditPedidoModal({
               onChange={(e) => setFormData({ ...formData, comentario: e.target.value })}
               className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition h-20 resize-none"
             />
+            <p className="mt-1 text-[11px] text-slate-500">
+              El bloque &quot;Atributos de los productos&quot; se arma solo con los productos del pedido y se actualiza al guardar.
+            </p>
           </div>
 
-          {/* Selección de Productos */}
+          {/* Selección de Productos: cada "Agregar" suma una línea; se puede repetir con otros atributos */}
           <div>
             <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
-              Productos Asociados
+              Agregar Productos
             </label>
             <div className="mb-2">
               <input
@@ -472,37 +506,28 @@ export default function EditPedidoModal({
             {productosList.length === 0 ? (
               <p className="text-slate-500 italic text-xs">No hay productos disponibles.</p>
             ) : (
-              <div className="bg-slate-950 border border-slate-800 rounded-lg p-3 max-h-40 overflow-y-auto space-y-2">
+              <div className="bg-slate-950 border border-slate-800 rounded-lg p-2 max-h-40 overflow-y-auto space-y-1">
                 {productosList
                   .filter((prod) => (prod.nombre || '').toLowerCase().includes(productSearchQuery.toLowerCase().trim()))
                   .map((prod) => {
-                    const isSelected = formData.selectedProductIds.includes(prod.id)
+                    const enPedido = lineas.filter((l) => l.productId === prod.id).length
                     return (
-                      <div key={prod.id} className="flex items-center justify-between text-sm p-1 hover:bg-slate-900/60 rounded">
-                        <label className="flex items-center gap-2.5 cursor-pointer flex-grow text-left">
-                          <input
-                            type="checkbox"
-                            checked={isSelected}
-                            onChange={() => handleProductCheckboxChange(prod.id)}
-                            className="rounded border-slate-800 bg-slate-900 text-blue-600 focus:ring-blue-500/20"
-                          />
-                          <span className="font-semibold text-xs text-slate-200">{prod.nombre}</span>
-                        </label>
-                        {isSelected && (
-                          <div className="flex items-center gap-1">
-                            <span className="text-[10px] text-slate-400 font-semibold">Cant:</span>
-                            <input
-                              type="number"
-                              min={1}
-                              // Vacío muestra el placeholder "1"; al guardar, vacío se envía como 1
-                              value={formData.productQuantities[prod.id] || ''}
-                              placeholder="1"
-                              onFocus={(e) => e.target.select()}
-                              onChange={(e) => handleProductQuantityChange(prod.id, parseInt(e.target.value) || 0)}
-                              className="w-14 placeholder:text-slate-500 bg-slate-900 border border-slate-800 rounded px-1.5 py-0.5 text-xs text-white focus:outline-none focus:border-blue-500 text-center"
-                            />
-                          </div>
-                        )}
+                      <div key={prod.id} className="flex items-center justify-between gap-2 text-sm px-1.5 py-1 hover:bg-slate-900/60 rounded">
+                        <span className="min-w-0 truncate font-semibold text-xs text-slate-200">{prod.nombre}</span>
+                        <div className="flex shrink-0 items-center gap-2">
+                          {enPedido > 0 && (
+                            <span className="text-[10px] font-semibold text-blue-300 bg-blue-500/10 border border-blue-500/20 px-1.5 py-0.5 rounded">
+                              En el pedido{enPedido > 1 ? ` (${enPedido})` : ''}
+                            </span>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => handleAgregarLinea(prod.id)}
+                            className="text-[11px] font-bold text-blue-400 hover:text-blue-300 hover:bg-blue-500/10 px-2 py-0.5 rounded transition cursor-pointer"
+                          >
+                            + Agregar
+                          </button>
+                        </div>
                       </div>
                     )
                   })}
@@ -510,15 +535,75 @@ export default function EditPedidoModal({
             )}
           </div>
 
+          {/* Líneas del pedido: cantidad y atributos de cada una */}
+          <div>
+            <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
+              Productos del Pedido ({lineas.length})
+            </label>
+            {lineas.length === 0 ? (
+              <p className="text-slate-500 italic text-xs">Todavía no hay productos en el pedido.</p>
+            ) : (
+              <ul className="space-y-2">
+                {lineas.map((linea) => {
+                  const product = getProduct(linea.productId)
+                  const repetida = lineasRepetidas.has(linea.uid)
+                  return (
+                    <li
+                      key={linea.uid}
+                      className={`rounded-lg border p-2.5 space-y-2 ${repetida ? 'border-rose-500/50 bg-rose-500/5' : 'border-slate-800 bg-slate-950/60'}`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className="min-w-0 flex-1 truncate text-xs font-bold text-slate-200">{product?.nombre ?? `Producto #${linea.productId}`}</span>
+                        <span className="text-[10px] text-slate-400 font-semibold">Cant:</span>
+                        <input
+                          type="number"
+                          min={1}
+                          // Vacío muestra el placeholder "1"; al guardar, vacío se envía como 1
+                          value={linea.cantidad || ''}
+                          placeholder="1"
+                          onFocus={(e) => e.target.select()}
+                          onChange={(e) => handleCambiarLinea(linea.uid, { cantidad: parseInt(e.target.value) || 0 })}
+                          className="w-16 placeholder:text-slate-500 bg-slate-900 border border-slate-800 rounded px-1.5 py-0.5 text-xs text-white focus:outline-none focus:border-blue-500 text-center"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => handleQuitarLinea(linea.uid)}
+                          className="grid size-6 place-items-center rounded text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 transition cursor-pointer"
+                          title="Quitar del pedido"
+                          aria-label="Quitar del pedido"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                      {product && (
+                        <AtributosLineaFields
+                          compact
+                          product={product}
+                          value={linea.atributos}
+                          onChange={(atributos) => handleCambiarLinea(linea.uid, { atributos })}
+                        />
+                      )}
+                      {repetida && (
+                        <p className="text-[11px] font-semibold text-rose-300">
+                          Este producto ya está en el pedido con los mismos atributos.
+                        </p>
+                      )}
+                    </li>
+                  )
+                })}
+              </ul>
+            )}
+          </div>
+
           {/* Etapas de Fabricación y Operarios Responsables */}
-          {formData.selectedProductIds.length > 0 && (
+          {productIdsDelPedido.length > 0 && (
             <div className="border-t border-slate-800 pt-3 space-y-2">
               <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider">
                 Asignación de Operarios por Etapa
               </label>
               <div className="space-y-3 max-h-48 overflow-y-auto bg-slate-950/60 p-3 rounded-lg border border-slate-800">
-                {formData.selectedProductIds.map((prodId) => {
-                  const product = productosList.find(p => p.id === prodId)
+                {productIdsDelPedido.map((prodId) => {
+                  const product = getProduct(prodId)
                   const productStages = topologicalSortEtapas(
                     localEtapas.filter(s => s.producto_id === prodId)
                   )

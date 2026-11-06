@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Producto;
+use App\Rules\AtributosProducto;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Http\JsonResponse;
@@ -42,6 +43,8 @@ class ProductoController extends Controller
         $validator = Validator::make($request->all(), [
             'nombre' => 'required|string|max:255',
             'descripcion' => 'nullable|string',
+            'precio' => 'sometimes|numeric|min:0',
+            'atributos' => ['sometimes', 'array', new AtributosProducto()],
         ]);
 
         if ($validator->fails()) {
@@ -52,7 +55,7 @@ class ProductoController extends Controller
             ], 422);
         }
 
-        $producto = Producto::create($request->all());
+        $producto = Producto::create($validator->validated());
 
         return response()->json([
             'status' => 'success',
@@ -98,6 +101,9 @@ class ProductoController extends Controller
         $validator = Validator::make($request->all(), [
             'nombre' => 'sometimes|required|string|max:255',
             'descripcion' => 'sometimes|nullable|string',
+            'precio' => 'sometimes|numeric|min:0',
+            // Se manda la lista completa: reemplaza los atributos que tenía el producto
+            'atributos' => ['sometimes', 'array', new AtributosProducto()],
         ]);
 
         if ($validator->fails()) {
@@ -108,7 +114,7 @@ class ProductoController extends Controller
             ], 422);
         }
 
-        $producto->update($request->all());
+        $producto->update($validator->validated());
 
         return response()->json([
             'status' => 'success',
