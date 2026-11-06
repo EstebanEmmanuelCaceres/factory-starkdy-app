@@ -118,7 +118,7 @@ export default function EditPedidoModal({
       }
 
       const productIds = current.productos?.map((p) => p.id) || []
-      const quantities = pedido.productos?.reduce((acc, curr) => {
+      const quantities = current.productos?.reduce((acc, curr) => {
         const qty = (curr as any).pivot?.cantidad || 1
         acc[curr.id] = qty
         return acc
@@ -131,12 +131,12 @@ export default function EditPedidoModal({
       })()
 
       setFormData({
-        cliente_id: current.cliente_id ? pedido.cliente_id.toString() : '',
+        cliente_id: current.cliente_id ? current.cliente_id.toString() : '',
         codigo: current.codigo || '',
         prioridad: current.prioridad || 'normal',
         fecha_entrega: current.fecha_entrega || defaultDeliveryDate,
         estado: current.estado || 'pendiente',
-        precio: current.precio !== null && pedido.precio !== undefined ? pedido.precio.toString() : '',
+        precio: current.precio !== null && current.precio !== undefined ? current.precio.toString() : '',
         comentario: current.comentario || current.descripcion || '',
         tipo_pago: current.tipo_pago || 'parcial',
         selectedProductIds: productIds,
