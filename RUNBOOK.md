@@ -60,6 +60,13 @@ docker compose ps
 
 ## 🛠️ 4. Comandos Frecuentes y Operación Diaria
 
+### Actualización rápida en el Servidor (Script Automatizado)
+Para actualizar el proyecto en el servidor con un solo comando (descarga cambios de Git, recompila imágenes, corre migraciones y limpia caché):
+```bash
+./update.sh
+```
+
+### Otros comandos útiles:
 ```bash
 # Ver logs en tiempo real
 docker compose logs -f frontend
@@ -118,3 +125,4 @@ docker compose up -d --build
 | **05/11/2026** | Configuración de persistencia y healthcheck en PostgreSQL 16. | Evita arranques prematuros de Laravel esperando condición `service_healthy`. |
 | **05/11/2026** | Corrección de persistencia y visibilidad de `comentario` / `descripcion` en Pedidos. | Se removió `comentario` y `fecha_entrega` de `makeHidden` en `PedidoController::index`, se añadieron a la selección SQL, se creó accesor/mutador bidireccional `descripcion` en `Pedido` y sincronización en formularios y modales (`EditPedidoModal`, `PedidoDetailModal` y wizard de creación). |
 | **06/11/2026** | Corrección de tipo TypeScript en `EditPedidoModal.tsx` (`current.precio`). | Resuelve fallo en Docker build (`next build`) por posible valor `null` no controlado en `pedido.precio.toString()`. |
+| **06/11/2026** | Creación del script de despliegue `update.sh` y `.gitattributes`. | Automatiza pull, build docker, migraciones, optimización de Laravel y limpieza de imágenes residuales en el servidor en un solo paso. |
