@@ -836,16 +836,20 @@ export default function PedidoDetailModal({
                       >
                         {/* Cabecera del producto */}
                         <div className="flex flex-wrap items-start justify-between gap-2">
-                          <div className="min-w-0 text-left">
-                            <span className="text-sm font-bold text-white block">
-                              {prod.nombre}
-                            </span>
-                            <span className="text-[10px] text-slate-500 font-bold uppercase">
-                              Cantidad: {qty}
-                            </span>
+                          {/* Nombre y cantidad; las líneas con atributos van debajo en mobile
+                              y en una columna al lado del nombre desde sm, para aprovechar el ancho */}
+                          <div className="flex min-w-0 flex-1 flex-col gap-1.5 text-left sm:flex-row sm:items-start sm:gap-4">
+                            <div className="min-w-0 sm:max-w-[40%] sm:shrink-0">
+                              <span className="text-sm font-bold text-white block">
+                                {prod.nombre}
+                              </span>
+                              <span className="text-[10px] text-slate-500 font-bold uppercase">
+                                Cantidad: {qty}
+                              </span>
+                            </div>
                             {/* Líneas del producto: cantidad y atributos de cada una */}
                             {mostrarLineas && (
-                              <ul className="mt-1.5 space-y-1">
+                              <ul className="min-w-0 flex-1 space-y-1 sm:border-l sm:border-slate-800 sm:pl-4">
                                 {prod.lineas.map((linea, i) => (
                                   <li key={i} className="flex flex-wrap items-center gap-1.5">
                                     <span className="text-[11px] font-mono font-semibold text-slate-400">x{linea.cantidad}</span>

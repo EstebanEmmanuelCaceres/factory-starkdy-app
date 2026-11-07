@@ -2,8 +2,9 @@ import { tieneOpciones, type AtributoProducto, type OpcionAtributo, type TipoAtr
 
 /**
  * Genera la clave a partir de la etiqueta ("Color del vaso" → "color_del_vaso").
- * Si ya existe en el producto se le agrega un sufijo (_2, _3...). La clave no se muestra al usuario
- * y no cambia aunque después se edite la etiqueta, porque es lo que se guarda en los pedidos.
+ * Si ya existe en el producto se le agrega un sufijo (_2, _3...). La clave no se muestra al usuario.
+ * Mientras el atributo no está guardado es provisoria (ver asignarClavesNuevas); una vez guardado ya
+ * no cambia aunque se edite la etiqueta, porque es lo que se guarda en los pedidos.
  */
 export const generarClave = (etiqueta: string, existentes: string[]): string => {
   const base =
@@ -22,7 +23,23 @@ export const generarClave = (etiqueta: string, existentes: string[]): string => 
   return clave
 }
 
-export const crearOpcion = (): OpcionAtributo => ({ valor: '', recargo: 0 })
+/**
+ * Al guardar, los atributos nuevos toman la clave de su etiqueta final: si se creó como
+ * "Platico multicolor" y después se renombró a "Tipo", la clave tiene que ser "tipo".
+ * Las claves ya guardadas no se tocan (los pedidos las usan), y tampoco se reutilizan
+ * las de atributos borrados, para que los pedidos viejos no cambien de significado.
+ */
+export const asignarClavesNuevas = (atributos: AtributoProducto[], guardadas: string[]): AtributoProducto[] => {
+  const usadas = [...guardadas]
+  return atributos.map((atributo) => {
+    if (guardadas.includes(atributo.clave)) return atributo
+    const clave = generarClave(atributo.etiqueta, usadas)
+    usadas.push(clave)
+    return { ...atributo, clave }
+  })
+}
+
+export const crearOpcion =(): OpcionAtributo => ({ valor: '', recargo: 0 })
 
 // Los atributos con opciones arrancan con una vacía para completar, porque necesitan al menos una
 export const crearAtributo = (tipo: TipoAtributo, etiqueta: string, claves: string[]): AtributoProducto => {

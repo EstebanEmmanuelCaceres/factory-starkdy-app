@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { updateProduct, type Product } from '@/lib/products'
 import { estaHabilitado, tieneOpciones, type AtributoProducto, type OpcionAtributo, type TipoAtributo } from '@/lib/entities/atributos'
-import { crearAtributo, crearOpcion, limpiarAtributos, validarAtributos } from './helpers'
+import { asignarClavesNuevas, crearAtributo, crearOpcion, limpiarAtributos, validarAtributos } from './helpers'
 
 // Campos editables del atributo (cada tipo usa los suyos)
 export interface CambiosAtributo {
@@ -130,7 +130,8 @@ export const useAtributosProducto = (producto: Product | null, abierto: boolean)
 
     setGuardando(true)
     try {
-      return await updateProduct(producto.id, { atributos: limpiarAtributos(atributos) })
+      const guardadas = (producto.atributos ?? []).map((a) => a.clave)
+      return await updateProduct(producto.id, { atributos: limpiarAtributos(asignarClavesNuevas(atributos, guardadas)) })
     } catch (err: unknown) {
       setErrores([err instanceof Error ? err.message : 'Error al guardar los atributos'])
       return null
