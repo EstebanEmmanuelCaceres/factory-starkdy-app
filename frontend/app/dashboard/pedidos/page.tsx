@@ -5,6 +5,7 @@ import RoleGuard from '@/components/RoleGuard'
 import OrderImageGallery from '@/components/OrderImageGallery'
 import Modal from '@/components/Modal'
 import PedidoDetailModal from '@/components/PedidoDetailModal'
+import PedidosAccionMasiva from '@/components/PedidosAccionMasiva'
 import ProgressBar from '@/components/ProgressBar'
 import EditPedidoModal from '@/components/EditPedidoModal'
 import PaymentModal from '@/components/PaymentModal'
@@ -152,6 +153,8 @@ export default function PedidosPage() {
 
   // Paginación
   const [currentPage, setCurrentPage] = useState(1)
+  // Pedidos marcados en la tabla para cambiarlos en lote (solo admin)
+  const [seleccionados, setSeleccionados] = useState<number[]>([])
 
   useEffect(() => {
     setCurrentPage(1)
@@ -989,6 +992,17 @@ export default function PedidosPage() {
 
   const isOperario = currentUser?.role === 'operario' || currentUser?.role === 'operator'
 
+  // Selección para acciones en lote: el encabezado marca o desmarca la página visible
+  const isAdmin = currentUser?.role === 'admin'
+  const idsPagina = displayedPedidos.map((p) => p.id)
+  const paginaSeleccionada = idsPagina.length > 0 && idsPagina.every((id) => seleccionados.includes(id))
+  const toggleSeleccion = (id: number) =>
+    setSeleccionados((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]))
+  const togglePagina = () =>
+    setSeleccionados((prev) =>
+      paginaSeleccionada ? prev.filter((id) => !idsPagina.includes(id)) : Array.from(new Set([...prev, ...idsPagina]))
+    )
+
   return (
     <RoleGuard allowedRoles={['admin', 'supervisor', 'encargado', 'vendedor', 'disenador', 'disenadora', 'operario', 'operator']}>
       <main className="page-content p-6 text-white">
@@ -1126,6 +1140,18 @@ export default function PedidosPage() {
           </div>
         </div>
 
+        {isAdmin && (
+          <PedidosAccionMasiva
+            ids={seleccionados}
+            onLimpiar={() => setSeleccionados([])}
+            onAplicado={(_, ids) => {
+              setSeleccionados([])
+              showNotification(`${ids.length} pedido(s) actualizados`)
+              loadData()
+            }}
+          />
+        )}
+
         {/* Listado de Pedidos con Altura Fija para evitar saltos */}
         <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-lg min-h-[660px] flex flex-col justify-between">
           {loading ? (
@@ -1163,8 +1189,19 @@ export default function PedidosPage() {
                     <div
                       key={pedido.id}
                       onClick={(e) => handleRowClick(e, pedido)}
-                      className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-3.5 shadow-xl text-left cursor-pointer hover:border-slate-700 transition"
+                      className={`bg-slate-900 border rounded-2xl p-4 space-y-3.5 shadow-xl text-left cursor-pointer hover:border-slate-700 transition ${seleccionados.includes(pedido.id) ? 'border-blue-500/60' : 'border-slate-800'}`}
                     >
+                      {isAdmin && (
+                        <label className="flex w-fit items-center gap-2 text-xs font-semibold text-slate-300" data-prevent-row-click>
+                          <input
+                            type="checkbox"
+                            checked={seleccionados.includes(pedido.id)}
+                            onChange={() => toggleSeleccion(pedido.id)}
+                            className="size-4 accent-blue-600"
+                          />
+                          Seleccionar
+                        </label>
+                      )}
                       {/* Imagen en el centro grande */}
                       <div className="w-full relative rounded-xl overflow-hidden bg-slate-950 border border-slate-800 flex items-center justify-center">
                         <ImagePedido
@@ -1316,6 +1353,17 @@ export default function PedidosPage() {
                 <table className="w-full text-left border-collapse">
                   <thead>
                     <tr className="border-b border-slate-800 bg-slate-950/40 text-slate-400 font-semibold text-xs uppercase tracking-wider select-none whitespace-nowrap">
+                      {isAdmin && (
+                        <th className="w-10 pl-4">
+                          <input
+                            type="checkbox"
+                            checked={paginaSeleccionada}
+                            onChange={togglePagina}
+                            className="size-4 accent-blue-600 cursor-pointer"
+                            aria-label="Seleccionar todos los pedidos de la página"
+                          />
+                        </th>
+                      )}
                       <th onClick={() => handleSort('cliente')} className={`${CELL_FIRST} cursor-pointer hover:text-white transition`}>
                         Empresa / Cliente{sortArrow('cliente')}
                       </th>
@@ -1348,8 +1396,19 @@ export default function PedidosPage() {
                         <tr
                           key={pedido.id}
                           onClick={(e) => handleRowClick(e, pedido)}
-                          className="hover:bg-slate-800/40 text-slate-300 transition duration-100 cursor-pointer"
+                          className={`hover:bg-slate-800/40 text-slate-300 transition duration-100 cursor-pointer ${seleccionados.includes(pedido.id) ? 'bg-blue-500/5' : ''}`}
                         >
+                          {isAdmin && (
+                            <td className="w-10 pl-4">
+                              <input
+                                type="checkbox"
+                                checked={seleccionados.includes(pedido.id)}
+                                onChange={() => toggleSeleccion(pedido.id)}
+                                className="size-4 accent-blue-600 cursor-pointer"
+                                aria-label={`Seleccionar pedido ${pedido.codigo}`}
+                              />
+                            </td>
+                          )}
                           {/* Miniatura (abre las imágenes del pedido) + empresa / cliente */}
                           <td className={CELL_FIRST}>
                             <div className="flex items-center gap-3 2xl:gap-4">

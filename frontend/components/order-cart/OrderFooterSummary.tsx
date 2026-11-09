@@ -1,7 +1,7 @@
 'use client'
 
 import { useFormContext, useWatch } from 'react-hook-form'
-import { OrderFormValues, getOrderTotal } from './Types'
+import { OrderFormValues, getOrderPrice } from './Types'
 
 const money = new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 })
 
@@ -9,9 +9,10 @@ export const OrderFooterSummary = () => {
     const { control } = useFormContext<OrderFormValues>()
     const lines = useWatch({ control, name: 'lines' })
     const discount = useWatch({ control, name: 'discount' })
+    const priceOverride = useWatch({ control, name: 'priceOverride' })
     const paid = useWatch({ control, name: 'payment.amount' })
 
-    const total = getOrderTotal(lines, discount)
+    const total = getOrderPrice(lines, discount, priceOverride)
     const units = lines.reduce((acc, line) => acc + (line.quantity || 0), 0)
     const pending = Math.max(total - (paid || 0), 0)
 

@@ -14,6 +14,7 @@ class PedidoImagen extends Model
 
     protected $fillable = [
         'pedido_id',
+        'comentario_id',
         'url',
         'path_almacenamiento',
         'orden',

@@ -1,6 +1,6 @@
 import type { CreatePedidoInput, LineaPedidoInput } from '@/lib/pedidos'
 import { claveLinea } from '@/components/PedidoAtributos/helpers'
-import { OrderFormValues, OrderLine, getOrderTotal } from './Types'
+import { OrderFormValues, OrderLine, getOrderPrice } from './Types'
 
 export const generatePedidoCodigo = () => `PD-${Date.now().toString().slice(-6)}`
 
@@ -37,7 +37,7 @@ export function buildCreatePedidoPayload(
     values: OrderFormValues,
     { codigo, newClient }: BuildPedidoPayloadOptions,
 ): CreatePedidoInput {
-    const total = getOrderTotal(values.lines, values.discount)
+    const total = getOrderPrice(values.lines, values.discount, values.priceOverride)
     const paid = values.payment.amount || 0
     const clientId = values.client?.id ?? null
 

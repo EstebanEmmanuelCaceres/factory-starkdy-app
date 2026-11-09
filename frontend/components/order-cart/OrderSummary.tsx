@@ -3,7 +3,7 @@
 import { useFormContext, useWatch } from 'react-hook-form'
 import type { Product } from '@/lib/products'
 import { AtributosLineaResumen } from '@/components/PedidoAtributos/AtributosLineaResumen'
-import { OrderFormValues, getInitials, getLineSubtotal, getOrderTotal } from './Types'
+import { OrderFormValues, getInitials, getLineSubtotal, getOrderPrice, getOrderTotal } from './Types'
 import { PRIORIDADES } from './PriorityField'
 import { MEDIOS_PAGO } from './PaymentMethodField'
 
@@ -22,14 +22,15 @@ interface OrderSummaryProps {
 
 export const OrderSummary = ({ products }: OrderSummaryProps) => {
     const { control } = useFormContext<OrderFormValues>()
-    const [client, deliveryDate, priority, comment, lines, discount, payment] = useWatch({
+    const [client, deliveryDate, priority, comment, lines, discount, priceOverride, payment] = useWatch({
         control,
-        name: ['client', 'deliveryDate', 'priority', 'comment', 'lines', 'discount', 'payment'],
+        name: ['client', 'deliveryDate', 'priority', 'comment', 'lines', 'discount', 'priceOverride', 'payment'],
     })
 
     const subtotal = lines.reduce((acc, line) => acc + getLineSubtotal(line), 0)
-    const total = getOrderTotal(lines, discount)
-    const discountAmount = subtotal - total
+    const calculated = getOrderTotal(lines, discount)
+    const total = getOrderPrice(lines, discount, priceOverride)
+    const discountAmount = subtotal - calculated
     const paid = payment.amount || 0
     const pending = Math.max(total - paid, 0)
 
@@ -104,8 +105,14 @@ export const OrderSummary = ({ products }: OrderSummaryProps) => {
                         <span className="tabular-nums">− {money.format(discountAmount)}</span>
                     </div>
                 )}
+                {priceOverride !== null && priceOverride !== calculated && (
+                    <div className="flex justify-between text-[#a8b3c8]">
+                        <span>Según productos (referencia)</span>
+                        <span className="tabular-nums line-through">{money.format(calculated)}</span>
+                    </div>
+                )}
                 <div className="flex items-baseline justify-between border-t border-[#1b263d] pt-2">
-                    <span className="font-semibold">Total</span>
+                    <span className="font-semibold">Total{priceOverride !== null && ' (precio acordado)'}</span>
                     <span className="text-xl font-bold tabular-nums">{money.format(total)}</span>
                 </div>
                 {paid > 0 && (

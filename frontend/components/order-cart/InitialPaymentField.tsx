@@ -1,7 +1,7 @@
 'use client'
 
 import { useFormContext, useWatch } from 'react-hook-form'
-import { OrderFormValues, getOrderTotal } from './Types'
+import { OrderFormValues, getOrderPrice } from './Types'
 import { PaymentMethodField } from './PaymentMethodField'
 
 const money = new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 2 })
@@ -11,8 +11,9 @@ export const InitialPaymentField = () => {
     const { register, setValue, control, formState: { errors } } = useFormContext<OrderFormValues>()
     const lines = useWatch({ control, name: 'lines' })
     const discount = useWatch({ control, name: 'discount' })
+    const priceOverride = useWatch({ control, name: 'priceOverride' })
     const amount = useWatch({ control, name: 'payment.amount' })
-    const total = getOrderTotal(lines, discount)
+    const total = getOrderPrice(lines, discount, priceOverride)
     const pending = Math.max(total - (amount || 0), 0)
 
     const setAmount = (value: number) =>

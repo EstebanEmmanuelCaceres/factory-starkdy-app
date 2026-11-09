@@ -113,6 +113,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('pedidos/completados-por-cobrar', [PedidoController::class, 'completadosPorCobrar']);
     // 'progreso' va antes de {id} para que no se tome como un id
     Route::get('pedidos/progreso', [PedidoController::class, 'progresos']);
+    Route::patch('pedidos/estado', [PedidoController::class, 'cambiarEstado']); // en lote, solo admin
     Route::get('pedidos/{id}/progreso', [PedidoController::class, 'progreso']);
     Route::get('pedidos/{id}', [PedidoController::class, 'show']);
     Route::patch('pedidos/{id}', [PedidoController::class, 'update']);
@@ -121,6 +122,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('pedidos/{id}/productos/{productoId}/completar-etapas', [PedidoController::class, 'completarEtapasProducto']);
     Route::get('pedidos/{id}/comentarios', [PedidoController::class, 'getComentarios']);
     Route::post('pedidos/{id}/comentarios', [PedidoController::class, 'addComentario']);
+    Route::patch('pedidos/{id}/comentarios/{comentarioId}', [PedidoController::class, 'updateComentario']);
+    Route::delete('pedidos/{id}/comentarios/{comentarioId}', [PedidoController::class, 'deleteComentario']);
     Route::get("clientes-with-pedidos", [ClienteController::class, 'clientesWithPedidos']);
 
     // ── Imágenes de Pedidos ───────────────────────────────────────

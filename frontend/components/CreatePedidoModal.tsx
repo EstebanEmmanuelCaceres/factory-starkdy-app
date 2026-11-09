@@ -8,6 +8,7 @@ import { fetchProducts, type Product } from '@/lib/products'
 import { createPedido, type CreatePedidoInput, type Pedido } from '@/lib/pedidos'
 import { WizardStepper, type WizardStep } from './WizardStep'
 import { OrderBar } from './order-cart/OrderBar'
+import { OrderPriceField } from './order-cart/OrderPriceField'
 import { InitialPaymentField } from './order-cart/InitialPaymentField'
 import { OrderFooterSummary } from './order-cart/OrderFooterSummary'
 import { WizardFooter, WIZARD_FOOTER_SPACE, type WizardFooterAction } from './WizardFooter'
@@ -866,8 +867,9 @@ export const CreatePedidoModal = ({
                       <li key={line.id} className="flex items-center gap-3 rounded-[12px] border border-[#1b263d] bg-[#0f192b] px-3.5 py-2.5">
                         <div className="min-w-0 flex-1">
                           <p className="truncate text-[14px] font-semibold text-[#e7ecf5]">{getProductName(line.productId)}</p>
-                          <p className="text-[12px] text-[#a8b3c8]">
-                            {line.quantity} u.{line.unitPriceOverride != null && ` · $ ${line.unitPriceOverride} c/u`}
+                          <p className="mt-0.5 flex items-baseline gap-1.5 text-[12px] text-[#a8b3c8]">
+                            <span className="rounded bg-[#193a81] px-1.5 py-0.5 text-[13px] font-bold tabular-nums text-white">{line.quantity} u</span>
+                            {line.unitPriceOverride != null && <span>$ {line.unitPriceOverride} c/u</span>}
                           </p>
                           <AtributosLineaResumen
                             product={productosList.find((p) => p.id === line.productId)}
@@ -895,6 +897,7 @@ export const CreatePedidoModal = ({
                     <p className="text-[13px] text-[#a8b3c8]">Buscalos por nombre o tocá uno del catálogo para configurarlo.</p>
                   </div>
                 )}
+                <OrderPriceField />
                 <InitialPaymentField />
               </aside>
             </div>

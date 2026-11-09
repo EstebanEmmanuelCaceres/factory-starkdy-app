@@ -5,12 +5,11 @@ import { AtributosLineaResumen } from '@/components/PedidoAtributos/AtributosLin
 import { Modal } from '@/components/Modal/Modal'
 import {
   type Pedido,
-  type ComentarioPedido,
   getPedido,
   updatePedido,
-  createPedidoComentario,
   completarEtapasProducto
 } from '@/lib/pedidos'
+import PedidoComentarios from '@/components/PedidoComentarios'
 import { topologicalSortEtapas, type Etapa } from '@/lib/entities/etapas'
 import ProgressBar from '@/components/ProgressBar'
 import { fetchResponsablesEtapas, assignTask, etapasDesdeTareas, type ResponsableEtapa } from '@/lib/responsable_etapas'
@@ -59,8 +58,6 @@ export default function PedidoDetailModal({
   // Estados locales de la UI
   const [isEditCommentActive, setIsEditCommentActive] = useState(false)
   const [tempComentario, setTempComentario] = useState('')
-  const [nuevoComentario, setNuevoComentario] = useState('')
-  const [isSubmittingComment, setIsSubmittingComment] = useState(false)
   const [openAccordions, setOpenAccordions] = useState<Record<number, boolean>>({})
   const [isLoadingStages, setIsLoadingStages] = useState(true)
   const [notification, setNotification] = useState('')
@@ -187,22 +184,11 @@ export default function PedidoDetailModal({
     }
   }
 
-  const handleAddComment = async () => {
-    if (!nuevoComentario.trim() || isSubmittingComment) return
-    try {
-      setIsSubmittingComment(true)
-      setError('')
-      const comment = await createPedidoComentario(currentPedido.id, nuevoComentario)
-      const updatedComments: ComentarioPedido[] = [comment, ...(currentPedido.comentarios || [])]
-      const updatedPedido: Pedido = { ...currentPedido, comentarios: updatedComments }
-      setCurrentPedido(updatedPedido)
-      if (onUpdatePedido) onUpdatePedido(updatedPedido)
-      setNuevoComentario('')
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Error al publicar comentario')
-    } finally {
-      setIsSubmittingComment(false)
-    }
+  // Cambios que no necesitan volver a pedir el pedido (comentarios, imágenes nuevas)
+  const actualizarPedidoLocal = (cambios: Partial<Pedido>) => {
+    const actualizado: Pedido = { ...currentPedido, ...cambios }
+    setCurrentPedido(actualizado)
+    onUpdatePedido?.(actualizado)
   }
 
   const handleCompleteTask = async (task: ResponsableEtapa | null, stage: Etapa) => {
@@ -843,8 +829,10 @@ export default function PedidoDetailModal({
                               <span className="text-sm font-bold text-white block">
                                 {prod.nombre}
                               </span>
-                              <span className="text-[10px] text-slate-500 font-bold uppercase">
-                                Cantidad: {qty}
+                              {/* Cantidad bien visible: es lo primero que se mira al producir */}
+                              <span className="mt-1 inline-flex items-baseline gap-1 rounded-md border border-blue-500/30 bg-blue-500/10 px-2 py-0.5 text-blue-200">
+                                <span className="text-base font-extrabold tabular-nums leading-none">{qty}</span>
+                                <span className="text-[10px] font-bold uppercase tracking-wide">unidades</span>
                               </span>
                             </div>
                             {/* Líneas del producto: cantidad y atributos de cada una */}
@@ -852,7 +840,7 @@ export default function PedidoDetailModal({
                               <ul className="min-w-0 flex-1 space-y-1 sm:border-l sm:border-slate-800 sm:pl-4">
                                 {prod.lineas.map((linea, i) => (
                                   <li key={i} className="flex flex-wrap items-center gap-1.5">
-                                    <span className="text-[11px] font-mono font-semibold text-slate-400">x{linea.cantidad}</span>
+                                    <span className="rounded bg-slate-800 px-1.5 py-0.5 text-xs font-bold tabular-nums text-white">x{linea.cantidad}</span>
                                     <AtributosLineaResumen product={prod} valores={linea.atributos} />
                                   </li>
                                 ))}
@@ -1220,49 +1208,14 @@ export default function PedidoDetailModal({
               <span>💬</span> Comentarios y Actividad
             </h3>
 
-            <div className="space-y-2 mb-4 text-left">
-              <textarea
-                value={nuevoComentario}
-                onChange={(e) => setNuevoComentario(e.target.value)}
-                placeholder="Escribe un comentario..."
-                className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-xs text-white placeholder-slate-550 focus:outline-none focus:border-blue-500 transition resize-none h-16"
-              />
-              <button
-                type="button"
-                disabled={!nuevoComentario.trim() || isSubmittingComment}
-                onClick={handleAddComment}
-                className="px-3 py-1 bg-blue-600 hover:bg-blue-500 disabled:bg-slate-850 disabled:text-slate-650 text-white rounded text-xs font-semibold transition"
-              >
-                {isSubmittingComment ? 'Publicando...' : 'Comentar'}
-              </button>
-            </div>
-
-            <div className="space-y-3 flex-grow">
-              {!currentPedido.comentarios || currentPedido.comentarios.length === 0 ? (
-                <p className="text-xs text-slate-500 italic text-center py-4">
-                  No hay comentarios en este pedido todavía.
-                </p>
-              ) : (
-                currentPedido.comentarios.map((c) => (
-                  <div
-                    key={c.id}
-                    className="bg-slate-950/30 border border-slate-850/50 p-2.5 rounded-lg text-left space-y-1.5"
-                  >
-                    <div className="flex items-center justify-between text-[10px]">
-                      <span className="font-bold text-slate-350">{c.user?.name || 'Usuario'}</span>
-                      <span className="text-slate-500 font-mono">
-                        {new Date(c.created_at).toLocaleDateString('es-AR')}{' '}
-                        {new Date(c.created_at).toLocaleTimeString('es-AR', {
-                          hour: '2-digit',
-                          minute: '2-digit'
-                        })}
-                      </span>
-                    </div>
-                    <p className="text-xs text-slate-200 leading-relaxed break-words">{c.cuerpo}</p>
-                  </div>
-                ))
-              )}
-            </div>
+            <PedidoComentarios
+              pedidoId={currentPedido.id}
+              comentarios={currentPedido.comentarios ?? []}
+              onChange={(comentarios) => actualizarPedidoLocal({ comentarios })}
+              onImagenesAgregadas={(imagenes) =>
+                actualizarPedidoLocal({ imagenes: [...(currentPedido.imagenes ?? []), ...imagenes] })
+              }
+            />
           </div>
         </div>
       </div>

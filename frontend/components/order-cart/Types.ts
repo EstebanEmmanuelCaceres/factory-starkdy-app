@@ -53,6 +53,8 @@ export interface OrderFormValues {
     comment: string
     lines: OrderLine[]
     discount: DiscountValue
+    // Precio final del pedido cargado a mano; null = se usa el total calculado con los productos
+    priceOverride: number | null
     payment: PaymentValue
 }
 
@@ -64,6 +66,7 @@ export function getDefaultOrderValues(): OrderFormValues {
         comment: '',
         lines: [],
         discount: { mode: 'monto', value: 0 },
+        priceOverride: null,
         payment: { amount: 0, method: 'transferencia' },
     }
 }
@@ -87,3 +90,7 @@ export function getOrderTotal(lines: OrderLine[], discount: DiscountValue): numb
         : discount.value || 0
     return Math.max(subtotal - discountAmount, 0)
 }
+
+// Precio que se cobra: el cargado a mano o, si no hay, el calculado con los productos (que queda de referencia)
+export const getOrderPrice = (lines: OrderLine[], discount: DiscountValue, priceOverride: number | null): number =>
+    priceOverride ?? getOrderTotal(lines, discount)
