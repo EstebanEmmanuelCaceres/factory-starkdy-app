@@ -151,8 +151,6 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('responsables-etapas', [ResponsableEtapaController::class, 'index']);
     Route::post('responsables-etapas', [ResponsableEtapaController::class, 'store']);
     Route::delete('responsables-etapas/{id}', [ResponsableEtapaController::class, 'destroy']);
-    Route::get('disenos-pendientes', [ResponsableEtapaController::class, 'disenosPendientes']);
-    Route::post('pedidos/{id}/completar-disenos', [ResponsableEtapaController::class, 'completarDisenosPedido']);
     Route::post('responsables-etapas/{id}/start', [OperarioTaskController::class, 'start']);
     Route::post('responsables-etapas/{id}/cancel', [OperarioTaskController::class, 'cancel']);
     Route::post('responsables-etapas/{id}/complete', [OperarioTaskController::class, 'complete']);

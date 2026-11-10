@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useRef } from 'react'
+import Link from 'next/link'
 import RoleGuard from '@/components/RoleGuard'
 import Modal from '@/components/Modal'
 import PedidoDetailModal from '@/components/PedidoDetailModal'
@@ -16,7 +17,7 @@ import {
   type Pedido,
   type PedidoFilters
 } from '@/lib/pedidos'
-import PendingDesignsCard from '@/components/PendingDesignsCard'
+import PedidosSinImagenPanel from '@/components/PedidosSinImagenPanel'
 import PaymentModal from '@/components/PaymentModal'
 
 export default function DashboardPage() {
@@ -27,6 +28,7 @@ export default function DashboardPage() {
   const [refreshing, setRefreshing] = useState(false)
   const [error, setError] = useState('')
   const [currentUser, setCurrentUser] = useState<User | null>(null)
+  const isDisenadora = currentUser?.role === 'disenadora' || currentUser?.role === 'disenador' || currentUser?.role_id === 7 || currentUser?.role_id === 2
 
   // Modal de Detalle Completo del Pedido, Galería de Imágenes y Cobros
   const [selectedPedidoForCommentModal, setSelectedPedidoForCommentModal] = useState<Pedido | null>(null)
@@ -135,7 +137,8 @@ export default function DashboardPage() {
       const user = getStoredUser()
       setCurrentUser(user)
 
-      if (user?.role !== 'vendedor') {
+      const userIsDisenadora = user?.role === 'disenadora' || user?.role === 'disenador' || user?.role_id === 7 || user?.role_id === 2
+      if (user?.role !== 'vendedor' || userIsDisenadora) {
         const usersData = await fetchUsers()
         setUsers(usersData)
       }
@@ -145,7 +148,7 @@ export default function DashboardPage() {
       ])
       setPedidos(pedidosData)
       setCompletedUnpaidPedidos(unpaidData)
-      if (isRefresh && user && user.role !== 'encargado') loadMetricas()
+      if (isRefresh && user && user.role !== 'encargado' && !userIsDisenadora) loadMetricas()
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Error al cargar los datos'
       setError(msg)
@@ -164,7 +167,7 @@ export default function DashboardPage() {
   }, [])
 
   useEffect(() => {
-    if (!currentUser || currentUser.role === 'encargado') return
+    if (!currentUser || currentUser.role === 'encargado' || isDisenadora) return
     loadMetricas()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentUser, selectedCommissionMonth, selectedCommissionYear, selectedVendedorId])
@@ -212,11 +215,10 @@ export default function DashboardPage() {
   // - Vendedor / Diseñador: solo ven sus pedidos.
   // - Operarios: ven únicamente los pedidos fuera del estado 'pendiente'.
   // - Encargado / Supervisor / Admin: ven todos los pedidos (incluyendo los pendientes de todos los vendedores).
-  const isVendedor = ['vendedor', 'disenador', 'disenadora'].includes(currentUser?.role || '')
+  const isVendedor = currentUser?.role === 'vendedor' && !isDisenadora
   const isEncargado = currentUser?.role === 'encargado'
   const isOperativo = ['operario', 'operator'].includes(currentUser?.role || '')
-  const showPendingDesigns = ['vendedor', 'disenador', 'disenadora'].includes(currentUser?.role || '')
-  const hasRightColumnContent = showPendingDesigns || !isEncargado
+  const hasRightColumnContent = !isEncargado && !isDisenadora
 
   const scopedPedidos = isVendedor && currentUser
     ? pedidos.filter(p => p.user_id === currentUser.id)
@@ -254,6 +256,9 @@ export default function DashboardPage() {
     if (valA > valB) return sortOrder === 'asc' ? 1 : -1
     return 0
   })
+
+  // En Pedidos Actuales del dashboard se muestran únicamente los últimos 15 pedidos
+  const latestPedidos = sortedPedidos.slice(0, 15)
 
   // Helper para saldo pendiente de un pedido
   const getPendingBalance = (p: Pedido) => {
@@ -415,10 +420,16 @@ export default function DashboardPage() {
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
             <h1 className="text-3xl font-extrabold text-white tracking-tight">
-              {isVendedor ? `Dashboard de Vendedor - ${currentUser?.name || ''}` : 'Dashboard General'}
+              {isDisenadora
+                ? `Dashboard de Diseñadora - ${currentUser?.name || ''}`
+                : isVendedor
+                  ? `Dashboard de Vendedor - ${currentUser?.name || ''}`
+                  : 'Dashboard General'}
             </h1>
             <p className="text-sm text-slate-400">
-              {isVendedor
+              {isDisenadora
+                ? 'Gestión de diseños, pedidos pendientes de imagen y seguimiento de producción.'
+                : isVendedor
                 ? 'Métricas personales de cobros, comisiones y seguimiento de tus pedidos.'
                 : 'Resumen y métricas en tiempo real de fabricación y cobros.'}
             </p>
@@ -439,8 +450,25 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* Tarjetas de Métricas de Cobros y Comisiones */}
-        {!isEncargado && (
+        {/* Panel de Pedidos a los que les falta cargar imagen (Rol Diseñadora) */}
+        {isDisenadora && (
+          <PedidosSinImagenPanel
+            pedidos={pedidos}
+            vendedores={vendedores}
+            loading={loadingPedidos}
+            onOpenImageModal={(pedido) => {
+              setSelectedPedidoForImages(pedido)
+              setIsImagesModalOpen(true)
+            }}
+            onOpenDetailModal={(pedido) => {
+              setSelectedPedidoForCommentModal(pedido)
+            }}
+            onRefresh={() => loadData(true)}
+          />
+        )}
+
+        {/* Tarjetas de Métricas de Cobros y Comisiones (Ocultas para rol Diseñadora y Encargado) */}
+        {!isEncargado && !isDisenadora && (
           isAdmin ? (
             /* VISTA DE 3 CAJAS REDISEÑADAS PARA EL ROL ADMIN CON GRID ADAPTATIVO POR RESOLUCIÓN */
             <div className="grid grid-cols-1 min-[718px]:grid-cols-2 min-[1501px]:grid-cols-3 gap-6">
@@ -716,7 +744,8 @@ export default function DashboardPage() {
                     <span>📋</span> Pedidos Actuales
                   </h2>
                   <span className="text-xs text-slate-400">
-                    {scopedPedidos.length} {scopedPedidos.length === 1 ? 'pedido encontrado' : 'pedidos encontrados'}
+                    Mostrando los últimos {latestPedidos.length} {latestPedidos.length === 1 ? 'pedido' : 'pedidos'}
+                    {scopedPedidos.length > latestPedidos.length && ` de ${scopedPedidos.length} encontrados`}
                   </span>
                 </div>
                 <div className="flex items-center gap-3">
@@ -819,7 +848,7 @@ export default function DashboardPage() {
                   {/* VISTA EN TARJETAS PARA MOBILE (< md) CON LÍMITE DE 5 POR PÁGINA */}
                   <div className="md:hidden space-y-3 p-3">
                     <div className="max-h-[420px] overflow-y-auto space-y-3 pr-1">
-                      {sortedPedidos
+                      {latestPedidos
                         .slice((mobilePedidosPage - 1) * 5, mobilePedidosPage * 5)
                         .map((pedido) => {
                           const coverUrl =
@@ -879,7 +908,7 @@ export default function DashboardPage() {
                                   </span>
                                 </div>
 
-                                {!isEncargado && (
+                                {!isEncargado && !isDisenadora && (
                                   <div>
                                     <span className="text-slate-500 text-[10px] block mb-0.5">Cobro</span>
                                     {(() => {
@@ -921,9 +950,9 @@ export default function DashboardPage() {
                     </div>
 
                     {/* Paginación Mobile */}
-                    {Math.ceil(sortedPedidos.length / 5) > 1 && (
+                    {Math.ceil(latestPedidos.length / 5) > 1 && (
                       <div className="flex items-center justify-between px-4 py-2 border-t border-slate-800 text-xs text-slate-400">
-                        <span>Página {mobilePedidosPage} de {Math.ceil(sortedPedidos.length / 5)}</span>
+                        <span>Página {mobilePedidosPage} de {Math.ceil(latestPedidos.length / 5)}</span>
                         <div className="flex gap-2">
                           <button
                             onClick={() => setMobilePedidosPage(prev => Math.max(prev - 1, 1))}
@@ -933,8 +962,8 @@ export default function DashboardPage() {
                             Anterior
                           </button>
                           <button
-                            onClick={() => setMobilePedidosPage(prev => Math.min(prev + 1, Math.ceil(sortedPedidos.length / 5)))}
-                            disabled={mobilePedidosPage >= Math.ceil(sortedPedidos.length / 5)}
+                            onClick={() => setMobilePedidosPage(prev => Math.min(prev + 1, Math.ceil(latestPedidos.length / 5)))}
+                            disabled={mobilePedidosPage >= Math.ceil(latestPedidos.length / 5)}
                             className="px-2.5 py-1 bg-slate-800 rounded disabled:opacity-40"
                           >
                             Siguiente
@@ -977,12 +1006,12 @@ export default function DashboardPage() {
                           >
                             Estado {sortField === 'estado' && (sortOrder === 'asc' ? '↑' : '↓')}
                           </th>
-                          {!isEncargado && <th className="px-4 py-3">Dinero</th>}
+                          {!isEncargado && !isDisenadora && <th className="px-4 py-3">Dinero</th>}
                           <th className="px-4 py-3 text-center">Acciones</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-800 text-sm">
-                        {sortedPedidos.map((pedido) => {
+                        {latestPedidos.map((pedido) => {
                           const coverUrl =
                             pedido.imagen_principal?.url ||
                             pedido.imagenes?.find((img) => img.es_principal)?.url ||
@@ -1001,7 +1030,7 @@ export default function DashboardPage() {
                                 {coverUrl ? (
                                   <div
                                     className="w-9 h-9 rounded-lg overflow-hidden border border-slate-700 bg-slate-950 relative flex items-center justify-center shadow"
-                                    title="Portada del pedido"
+                                    title={`Portada ${pedido.codigo}`}
                                   >
                                     {/* eslint-disable-next-line @next/next/no-img-element */}
                                     <img
@@ -1012,8 +1041,14 @@ export default function DashboardPage() {
                                   </div>
                                 ) : (
                                   <div
-                                    className="w-9 h-9 rounded-lg border border-slate-800/80 bg-slate-950/50 flex items-center justify-center text-slate-600 text-xs"
-                                    title="Sin imagen"
+                                    data-prevent-row-click
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      setSelectedPedidoForImages(pedido)
+                                      setIsImagesModalOpen(true)
+                                    }}
+                                    className="w-9 h-9 rounded-lg border border-dashed border-amber-500/50 bg-amber-500/10 flex items-center justify-center text-amber-400 text-xs cursor-pointer hover:bg-amber-500/20 transition"
+                                    title="Sin imagen - Clic para cargar"
                                   >
                                     📷
                                   </div>
@@ -1032,7 +1067,7 @@ export default function DashboardPage() {
                                   {getStatusLabel(pedido.estado)}
                                 </span>
                               </td>
-                              {!isEncargado && (
+                              {!isEncargado && !isDisenadora && (
                                 <td className="px-4 py-3">
                                   {(() => {
                                     const precio = Number(pedido.precio) || 0
@@ -1079,21 +1114,24 @@ export default function DashboardPage() {
                 </div>
               )}
             </div>
+
+            {/* Pie con botón de Ver más hacia la vista de la tabla de pedidos */}
+            <div className="border-t border-slate-800 p-3.5 bg-slate-950/40 flex items-center justify-center">
+              <Link
+                href="/dashboard/pedidos"
+                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-slate-950 hover:bg-slate-850 border border-slate-750 hover:border-blue-500/50 text-blue-400 hover:text-blue-300 font-bold px-6 py-2.5 rounded-xl text-xs transition duration-150 shadow-md group"
+              >
+                <span>Ver más pedidos en la tabla</span>
+                <span className="group-hover:translate-x-1 transition-transform">→</span>
+              </Link>
+            </div>
           </div>
 
-          {/* Columna Derecha: Diseños Pendientes + Completados por Cobrar */}
+          {/* Columna Derecha: Completados por Cobrar */}
           {hasRightColumnContent && (
             <div className="lg:col-span-5 flex flex-col gap-6">
-              {/* Caja de Diseños Pendientes */}
-              {showPendingDesigns && (
-                <PendingDesignsCard
-                  currentUserId={currentUser?.id}
-                  onDesignCompleted={() => loadData(true)}
-                />
-              )}
-
               {/* Tabla Adyacente: Completados por Cobrar (Solo visible para roles con módulo financiero) */}
-              {!isEncargado && (
+              {!isEncargado && !isDisenadora && (
                 <div className="bg-slate-900 border border-slate-800 rounded-2xl shadow-xl overflow-hidden flex flex-col">
                   <div className="border-b border-slate-800 p-5 bg-slate-950/40 flex flex-wrap items-center justify-between gap-3">
                     <div>
@@ -1401,7 +1439,7 @@ export default function DashboardPage() {
             isOpen={isImagesModalOpen}
             onClose={() => {
               setIsImagesModalOpen(false)
-              fetchPedidos().then(setPedidos).catch(console.error)
+              loadData(true)
             }}
             className="max-w-4xl p-6 flex flex-col text-slate-300"
           >
@@ -1419,7 +1457,7 @@ export default function DashboardPage() {
             <OrderImageGallery
               orderId={selectedPedidoForImages.id}
               orderCode={selectedPedidoForImages.codigo}
-              onImagesUpdated={() => fetchPedidos().then(setPedidos).catch(console.error)}
+              onImagesUpdated={() => loadData(true)}
             />
           </Modal>
         )}

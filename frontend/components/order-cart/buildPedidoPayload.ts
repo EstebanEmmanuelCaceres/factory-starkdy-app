@@ -37,7 +37,7 @@ export function buildCreatePedidoPayload(
     values: OrderFormValues,
     { codigo, newClient }: BuildPedidoPayloadOptions,
 ): CreatePedidoInput {
-    const total = getOrderTotal(values.lines, values.discount)
+    const total = getOrderTotal(values.lines, values.discount, values.customTotal)
     const paid = values.payment.amount || 0
     const clientId = values.client?.id ?? null
 

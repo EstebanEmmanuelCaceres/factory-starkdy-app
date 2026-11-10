@@ -1,5 +1,6 @@
 'use client'
 
+import React from 'react'
 import { useFormContext, useWatch } from 'react-hook-form'
 import { OrderFormValues, getOrderTotal } from './Types'
 
@@ -10,8 +11,9 @@ export const OrderFooterSummary = () => {
     const lines = useWatch({ control, name: 'lines' })
     const discount = useWatch({ control, name: 'discount' })
     const paid = useWatch({ control, name: 'payment.amount' })
+    const customTotal = useWatch({ control, name: 'customTotal' })
 
-    const total = getOrderTotal(lines, discount)
+    const total = getOrderTotal(lines, discount, customTotal)
     const units = lines.reduce((acc, line) => acc + (line.quantity || 0), 0)
     const pending = Math.max(total - (paid || 0), 0)
 

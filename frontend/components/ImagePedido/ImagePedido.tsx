@@ -33,7 +33,7 @@ export default function ImagePedido({
 
     return (
         <div
-            data-prevent-row-click="true"
+            {...(onClick ? { 'data-prevent-row-click': 'true' } : {})}
             onClick={onClick}
             title={title}
             className={

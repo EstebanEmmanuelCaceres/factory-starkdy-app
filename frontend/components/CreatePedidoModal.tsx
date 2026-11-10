@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { Modal } from './Modal/Modal'
 import { useModal } from './Modal/context/ModalContext'
 import { fetchClientes, type Cliente } from '@/lib/clientes'
@@ -20,6 +20,8 @@ import { buildCreatePedidoPayload, generatePedidoCodigo } from './order-cart/bui
 import { AtributosLineaResumen } from './PedidoAtributos/AtributosLineaResumen'
 import { claveLinea } from './PedidoAtributos/helpers'
 import type { OrderLine } from './order-cart/Types'
+import ClientQuickPasteBox from './ClientQuickPasteBox'
+import { type ParsedClienteData } from '@/lib/parseClienteText'
 
 export const CREATE_PEDIDO_MODAL_ID = 'create-pedido'
 const CREATE_CLIENTE_FORM_ID = 'wizard-create-cliente'
@@ -89,6 +91,35 @@ export const CreatePedidoModal = ({
     observaciones: ''
   })
 
+  const [isClientExtraOpen, setIsClientExtraOpen] = useState(false)
+  const [needsEmpresaWarning, setNeedsEmpresaWarning] = useState(false)
+  const wizardEmpresaInputRef = useRef<HTMLInputElement | null>(null)
+
+  const handleApplyParsedCliente = (parsed: ParsedClienteData) => {
+    setClienteFormData((prev) => ({
+      ...prev,
+      nombre_cliente: parsed.nombre_cliente || prev.nombre_cliente,
+      nombre_empresa: parsed.nombre_empresa || prev.nombre_empresa,
+      telefono: parsed.telefono || prev.telefono,
+      email: parsed.email || prev.email,
+      dni: parsed.dni || prev.dni,
+      direccion: parsed.direccion || prev.direccion,
+      provincia: parsed.provincia || prev.provincia,
+      cp: parsed.cp || prev.cp,
+      localidad: parsed.localidad || prev.localidad,
+      observaciones: parsed.observaciones || prev.observaciones
+    }))
+    setIsClientExtraOpen(true)
+    if (parsed.missingEmpresa && !clienteFormData.nombre_empresa.trim()) {
+      setNeedsEmpresaWarning(true)
+      setTimeout(() => {
+        wizardEmpresaInputRef.current?.focus()
+      }, 50)
+    } else {
+      setNeedsEmpresaWarning(false)
+    }
+  }
+
   const [productSearchQuery, setProductSearchQuery] = useState('')
   const [createdPedidoResult, setCreatedPedidoResult] = useState<Pedido | null>(null)
   const [error, setError] = useState('')
@@ -113,6 +144,29 @@ export const CreatePedidoModal = ({
   }
   const watchedLines = useWatch({ control: methods.control, name: 'lines' })
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
+  const [editingLineIndex, setEditingLineIndex] = useState<number | null>(null)
+
+  const handleSaveLine = (line: OrderLine) => {
+    if (editingLineIndex !== null) {
+      updateLine(editingLineIndex, line)
+      setEditingLineIndex(null)
+      setSelectedProduct(null)
+    setEditingLineIndex(null)
+    } else {
+      handleAddLine(line)
+    }
+  }
+
+  const handleEditLine = (index: number) => {
+    const lines = methods.getValues('lines')
+    const lineToEdit = lines[index]
+    if (!lineToEdit) return
+    const prod = productosList.find((p) => p.id === lineToEdit.productId)
+    if (!prod) return
+    setEditingLineIndex(index)
+    setSelectedProduct(prod)
+    setWizardStep('order_details')
+  }
 
   // Sincronizar catálogos si vienen por props o cargarlos al abrir
   useEffect(() => {
@@ -152,9 +206,12 @@ export const CreatePedidoModal = ({
     setWizardNewClient(null)
     setCreatedPedidoResult(null)
     setProductSearchQuery('')
+    setIsClientExtraOpen(false)
+    setNeedsEmpresaWarning(false)
     setError('')
     setSubmitting(false)
     setSelectedProduct(null)
+    setEditingLineIndex(null)
     methods.reset(getDefaultOrderValues())
     setFormData({
       cliente_id: '',
@@ -336,10 +393,14 @@ export const CreatePedidoModal = ({
             )}
             {selectedProduct && (
               <ProductDrawer
-                key={selectedProduct.id}
+                key={editingLineIndex !== null ? `edit-${editingLineIndex}-${selectedProduct.id}` : `new-${selectedProduct.id}`}
                 product={selectedProduct}
-                onAdd={handleAddLine}
-                onClose={() => setSelectedProduct(null)}
+                initialLine={editingLineIndex !== null ? watchedLines[editingLineIndex] : null}
+                onAdd={handleSaveLine}
+                onClose={() => {
+                  setSelectedProduct(null)
+                  setEditingLineIndex(null)
+                }}
               />
             )}
           </>
@@ -574,6 +635,22 @@ export const CreatePedidoModal = ({
             ) : (
               /* Formulario de Registro Rápido integrado */
               <form id={CREATE_CLIENTE_FORM_ID} onSubmit={handleWizardCreateClienteSubmit} className="space-y-4 text-left">
+                <ClientQuickPasteBox
+                  onParsed={handleApplyParsedCliente}
+                  currentEmpresaValue={clienteFormData.nombre_empresa}
+                  existingClientes={clientesList}
+                  onSelectExistingClient={(existing) => {
+                    setFormData((prev) => ({ ...prev, cliente_id: existing.id.toString() }))
+                    setClientSearchText(`${existing.nombre_cliente} - ${existing.nombre_empresa}`)
+                    setSelectedWizardClient(existing)
+                    methods.setValue('client', {
+                      id: existing.id,
+                      nombre_cliente: existing.nombre_cliente,
+                      nombre_empresa: existing.nombre_empresa,
+                    })
+                    setClientMode('search')
+                  }}
+                />
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
@@ -595,15 +672,26 @@ export const CreatePedidoModal = ({
                       Nombre de la Empresa *
                     </label>
                     <input
+                      ref={wizardEmpresaInputRef}
                       type="text"
                       required
                       value={clienteFormData.nombre_empresa}
-                      onChange={(e) =>
+                      onChange={(e) => {
                         setClienteFormData({ ...clienteFormData, nombre_empresa: e.target.value })
-                      }
-                      className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition"
-                      placeholder="Ej. Empresa S.A."
+                        if (e.target.value.trim()) setNeedsEmpresaWarning(false)
+                      }}
+                      className={`w-full bg-slate-950 border rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none transition ${
+                        needsEmpresaWarning && !clienteFormData.nombre_empresa.trim()
+                          ? 'border-amber-500 ring-2 ring-amber-500/30 focus:border-amber-400'
+                          : 'border-slate-800 focus:border-blue-500'
+                      }`}
+                      placeholder="Ej. Empresa S.A. / Particular"
                     />
+                    {needsEmpresaWarning && !clienteFormData.nombre_empresa.trim() && (
+                      <span className="text-[11px] text-amber-400 font-medium mt-1 block">
+                        ⚠️ Por favor, ingresá el nombre de la empresa o razón social.
+                      </span>
+                    )}
                   </div>
                 </div>
 
@@ -639,7 +727,11 @@ export const CreatePedidoModal = ({
                   </div>
                 </div>
 
-                <details className="group border border-slate-800 rounded-lg bg-slate-950/30 overflow-hidden">
+                <details
+                  open={isClientExtraOpen}
+                  onToggle={(e) => setIsClientExtraOpen((e.currentTarget as HTMLDetailsElement).open)}
+                  className="group border border-slate-800 rounded-lg bg-slate-950/30 overflow-hidden"
+                >
                   <summary className="list-none flex items-center justify-between p-3 text-xs text-slate-400 font-semibold cursor-pointer select-none hover:bg-slate-950/60 transition">
                     <span>Información Adicional (Dirección, Facturación, etc.)</span>
                     <span className="transition-transform group-open:rotate-180">▼</span>
@@ -826,7 +918,10 @@ export const CreatePedidoModal = ({
                   {filteredProducts.map((product) => (
                     <div
                       key={product.id}
-                      onClick={() => setSelectedProduct(product)}
+                      onClick={() => {
+                        setEditingLineIndex(null)
+                        setSelectedProduct(product)
+                      }}
                       className='group flex flex-col overflow-hidden rounded-[14px] border border-[#1b263d] bg-[#0f192b] text-left text-[#e7ecf5] transition duration-150 hover:-translate-y-0.5 hover:border-[#3b4f7a] hover:shadow-[0_12px_28px_rgba(0,0,0,0.35)] cursor-pointer'
                     >
                       {/* Imagen */}
@@ -863,28 +958,58 @@ export const CreatePedidoModal = ({
                 {lineFields.length > 0 ? (
                   <ul className="flex flex-col gap-2">
                     {lineFields.map((line, index) => (
-                      <li key={line.id} className="flex items-center gap-3 rounded-[12px] border border-[#1b263d] bg-[#0f192b] px-3.5 py-2.5">
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate text-[14px] font-semibold text-[#e7ecf5]">{getProductName(line.productId)}</p>
+                      <li key={line.id} className="group/item flex items-center gap-3 rounded-[12px] border border-[#1b263d] bg-[#0f192b] px-3.5 py-2.5 transition-colors hover:border-[#2a3a59]">
+                        <div
+                          className="min-w-0 flex-1 cursor-pointer"
+                          onClick={() => handleEditLine(index)}
+                          title="Hacé clic para editar cantidades o atributos de este producto"
+                        >
+                          <div className="flex items-center gap-2">
+                            <p className="truncate text-[14px] font-semibold text-[#e7ecf5] group-hover/item:text-blue-300 transition-colors">
+                              {getProductName(line.productId)}
+                            </p>
+                            <span className="text-[11px] font-medium text-blue-400 opacity-0 group-hover/item:opacity-100 transition-opacity">
+                              ✏️ Editar
+                            </span>
+                          </div>
                           <p className="text-[12px] text-[#a8b3c8]">
-                            {line.quantity} u.{line.unitPriceOverride != null && ` · $ ${line.unitPriceOverride} c/u`}
+                            {line.quantity} u. · Total: $ {(line.totalPrice ?? (line.unitPriceOverride ? line.unitPriceOverride * line.quantity : 0)).toLocaleString('es-AR', { minimumFractionDigits: 2 })}
                           </p>
                           <AtributosLineaResumen
                             product={productosList.find((p) => p.id === line.productId)}
                             valores={line.attributes}
                             className="mt-1"
                           />
+                          {line.notes && line.notes.trim() && (
+                            <p className="text-[11px] text-[#8390ab] mt-0.5 truncate italic">
+                              📝 {line.notes}
+                            </p>
+                          )}
                         </div>
-                        <button
-                          type="button"
-                          aria-label="Quitar producto"
-                          onClick={() => removeLine(index)}
-                          className="grid size-8 place-items-center rounded-lg text-[#8390ab] hover:bg-[#152139] hover:text-rose-400 cursor-pointer"
-                        >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-                          </svg>
-                        </button>
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            aria-label="Editar producto"
+                            onClick={() => handleEditLine(index)}
+                            className="grid size-8 place-items-center rounded-lg text-[#8390ab] hover:bg-[#152139] hover:text-[#9db9f6] cursor-pointer transition-colors"
+                            title="Editar cantidades o personalización"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                            </svg>
+                          </button>
+                          <button
+                            type="button"
+                            aria-label="Quitar producto"
+                            onClick={() => removeLine(index)}
+                            className="grid size-8 place-items-center rounded-lg text-[#8390ab] hover:bg-[#152139] hover:text-rose-400 cursor-pointer transition-colors"
+                            title="Quitar producto del pedido"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                          </button>
+                        </div>
                       </li>
                     ))}
                   </ul>
@@ -903,7 +1028,7 @@ export const CreatePedidoModal = ({
         }
 
         {/* Paso 3: Resumen antes de crear */}
-        {wizardStep === 'order_summary' && <OrderSummary products={productosList} />}
+        {wizardStep === 'order_summary' && <OrderSummary products={productosList} onEditLine={handleEditLine} />}
 
         {/* Pedido creado */}
         {wizardStep === 'order_confirmation' && createdPedidoResult && (

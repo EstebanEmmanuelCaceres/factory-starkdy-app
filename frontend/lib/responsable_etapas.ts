@@ -69,14 +69,3 @@ export async function uncompleteTask(id: number): Promise<ResponsableEtapa> {
   const { data } = await api.post<{ status: string; data: { task: ResponsableEtapa } }>(`/operario/tasks/${id}/uncomplete`)
   return data.data.task
 }
-
-export async function fetchDisenosPendientes(filters?: { vendedor_id?: string }): Promise<ResponsableEtapa[]> {
-  const { data } = await api.get<{ status: string; data: ResponsableEtapa[] }>('/disenos-pendientes', { params: filters })
-  return data.data
-}
-
-export async function completarDisenosPedido(pedidoId: number, taskIdsCompletadas: number[]): Promise<void> {
-  await api.post(`/pedidos/${pedidoId}/completar-disenos`, {
-    task_ids_completadas: taskIdsCompletadas
-  })
-}

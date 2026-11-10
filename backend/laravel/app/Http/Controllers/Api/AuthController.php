@@ -127,6 +127,7 @@ class AuthController extends Controller
             'id'         => $user->id,
             'name'       => $user->name,
             'email'      => $user->email,
+            'role_id'    => $user->role_id,
             'role'       => $user->role?->slug,
             'role_label' => $user->role?->name ?? 'Desconocido',
             'created_at' => $user->created_at?->toDateString(),

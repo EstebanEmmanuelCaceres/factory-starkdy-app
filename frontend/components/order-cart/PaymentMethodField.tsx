@@ -53,6 +53,27 @@ export const MEDIOS_PAGO: readonly PaymentMethodOption[] = [
             </svg>
         ),
     },
+    {
+        value: 'cheque',
+        label: 'Cheque',
+        icon: ({ className }) => (
+            <svg className={className} viewBox="0 0 24 24" aria-hidden="true">
+                <rect x="2.5" y="5.5" width="19" height="13" rx="2" />
+                <path d="M6 10h5M6 14h8M16 14h2" />
+            </svg>
+        ),
+    },
+    {
+        value: 'otros',
+        label: 'Otros',
+        icon: ({ className }) => (
+            <svg className={className} viewBox="0 0 24 24" aria-hidden="true">
+                <circle cx="6" cy="12" r="1.5" />
+                <circle cx="12" cy="12" r="1.5" />
+                <circle cx="18" cy="12" r="1.5" />
+            </svg>
+        ),
+    },
 ] as const
 
 interface PaymentMethodFieldProps {
@@ -79,7 +100,7 @@ export const PaymentMethodField = ({
                     <div
                         role="group"
                         aria-labelledby="l-medio"
-                        className="grid grid-cols-2 gap-2"
+                        className="grid grid-cols-3 gap-2"
                     >
                         {MEDIOS_PAGO.map((m) => {
                             const selected = field.value === m.value

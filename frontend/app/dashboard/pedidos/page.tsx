@@ -1171,8 +1171,8 @@ export default function PedidosPage() {
                           url={coverUrl}
                           size="full"
                           alt={`Portada ${pedido.codigo}`}
-                          onClick={() => handleOpenImagesModal(pedido)}
-                          title={coverUrl ? "Ver o editar imágenes del pedido" : "Agregar imágenes"}
+                          onClick={coverUrl ? undefined : () => handleOpenImagesModal(pedido)}
+                          title={coverUrl ? undefined : "Agregar imágenes"}
                           className="w-full h-48 sm:h-60 rounded-xl"
                           imgClassName="object-contain w-full p-1"
                         />
@@ -1357,8 +1357,8 @@ export default function PedidosPage() {
                                 url={coverUrl}
                                 alt={`Portada ${pedido.codigo}`}
                                 className="w-24 h-14 2xl:w-28 2xl:h-16"
-                                onClick={() => handleOpenImagesModal(pedido)}
-                                title={coverUrl ? 'Ver o editar imágenes del pedido' : 'Sin imagen - Hacer clic para agregar'}
+                                onClick={coverUrl ? undefined : () => handleOpenImagesModal(pedido)}
+                                title={coverUrl ? undefined : 'Sin imagen - Hacer clic para agregar'}
                               />
                               <div className="min-w-[6.5rem] max-w-[14rem]">
                                 <span className="block font-bold text-white text-base leading-snug">
