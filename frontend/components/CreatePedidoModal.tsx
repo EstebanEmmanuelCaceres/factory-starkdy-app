@@ -1028,11 +1028,21 @@ export const CreatePedidoModal = ({
         }
 
         {/* Paso 3: Resumen antes de crear */}
-        {wizardStep === 'order_summary' && <OrderSummary products={productosList} onEditLine={handleEditLine} />}
+        {wizardStep === 'order_summary' && (
+          <OrderSummary
+            products={productosList}
+            onEditLine={handleEditLine}
+            codigo={formData.codigo}
+          />
+        )}
 
         {/* Pedido creado */}
         {wizardStep === 'order_confirmation' && createdPedidoResult && (
-          <OrderCreated pedido={createdPedidoResult} />
+          <OrderCreated
+            pedido={createdPedidoResult}
+            formLines={watchedLines}
+            products={productosList}
+          />
         )}
       </Modal >
     </FormProvider >
