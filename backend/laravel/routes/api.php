@@ -17,6 +17,7 @@ use App\Http\Controllers\Api\ProductoImagenController;
 use App\Http\Controllers\Api\PedidoImagenController;
 use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\Api\CategoriaController;
+use App\Http\Controllers\Api\TiendanubeWebhookController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -30,6 +31,9 @@ Route::prefix('auth')->group(function () {
     Route::post('/login',    [AuthController::class, 'login'])->name('api.auth.login');
     Route::post('/register', [AuthController::class, 'register'])->name('api.auth.register');
 });
+
+// ── Webhook de Tiendanube (público: se autentica con la firma HMAC del body) ──
+Route::post('/webhooks/tiendanube', TiendanubeWebhookController::class)->name('api.webhooks.tiendanube');
 
 // ── Rutas protegidas (requieren token Sanctum) ───────────────────────
 Route::middleware('auth:sanctum')->group(function () {

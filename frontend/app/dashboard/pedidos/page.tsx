@@ -1361,6 +1361,7 @@ export default function PedidosPage() {
                                 title={coverUrl ? undefined : 'Sin imagen - Hacer clic para agregar'}
                               />
                               <div className="min-w-[6.5rem] max-w-[14rem]">
+                                {/* TODO: Destacar en la UI los pedidos con pedido.origen === 'tiendanube' (ej. badge "Tiendanube" / icono de nube o carrito) */}
                                 <span className="block font-bold text-white text-base leading-snug">
                                   {pedido.cliente?.nombre_empresa || pedido.cliente?.nombre_cliente || `Pedido #${pedido.id}`}
                                 </span>

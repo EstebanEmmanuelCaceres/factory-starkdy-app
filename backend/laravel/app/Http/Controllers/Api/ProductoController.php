@@ -18,13 +18,19 @@ class ProductoController extends Controller
     {
         $query = Producto::with(['imagenes', 'imagenPrincipal']);
 
-        // Búsqueda opcional por nombre o término general
+        // Búsqueda opcional por nombre, SKU o término general
         if ($request->has('nombre') && !empty($request->input('nombre'))) {
             $term = mb_strtolower(trim($request->input('nombre')));
             $query->whereRaw('LOWER(nombre) LIKE ?', ['%' . $term . '%']);
+        } elseif ($request->has('sku') && !empty($request->input('sku'))) {
+            $sku = trim($request->input('sku'));
+            $query->where('sku', $sku);
         } elseif ($request->has('search') && !empty($request->input('search'))) {
             $term = mb_strtolower(trim($request->input('search')));
-            $query->whereRaw('LOWER(nombre) LIKE ?', ['%' . $term . '%']);
+            $query->where(function ($q) use ($term) {
+                $q->whereRaw('LOWER(nombre) LIKE ?', ['%' . $term . '%'])
+                    ->orWhereRaw('LOWER(sku) LIKE ?', ['%' . $term . '%']);
+            });
         }
 
         $productos = $query->get();
@@ -42,6 +48,7 @@ class ProductoController extends Controller
     {
         $validator = Validator::make($request->all(), [
             'nombre' => 'required|string|max:255',
+            'sku' => 'nullable|string|max:100|unique:productos,sku',
             'descripcion' => 'nullable|string',
             'precio' => 'sometimes|numeric|min:0',
             'atributos' => ['sometimes', 'array', new AtributosProducto()],
@@ -100,6 +107,7 @@ class ProductoController extends Controller
 
         $validator = Validator::make($request->all(), [
             'nombre' => 'sometimes|required|string|max:255',
+            'sku' => 'sometimes|nullable|string|max:100|unique:productos,sku,' . $id,
             'descripcion' => 'sometimes|nullable|string',
             'precio' => 'sometimes|numeric|min:0',
             // Se manda la lista completa: reemplaza los atributos que tenía el producto

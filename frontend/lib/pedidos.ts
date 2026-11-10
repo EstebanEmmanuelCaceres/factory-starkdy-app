@@ -65,6 +65,10 @@ export interface Pedido {
   comentario?: string | null
   descripcion?: string | null
   tipo_pago?: 'unico' | 'parcial'
+  // Origen del pedido: 'manual' o 'tiendanube'
+  // TODO: Destacar en la UI los pedidos con origen === 'tiendanube' (ej. badge "Tiendanube" o tag en la tabla y filtros)
+  origen?: string
+  tiendanube_order_id?: string | null
   created_at: string
   updated_at: string
   cliente?: Cliente

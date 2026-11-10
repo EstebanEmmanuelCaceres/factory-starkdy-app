@@ -98,6 +98,7 @@ export default function ProductosPage() {
   // Datos de Formulario
   const [formData, setFormData] = useState<CreateProductInput>({
     nombre: '',
+    sku: '',
     descripcion: ''
   })
 
@@ -371,6 +372,7 @@ export default function ProductosPage() {
   const handleOpenCreateModal = () => {
     setFormData({
       nombre: '',
+      sku: '',
       descripcion: ''
     })
     setIsCreateModalOpen(true)
@@ -380,6 +382,7 @@ export default function ProductosPage() {
     setSelectedProduct(product)
     setFormData({
       nombre: product.nombre,
+      sku: product.sku || '',
       descripcion: product.descripcion || ''
     })
     setIsEditModalOpen(true)
@@ -405,6 +408,7 @@ export default function ProductosPage() {
 
     const payload: UpdateProductInput = {}
     if (formData.nombre !== selectedProduct.nombre) payload.nombre = formData.nombre
+    if ((formData.sku || '') !== (selectedProduct.sku || '')) payload.sku = formData.sku ? formData.sku.trim() : null
     if (formData.descripcion !== selectedProduct.descripcion) payload.descripcion = formData.descripcion || null
 
     try {
@@ -546,6 +550,11 @@ export default function ProductosPage() {
                           </td>
                           <td className="px-6 py-4">
                             <span className="font-semibold text-white">{product.nombre}</span>
+                            {product.sku && (
+                              <span className="block text-[11px] font-mono text-blue-400 mt-0.5">
+                                SKU: {product.sku}
+                              </span>
+                            )}
                           </td>
                           <td className="px-6 py-4 max-w-xs truncate text-slate-400" title={product.descripcion || ''}>
                             {product.descripcion || <span className="text-slate-600 italic">Sin descripción</span>}
@@ -629,6 +638,18 @@ export default function ProductosPage() {
               </div>
               <div>
                 <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
+                  SKU / Código (Opcional - Tiendanube)
+                </label>
+                <input
+                  type="text"
+                  placeholder="ej. CUBRE-01"
+                  value={formData.sku || ''}
+                  onChange={(e) => setFormData({ ...formData, sku: e.target.value })}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
                   Descripción
                 </label>
                 <textarea
@@ -671,6 +692,18 @@ export default function ProductosPage() {
                   required
                   value={formData.nombre}
                   onChange={(e) => setFormData({ ...formData, nombre: e.target.value })}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
+                  SKU / Código (Opcional - Tiendanube)
+                </label>
+                <input
+                  type="text"
+                  placeholder="ej. CUBRE-01"
+                  value={formData.sku || ''}
+                  onChange={(e) => setFormData({ ...formData, sku: e.target.value })}
                   className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition"
                 />
               </div>
