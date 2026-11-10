@@ -2,7 +2,7 @@
 
 import React from 'react'
 import { useFormContext, useWatch } from 'react-hook-form'
-import { OrderFormValues, getOrderPrice } from './Types'
+import { OrderFormValues, getOrderTotal } from './Types'
 
 const money = new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 })
 
@@ -10,7 +10,6 @@ export const OrderFooterSummary = () => {
     const { control } = useFormContext<OrderFormValues>()
     const lines = useWatch({ control, name: 'lines' })
     const discount = useWatch({ control, name: 'discount' })
-    const priceOverride = useWatch({ control, name: 'priceOverride' })
     const paid = useWatch({ control, name: 'payment.amount' })
     const customTotal = useWatch({ control, name: 'customTotal' })
 

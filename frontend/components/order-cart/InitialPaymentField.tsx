@@ -12,7 +12,6 @@ export const InitialPaymentField = () => {
     const { register, setValue, control, formState: { errors } } = useFormContext<OrderFormValues>()
     const lines = useWatch({ control, name: 'lines' })
     const discount = useWatch({ control, name: 'discount' })
-    const priceOverride = useWatch({ control, name: 'priceOverride' })
     const amount = useWatch({ control, name: 'payment.amount' })
     const customTotal = useWatch({ control, name: 'customTotal' })
 

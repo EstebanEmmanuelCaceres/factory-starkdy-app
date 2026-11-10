@@ -1,6 +1,6 @@
 import type { CreatePedidoInput, LineaPedidoInput } from '@/lib/pedidos'
 import { claveLinea } from '@/components/PedidoAtributos/helpers'
-import { OrderFormValues, OrderLine, getOrderPrice } from './Types'
+import { OrderFormValues, OrderLine, getOrderTotal } from './Types'
 
 export const generatePedidoCodigo = () => `PD-${Date.now().toString().slice(-6)}`
 

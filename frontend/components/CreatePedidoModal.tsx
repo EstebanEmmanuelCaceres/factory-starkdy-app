@@ -8,12 +8,11 @@ import { fetchProducts, type Product } from '@/lib/products'
 import { createPedido, type CreatePedidoInput, type Pedido } from '@/lib/pedidos'
 import { WizardStepper, type WizardStep } from './WizardStep'
 import { OrderBar } from './order-cart/OrderBar'
-import { OrderPriceField } from './order-cart/OrderPriceField'
 import { InitialPaymentField } from './order-cart/InitialPaymentField'
 import { OrderFooterSummary } from './order-cart/OrderFooterSummary'
 import { WizardFooter, WIZARD_FOOTER_SPACE, type WizardFooterAction } from './WizardFooter'
 import { FormProvider, useFieldArray, useForm, useWatch } from 'react-hook-form'
-import { OrderFormValues, getDefaultOrderValues } from './order-cart/Types'
+import { OrderFormValues, getDefaultOrderValues, getLineSubtotal } from './order-cart/Types'
 import { ProductDrawer } from './order-cart/ProductDrawer'
 import { OrderSummary } from './order-cart/OrderSummary'
 import { OrderCreated } from './order-cart/OrderCreated'
@@ -138,7 +137,13 @@ export const CreatePedidoModal = ({
     const key = claveLinea(line.productId, line.attributes)
     const index = lines.findIndex((l) => claveLinea(l.productId, l.attributes) === key)
     if (index >= 0) {
-      updateLine(index, { ...lines[index], quantity: lines[index].quantity + line.quantity })
+      // Se suman cantidad y precio total (el subtotal de la línea sale de totalPrice)
+      const actual = lines[index]
+      updateLine(index, {
+        ...actual,
+        quantity: actual.quantity + line.quantity,
+        totalPrice: getLineSubtotal(actual) + getLineSubtotal(line),
+      })
     } else {
       appendLine(line)
     }
@@ -1021,7 +1026,6 @@ export const CreatePedidoModal = ({
                     <p className="text-[13px] text-[#a8b3c8]">Buscalos por nombre o tocá uno del catálogo para configurarlo.</p>
                   </div>
                 )}
-                <OrderPriceField />
                 <InitialPaymentField />
               </aside>
             </div>
