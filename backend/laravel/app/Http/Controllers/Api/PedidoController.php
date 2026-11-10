@@ -110,7 +110,18 @@ class PedidoController extends Controller
         // Filtro por estado
         if ($request->has('estado') && !empty($request->input('estado'))) {
             $estadoInput = $request->input('estado');
-            if ($estadoInput !== 'todos' && $estadoInput !== 'all') {
+            if ($estadoInput === 'activos' || $estadoInput === 'active') {
+                $query->whereHas('ultimoEstado', function ($q) {
+                    $q->whereNotIn('estado', [
+                        'completado',
+                        'completado_pd',
+                        'finalizado',
+                        'cancelado',
+                        'enviado',
+                        'enviado_faltante'
+                    ]);
+                });
+            } elseif ($estadoInput !== 'todos' && $estadoInput !== 'all') {
                 $query->whereHas('ultimoEstado', function ($q) use ($estadoInput) {
                     $q->where('estado', $estadoInput);
                 });

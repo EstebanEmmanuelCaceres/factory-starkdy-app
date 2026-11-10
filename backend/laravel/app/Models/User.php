@@ -59,6 +59,14 @@ class User extends Authenticatable
     }
 
     /**
+     * Pedidos asignados/creados por el usuario.
+     */
+    public function pedidos(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(Pedido::class, 'user_id');
+    }
+
+    /**
      * Relación: Tareas (etapas de pedidos) asignadas a este operario.
      */
     public function tareasAsignadas()

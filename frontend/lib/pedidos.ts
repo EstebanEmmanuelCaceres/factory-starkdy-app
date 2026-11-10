@@ -73,6 +73,7 @@ export interface Pedido {
   updated_at: string
   cliente?: Cliente
   user?: User
+  vendedor?: User
   // Una entrada por línea: un producto puede repetirse con distintos atributos
   productos?: (Product & { pivot?: LineaPedidoPivot })[]
   progreso?: ProgresoPedido
@@ -138,6 +139,7 @@ export interface PedidoFilters {
   search?: string
   prioridad?: string
   estado?: string
+  user_id?: string | number
   fecha_desde?: string
   fecha_hasta?: string
   pago_estado?: string

@@ -24,3 +24,35 @@ export async function fetchMetricasCobros(filters?: MetricasCobrosFilters): Prom
   const { data } = await api.get<{ status: string; data: MetricasCobros }>('/metricas/cobros', { params: filters })
   return data.data
 }
+
+export interface VendedorDiarioSeries {
+  id: number
+  name: string
+  total_cobrado: number
+  total_ventas: number
+  series: {
+    cobros: number[]
+    ventas: number[]
+  }
+}
+
+export interface MetricasVendedoresDiario {
+  periodo: { desde: string; hasta: string }
+  fechas: string[]
+  vendedores: VendedorDiarioSeries[]
+  totales_por_dia: {
+    cobros: number[]
+    ventas: number[]
+  }
+}
+
+export interface VendedoresDiarioFilters {
+  fecha_desde?: string
+  fecha_hasta?: string
+  vendedor_id?: number | string
+}
+
+export async function fetchVendedoresDiario(filters?: VendedoresDiarioFilters): Promise<MetricasVendedoresDiario> {
+  const { data } = await api.get<{ status: string; data: MetricasVendedoresDiario }>('/metricas/vendedores-diario', { params: filters })
+  return data.data
+}

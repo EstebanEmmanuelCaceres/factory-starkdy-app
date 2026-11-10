@@ -45,6 +45,8 @@ import PedidoThumbnail from '@/components/PedidoThumbnail'
 import ClientQuickPasteBox from '@/components/ClientQuickPasteBox'
 import { type ParsedClienteData } from '@/lib/parseClienteText'
 
+const INACTIVE_ESTADOS = ['completado', 'completado_pd', 'finalizado', 'cancelado', 'enviado', 'enviado_faltante']
+
 // Portada del pedido: imagen principal, o la primera del pedido, o la de sus productos
 const getPedidoCoverUrl = (pedido: Pedido) =>
   pedido.imagen_principal?.url ||
@@ -222,26 +224,34 @@ export default function PedidosPage() {
   const lastSearchRef = useRef('')
   const requestIdRef = useRef(0)
 
-  const buildPedidoFilters = (search: string, priority: string, status: string) => {
-    const filters: { search?: string; prioridad?: string; estado?: string } = {}
+  const buildPedidoFilters = (search: string, priority: string, status: string, vendedor?: string) => {
+    const filters: { search?: string; prioridad?: string; estado?: string; user_id?: string } = {}
 
     if (search.trim()) {
       filters.search = search.trim()
-      // Al tener búsqueda activa, el buscador queda desacoplado de los filtros de estado/prioridad
-      // Enviamos estado='todos' para que el backend consulte en todos los estados (enviados, completados, cancelados)
-      filters.estado = 'todos'
-    } else {
-      if (priority) filters.prioridad = priority
-      if (status) filters.estado = status
     }
+
+    if (status) {
+      filters.estado = status
+    } else {
+      // Si el estado es '' (selector en "📊 Estados Activos") y hay búsqueda activa,
+      // enviamos 'activos' para que el backend filtre únicamente los estados activos
+      if (search.trim()) {
+        filters.estado = 'activos'
+      }
+    }
+
+    if (priority) filters.prioridad = priority
+    if (vendedor) filters.user_id = vendedor
 
     return filters
   }
 
-  const loadData = async (search?: string, priority?: string, status?: string) => {
+  const loadData = async (search?: string, priority?: string, status?: string, vendedor?: string) => {
     const targetSearch = search !== undefined ? search : searchQuery
     const targetPriority = priority !== undefined ? priority : filterPrioridad
     const targetStatus = status !== undefined ? status : filterEstado
+    const targetVendedor = vendedor !== undefined ? vendedor : filterVendedor
 
     lastSearchRef.current = targetSearch.trim()
     const requestId = ++requestIdRef.current
@@ -250,7 +260,7 @@ export default function PedidosPage() {
     setError('')
     try {
       const [pedidosData, clientesData, productosData, usersData, stagesData] = await Promise.all([
-        fetchPedidos(buildPedidoFilters(targetSearch, targetPriority, targetStatus)),
+        fetchPedidos(buildPedidoFilters(targetSearch, targetPriority, targetStatus, targetVendedor)),
         fetchClientes(),
         fetchProducts(),
         fetchUsers(),
@@ -270,14 +280,18 @@ export default function PedidosPage() {
   }
 
   // Búsqueda liviana: solo trae pedidos (sin recargar clientes, productos, usuarios ni etapas)
-  const searchPedidos = async (search: string) => {
+  const searchPedidos = async (search: string, priority?: string, status?: string, vendedor?: string) => {
     lastSearchRef.current = search.trim()
     const requestId = ++requestIdRef.current
+
+    const targetPriority = priority !== undefined ? priority : filterPrioridad
+    const targetStatus = status !== undefined ? status : filterEstado
+    const targetVendedor = vendedor !== undefined ? vendedor : filterVendedor
 
     setLoading(true)
     setError('')
     try {
-      const pedidosData = await fetchPedidos(buildPedidoFilters(search, filterPrioridad, filterEstado))
+      const pedidosData = await fetchPedidos(buildPedidoFilters(search, targetPriority, targetStatus, targetVendedor))
       if (requestId === requestIdRef.current) setPedidos(pedidosData)
     } catch (err: unknown) {
       if (requestId === requestIdRef.current) {
@@ -295,12 +309,12 @@ export default function PedidosPage() {
     const timer = setTimeout(() => {
       // Si mientras tanto ya se buscó (Enter o botón Buscar), no repetir
       if (searchQuery.trim() === lastSearchRef.current) return
-      searchPedidos(searchQuery)
+      searchPedidos(searchQuery, filterPrioridad, filterEstado, filterVendedor)
     }, 400)
 
     return () => clearTimeout(timer)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchQuery])
+  }, [searchQuery, filterPrioridad, filterEstado, filterVendedor])
 
   const loadTaskAssignments = async (pedidoId: number) => {
     try {
@@ -837,6 +851,18 @@ export default function PedidosPage() {
     setIsPaymentsModalOpen(true)
   }
 
+  const handleSearchChange = (newVal: string) => {
+    // Al usar el buscador, si el filtro de estado está en el valor por defecto (''),
+    // se coloca automáticamente en 'todos' ("Todos los estados") para reflejar que la búsqueda abarca todo
+    if (!searchQuery && newVal.trim() && !filterEstado) {
+      setFilterEstado('todos')
+    } else if (searchQuery && !newVal.trim() && filterEstado === 'todos') {
+      // Al borrar todo el texto del buscador, si estaba en 'todos', vuelve al valor por defecto ('')
+      setFilterEstado('')
+    }
+    setSearchQuery(newVal)
+  }
+
   const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
       loadData()
@@ -845,8 +871,12 @@ export default function PedidosPage() {
 
   const handleClearSearchInput = () => {
     setSearchQuery('')
+    const nextEstado = filterEstado === 'todos' ? '' : filterEstado
+    if (filterEstado === 'todos') {
+      setFilterEstado('')
+    }
     setCurrentPage(1)
-    loadData('')
+    loadData('', filterPrioridad, nextEstado, filterVendedor)
   }
 
   const handleClearSearch = () => {
@@ -855,7 +885,7 @@ export default function PedidosPage() {
     setFilterEstado('')
     setFilterVendedor('')
     setCurrentPage(1)
-    loadData('', '', '')
+    loadData('', '', '', '')
   }
 
   const getPriorityBadgeClass = (priority: string) => {
@@ -929,20 +959,40 @@ export default function PedidosPage() {
         if (p.estado === 'pendiente') return false
       }
 
-      // Si hay una búsqueda por texto activa, el buscador está desacoplado de los dropdowns de filtro
+      // Filtro de búsqueda por texto
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase().trim()
         const matchCode = (p.codigo || '').toLowerCase().includes(q)
         const matchClientName = (p.cliente?.nombre_cliente || '').toLowerCase().includes(q)
         const matchEmpresa = (p.cliente?.nombre_empresa || '').toLowerCase().includes(q)
         const matchEmail = (p.cliente?.email || '').toLowerCase().includes(q)
-        return matchCode || matchClientName || matchEmpresa || matchEmail || (p.productos || []).some((prod) => (prod.nombre || '').toLowerCase().includes(q))
+        const matchProduct = (p.productos || []).some((prod) => (prod.nombre || '').toLowerCase().includes(q))
+        if (!matchCode && !matchClientName && !matchEmpresa && !matchEmail && !matchProduct) {
+          return false
+        }
       }
 
-      // Si NO hay texto en el buscador, se aplican los filtros de la barra
+      // Filtro por vendedor
       if (filterVendedor) {
         if (p.user_id !== Number(filterVendedor)) return false
       }
+
+      // Filtro por prioridad
+      if (filterPrioridad) {
+        if (p.prioridad !== filterPrioridad) return false
+      }
+
+      // Filtro por estado
+      if (filterEstado === 'todos') {
+        // Muestra todos los estados
+      } else if (!filterEstado || filterEstado === 'activos') {
+        // Estados activos: excluir completados, cancelados, finalizados y enviados
+        if (INACTIVE_ESTADOS.includes(p.estado)) return false
+      } else {
+        // Estado específico (ej: 'pendiente', 'en_progreso', etc.)
+        if (p.estado !== filterEstado) return false
+      }
+
       return true
     })
     .sort((a, b) => {
@@ -1047,7 +1097,7 @@ export default function PedidosPage() {
                   type="text"
                   placeholder="Buscar por cliente, empresa o producto..."
                   value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onChange={(e) => handleSearchChange(e.target.value)}
                   onKeyDown={handleSearchKeyDown}
                   className="w-full bg-slate-950 border border-slate-800 focus:border-blue-500 rounded-xl px-3.5 py-2.5 pl-9 text-sm text-white placeholder-slate-500 focus:outline-none transition duration-150"
                 />
@@ -1076,7 +1126,7 @@ export default function PedidosPage() {
                   value={filterVendedor}
                   onChange={(value) => {
                     setFilterVendedor(value)
-                    loadData()
+                    loadData(undefined, undefined, undefined, value)
                     setCurrentPage(1)
                   }}
                   options={operarios
@@ -1088,27 +1138,23 @@ export default function PedidosPage() {
                   placeholder="👤 Todos los Vendedores"
                 />
               )}
-              {/* Filtro de Prioridad (no aplica mientras hay texto en el buscador) */}
+              {/* Filtro de Prioridad */}
               <SelectFilter
-                disabled={!!searchQuery.trim()}
-                title={searchQuery.trim() ? 'La búsqueda incluye todas las prioridades' : undefined}
                 value={filterPrioridad}
                 onChange={(value) => {
                   setFilterPrioridad(value)
-                  loadData(undefined, value, undefined)
+                  loadData(undefined, value, undefined, undefined)
                 }}
                 options={PRIORITY_OPTIONS}
                 placeholder="🎯 Todas las prioridades"
               />
 
-              {/* Filtro de Estado (no aplica mientras hay texto en el buscador) */}
+              {/* Filtro de Estado */}
               <SelectFilter
-                disabled={!!searchQuery.trim()}
-                title={searchQuery.trim() ? 'La búsqueda incluye todos los estados' : undefined}
                 value={filterEstado}
                 onChange={(value) => {
                   setFilterEstado(value)
-                  loadData(undefined, undefined, value)
+                  loadData(undefined, undefined, value, undefined)
                 }}
                 options={PEDIDO_STATE_OPTIONS}
                 placeholder="📊 Estados Activos"

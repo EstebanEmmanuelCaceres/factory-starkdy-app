@@ -143,6 +143,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // ── Métricas ──────────────────────────────────────────────────
     Route::get('metricas/cobros', [MetricaController::class, 'cobros']);
+    Route::get('metricas/vendedores-diario', [MetricaController::class, 'vendedoresDiario']);
 
     // ── Responsabilidades ──────────────────────────────────────────
     Route::get('responsabilidades', [ResponsabilidadController::class, 'index']);

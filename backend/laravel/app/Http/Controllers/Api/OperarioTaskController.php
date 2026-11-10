@@ -45,7 +45,9 @@ class OperarioTaskController extends Controller
                 $q->where('estado', '!=', 'pendiente');
             });
 
-        if ($user && !$user->isAdminOrEncargado()) {
+        if ($user && $user->role?->slug === 'encargado') {
+            $query->where('user_id', $user->id);
+        } elseif ($user && !$user->isAdminOrEncargado()) {
             $userCategoryIds = $user->categorias()->pluck('categorias.id')->toArray();
 
             $query->where(function ($q) use ($user, $userCategoryIds) {
@@ -59,17 +61,21 @@ class OperarioTaskController extends Controller
             });
         } elseif ($request->filled('user_id')) {
             $targetUser = User::find($request->input('user_id'));
-            if ($targetUser && !$targetUser->isAdminOrEncargado()) {
-                $targetCategoryIds = $targetUser->categorias()->pluck('categorias.id')->toArray();
-                $query->where(function ($q) use ($targetUser, $targetCategoryIds) {
-                    $q->where('user_id', $targetUser->id);
+            if ($targetUser) {
+                if ($targetUser->role?->slug === 'encargado') {
+                    $query->where('user_id', $targetUser->id);
+                } elseif (!$targetUser->isAdminOrEncargado()) {
+                    $targetCategoryIds = $targetUser->categorias()->pluck('categorias.id')->toArray();
+                    $query->where(function ($q) use ($targetUser, $targetCategoryIds) {
+                        $q->where('user_id', $targetUser->id);
 
-                    if (!empty($targetCategoryIds)) {
-                        $q->orWhereHas('etapaProducto.etapa.categorias', function ($cq) use ($targetCategoryIds) {
-                            $cq->whereIn('categorias.id', $targetCategoryIds);
-                        });
-                    }
-                });
+                        if (!empty($targetCategoryIds)) {
+                            $q->orWhereHas('etapaProducto.etapa.categorias', function ($cq) use ($targetCategoryIds) {
+                                $cq->whereIn('categorias.id', $targetCategoryIds);
+                            });
+                        }
+                    });
+                }
             }
         }
 
