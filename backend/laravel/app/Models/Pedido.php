@@ -40,6 +40,8 @@ class Pedido extends Model
         'comentario',
         'descripcion',
         'tipo_pago',
+        'origen',
+        'tiendanube_order_id',
     ];
 
     protected $appends = [

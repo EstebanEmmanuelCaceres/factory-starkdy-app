@@ -9,24 +9,41 @@ import { OrderLine, getDefaultLine } from './Types'
 
 interface ProductDrawerProps {
     product: Product
+    initialLine?: OrderLine | null
     onAdd: (line: OrderLine) => void
     onClose: () => void
 }
 
 const label = 'text-[11px] font-bold uppercase tracking-[.08em] text-[#a8b3c8]'
 
-export const ProductDrawer = ({ product, onAdd, onClose }: ProductDrawerProps) => {
+export const ProductDrawer = ({ product, initialLine, onAdd, onClose }: ProductDrawerProps) => {
     const [isVisible, setIsVisible] = useState(false)
     const isClosingRef = useRef(false)
+    const isEditing = Boolean(initialLine)
 
-    // Borrador local de la línea: recién se suma al pedido al confirmar
+    // Borrador local de la línea: recién se suma o actualiza al confirmar
     const { register, handleSubmit, setValue, watch } = useForm<OrderLine>({
-        defaultValues: { ...getDefaultLine(product.id, product.precio), attributes: valoresPorDefecto(product) },
+        defaultValues: initialLine
+            ? {
+                ...initialLine,
+                totalPrice: initialLine.totalPrice ?? (initialLine.unitPriceOverride != null ? initialLine.unitPriceOverride * initialLine.quantity : null)
+            }
+            : {
+                ...getDefaultLine(product.id, product.precio),
+                attributes: valoresPorDefecto(product)
+            },
     })
     const quantity = watch('quantity')
     const attributes = watch('attributes')
+    const totalPrice = watch('totalPrice')
     const tieneAtributos = atributosDelPedido(product).length > 0
-    const setQuantity = (n: number) => setValue('quantity', Math.max(1, n), { shouldDirty: true })
+    const setQuantity = (n: number) => {
+        const nextQty = Math.max(1, n)
+        setValue('quantity', nextQty, { shouldDirty: true })
+        if (product.precio != null && totalPrice == null) {
+            setValue('totalPrice', product.precio * nextQty, { shouldDirty: true })
+        }
+    }
 
     // Animación de entrada fluida al montar
     useEffect(() => {
@@ -72,7 +89,15 @@ export const ProductDrawer = ({ product, onAdd, onClose }: ProductDrawerProps) =
     }, [])
 
     const submitLine = handleSubmit((line) => {
-        onAdd({ ...line, attributes: normalizarValores(product, line.attributes) })
+        const qty = line.quantity || 1
+        const lineTotal = line.totalPrice != null ? line.totalPrice : (line.unitPriceOverride != null ? line.unitPriceOverride * qty : null)
+        const unitPrice = lineTotal != null && qty > 0 ? lineTotal / qty : null
+        onAdd({
+            ...line,
+            totalPrice: lineTotal,
+            unitPriceOverride: unitPrice,
+            attributes: normalizarValores(product, line.attributes)
+        })
         handleClose()
     })
 
@@ -103,7 +128,14 @@ export const ProductDrawer = ({ product, onAdd, onClose }: ProductDrawerProps) =
                         {product.imagen_principal?.url && <img src={product.imagen_principal.url} alt="" className="size-full object-cover" />}
                     </span>
                     <div className="min-w-0">
-                        <h3 id="dr-title" className="mt-0.5 text-lg font-bold leading-tight text-[#e7ecf5] truncate">{product.nombre}</h3>
+                        <div className="flex items-center gap-2">
+                            <h3 id="dr-title" className="mt-0.5 text-lg font-bold leading-tight text-[#e7ecf5] truncate">{product.nombre}</h3>
+                            {isEditing && (
+                                <span className="shrink-0 text-[10px] font-bold uppercase tracking-wider bg-blue-500/20 text-blue-300 border border-blue-500/30 px-2 py-0.5 rounded-md">
+                                    Editando
+                                </span>
+                            )}
+                        </div>
                         {product.descripcion && <span className="text-[13px] text-[#a8b3c8] line-clamp-2">{product.descripcion}</span>}
                     </div>
                     <button
@@ -156,21 +188,45 @@ export const ProductDrawer = ({ product, onAdd, onClose }: ProductDrawerProps) =
                             />
                         </section>
                     )}
+                    {/* Notas / Observaciones opcionales del producto */}
+                    <section className="py-4">
+                        <div className="mb-2 flex items-baseline justify-between">
+                            <span className={label}>Notas del producto</span>
+                            <span className="text-xs text-[#8390ab]">Opcional</span>
+                        </div>
+                        <textarea
+                            rows={2}
+                            placeholder="Aclaraciones específicas para este producto..."
+                            className="w-full rounded-[10px] border border-[#2a3a59] bg-[#08101d] px-3.5 py-2 text-xs text-[#e7ecf5] outline-none focus:border-[#2563eb] resize-y placeholder:text-slate-600"
+                            {...register('notes')}
+                        />
+                    </section>
                 </div>
 
                 {/* Pie */}
                 <footer className="flex flex-col gap-2.5 border-t border-[#1b263d] bg-[#0b1322] px-4 pb-4 pt-3.5 sm:px-[18px]">
-                    <div className="flex items-center justify-between gap-3">
-                        <span className={label}>Precio unitario</span>
-                        <div className="relative flex w-40 items-center">
-                            <span className="pointer-events-none absolute left-3.5 font-semibold text-[#8390ab]">$</span>
-                            <input
-                                type="number"
-                                min={0}
-                                placeholder="0"
-                                {...register('unitPriceOverride', { setValueAs: (v) => (v === '' || v == null ? null : Number(v)) })}
-                                className="h-11 w-full rounded-[10px] border border-[#2a3a59] bg-[#08101d] pl-[30px] pr-3.5 text-sm font-semibold text-[#e7ecf5] outline-none focus:border-[#2563eb] [appearance:textfield]"
-                            />
+                    <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                        <div className="flex flex-col">
+                            <span className={label}>Valor total del producto</span>
+                            <span className="text-[12px] text-[#8390ab]">Para las {quantity || 1} unidades</span>
+                        </div>
+                        <div className="flex flex-col items-end gap-1">
+                            <div className="relative flex w-44 items-center">
+                                <span className="pointer-events-none absolute left-3.5 font-semibold text-[#8390ab]">$</span>
+                                <input
+                                    type="number"
+                                    min={0}
+                                    step="0.01"
+                                    placeholder="0.00"
+                                    {...register('totalPrice', { setValueAs: (v) => (v === '' || v == null ? null : Number(v)) })}
+                                    className="h-11 w-full rounded-[10px] border border-[#2a3a59] bg-[#08101d] pl-[30px] pr-3.5 text-base font-bold text-[#e7ecf5] outline-none focus:border-[#2563eb] [appearance:textfield]"
+                                />
+                            </div>
+                            {totalPrice != null && quantity > 0 ? (
+                                <span className="text-[11px] text-[#8390ab] tabular-nums">
+                                    ≈ ${(totalPrice / quantity).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} c/u
+                                </span>
+                            ) : null}
                         </div>
                     </div>
                     <div className="flex gap-2.5">
@@ -178,7 +234,7 @@ export const ProductDrawer = ({ product, onAdd, onClose }: ProductDrawerProps) =
                             Cancelar
                         </button>
                         <button type="button" onClick={submitLine} className="h-11 flex-1 rounded-[10px] bg-[#2563eb] px-[18px] text-sm font-semibold text-white hover:brightness-110 cursor-pointer transition-all">
-                            Agregar al pedido
+                            {isEditing ? 'Guardar cambios' : 'Agregar al pedido'}
                         </button>
                     </div>
                 </footer>

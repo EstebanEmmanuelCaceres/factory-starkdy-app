@@ -104,7 +104,10 @@ class CobroService
         'transferencia' => 'Transferencia',
         'tarjeta' => 'Tarjeta',
         'mercado_pago' => 'Mercado Pago',
+        'mercadopago' => 'Mercado Pago',
+        'cheque' => 'Cheque',
         'otro' => 'Otro',
+        'otros' => 'Otros',
     ];
     private const ETIQUETAS_TIPO = ['seña' => 'Seña', 'parcial' => 'Parcial', 'saldo' => 'Saldo', 'unico' => 'Pago único'];
     private const ETIQUETAS_ESTADO = ['pagado' => 'Pagado', 'pendiente' => 'Pendiente', 'anulado' => 'Anulado'];

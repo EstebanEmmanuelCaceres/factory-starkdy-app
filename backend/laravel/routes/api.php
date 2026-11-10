@@ -17,6 +17,7 @@ use App\Http\Controllers\Api\ProductoImagenController;
 use App\Http\Controllers\Api\PedidoImagenController;
 use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\Api\CategoriaController;
+use App\Http\Controllers\Api\TiendanubeWebhookController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -30,6 +31,9 @@ Route::prefix('auth')->group(function () {
     Route::post('/login',    [AuthController::class, 'login'])->name('api.auth.login');
     Route::post('/register', [AuthController::class, 'register'])->name('api.auth.register');
 });
+
+// ── Webhook de Tiendanube (público: se autentica con la firma HMAC del body) ──
+Route::post('/webhooks/tiendanube', TiendanubeWebhookController::class)->name('api.webhooks.tiendanube');
 
 // ── Rutas protegidas (requieren token Sanctum) ───────────────────────
 Route::middleware('auth:sanctum')->group(function () {
@@ -142,6 +146,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // ── Métricas ──────────────────────────────────────────────────
     Route::get('metricas/cobros', [MetricaController::class, 'cobros']);
+    Route::get('metricas/vendedores-diario', [MetricaController::class, 'vendedoresDiario']);
 
     // ── Responsabilidades ──────────────────────────────────────────
     Route::get('responsabilidades', [ResponsabilidadController::class, 'index']);
@@ -154,8 +159,6 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('responsables-etapas', [ResponsableEtapaController::class, 'index']);
     Route::post('responsables-etapas', [ResponsableEtapaController::class, 'store']);
     Route::delete('responsables-etapas/{id}', [ResponsableEtapaController::class, 'destroy']);
-    Route::get('disenos-pendientes', [ResponsableEtapaController::class, 'disenosPendientes']);
-    Route::post('pedidos/{id}/completar-disenos', [ResponsableEtapaController::class, 'completarDisenosPedido']);
     Route::post('responsables-etapas/{id}/start', [OperarioTaskController::class, 'start']);
     Route::post('responsables-etapas/{id}/cancel', [OperarioTaskController::class, 'cancel']);
     Route::post('responsables-etapas/{id}/complete', [OperarioTaskController::class, 'complete']);

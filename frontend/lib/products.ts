@@ -5,6 +5,7 @@ import type { AtributoProducto } from './entities/atributos'
 export interface Product {
   id: number
   nombre: string
+  sku?: string | null
   descripcion: string | null
   created_at: string
   updated_at: string
@@ -16,11 +17,13 @@ export interface Product {
 
 export interface CreateProductInput {
   nombre: string
+  sku?: string | null
   descripcion?: string | null
 }
 
 export interface UpdateProductInput {
   nombre?: string
+  sku?: string | null
   descripcion?: string | null
   // Lista completa: reemplaza los atributos que tenía el producto
   atributos?: AtributoProducto[]

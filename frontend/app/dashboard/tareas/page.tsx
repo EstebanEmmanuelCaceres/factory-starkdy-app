@@ -134,7 +134,10 @@ export default function TareasPage() {
       setOperarios(usersData)
 
       let targetUserId = overrideUserId !== undefined ? overrideUserId : selectedUserId
-      if (targetUserId === null && user) {
+      if (user?.role === 'encargado') {
+        targetUserId = user.id
+        setSelectedUserId(user.id)
+      } else if (targetUserId === null && user) {
         targetUserId = user.id
         setSelectedUserId(user.id)
       }
@@ -145,8 +148,12 @@ export default function TareasPage() {
       }
 
       const tasksData = await fetchOperarioTasks(targetUserId ? { user_id: targetUserId } : undefined)
+      const userTasks = user?.role === 'encargado' && user
+        ? tasksData.filter(t => t.user_id === user.id)
+        : tasksData
+
       setTasks(
-        tasksData
+        userTasks
           .filter(t => t.estado !== 'completado' && !isPendingOrderTask(t))
           // De la más vieja a la más nueva según la fecha de creación
           .sort((a, b) => getTaskCreatedAt(a) - getTaskCreatedAt(b) || a.id - b.id)
@@ -184,7 +191,8 @@ export default function TareasPage() {
     errorTimeoutRef.current = setTimeout(() => setErrorToast(''), 5000)
   }
 
-  const isManager = Boolean(currentUser && ['admin', 'supervisor', 'encargado'].includes(currentUser.role))
+  const isEncargado = currentUser?.role === 'encargado'
+  const isManager = Boolean(currentUser && ['admin', 'supervisor'].includes(currentUser.role))
 
   const handleStartTask = async (id: number) => {
     const targetTask = tasks.find((t) => t.id === id)
@@ -991,7 +999,7 @@ export default function TareasPage() {
 
   return (
     <RoleGuard allowedRoles={['admin', 'supervisor', 'encargado', 'operario', 'operator', 'disenador', 'disenadora']}>
-      <main className="page-content p-6 max-w-7xl mx-auto text-white">
+      <div className="w-full max-w-[1920px] mx-auto text-white">
         {/* Notificaciones flotantes */}
         {successMessage && (
           <div className="fixed top-4 right-4 z-50 bg-emerald-500 text-white px-5 py-3.5 rounded-xl shadow-2xl border border-emerald-400 flex items-center gap-3 text-base font-bold animate-bounce">
@@ -1036,42 +1044,49 @@ export default function TareasPage() {
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 mb-8 bg-slate-900 border border-slate-800 p-6 rounded-2xl shadow-xl">
           <div>
             <h1 className="text-3xl font-extrabold text-white tracking-tight flex items-center gap-3">
-              <span>🏭</span> {isManager ? 'Panel Global de Tareas de Fábrica' : 'Panel de Tareas de Producción'}
+              <span>🏭</span> {isEncargado ? 'Mis Tareas Asignadas' : isManager ? 'Panel Global de Tareas de Fábrica' : 'Panel de Tareas de Producción'}
             </h1>
-          </div>
-
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4">
-            {/* Desplegable para filtrar por usuario */}
-            <div className="flex items-center gap-2 bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 shadow-inner min-w-0 w-full sm:w-auto">
-              <span className="text-xs font-bold text-slate-400 uppercase tracking-wider shrink-0">
-                👤 {isManager ? 'Filtrar por Operario:' : 'Ver tareas de:'}
-              </span>
-              <select
-                value={selectedUserId || ''}
-                onChange={(e) => handleUserSelectChange(e.target.value)}
-                className="bg-transparent text-sm font-extrabold text-blue-400 focus:outline-none cursor-pointer w-full"
-              >
-                {isManager && <option value="" className="bg-slate-900 text-slate-300">👥 Todos los operarios</option>}
-                {operarios.map((op) => (
-                  <option key={op.id} value={op.id} className="bg-slate-900 text-white">
-                    {op.name} {currentUser?.id === op.id ? '(Tú)' : ''}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {selectedUserId !== null && (
-              <button
-                onClick={() => {
-                  setSelectedUserId(null)
-                  loadData(null)
-                }}
-                className="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 px-3.5 py-2.5 rounded-xl font-bold transition flex items-center justify-center gap-1 shrink-0"
-              >
-                <span>🔄</span> Limpiar filtro
-              </button>
+            {isEncargado && (
+              <p className="text-sm text-slate-400 mt-1">
+                Visualizando exclusivamente las tareas asignadas a ti.
+              </p>
             )}
           </div>
+
+          {!isEncargado && (
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4">
+              {/* Desplegable para filtrar por usuario */}
+              <div className="flex items-center gap-2 bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 shadow-inner min-w-0 w-full sm:w-auto">
+                <span className="text-xs font-bold text-slate-400 uppercase tracking-wider shrink-0">
+                  👤 {isManager ? 'Filtrar por Operario:' : 'Ver tareas de:'}
+                </span>
+                <select
+                  value={selectedUserId || ''}
+                  onChange={(e) => handleUserSelectChange(e.target.value)}
+                  className="bg-transparent text-sm font-extrabold text-blue-400 focus:outline-none cursor-pointer w-full"
+                >
+                  {isManager && <option value="" className="bg-slate-900 text-slate-300">👥 Todos los operarios</option>}
+                  {operarios.map((op) => (
+                    <option key={op.id} value={op.id} className="bg-slate-900 text-white">
+                      {op.name} {currentUser?.id === op.id ? '(Tú)' : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {selectedUserId !== null && (
+                <button
+                  onClick={() => {
+                    setSelectedUserId(null)
+                    loadData(null)
+                  }}
+                  className="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 px-3.5 py-2.5 rounded-xl font-bold transition flex items-center justify-center gap-1 shrink-0"
+                >
+                  <span>🔄</span> Limpiar filtro
+                </button>
+              )}
+            </div>
+          )}
         </div>
 
         {/* TAREAS DE PRODUCCIÓN */}
@@ -1084,8 +1099,12 @@ export default function TareasPage() {
           ) : tasks.length === 0 ? (
             <div className="bg-slate-900 border border-slate-800 rounded-2xl py-20 flex flex-col items-center justify-center text-slate-400 gap-4">
               <span className="text-5xl">🎉</span>
-              <span className="text-lg font-bold text-white">¡No hay tareas asignadas pendientes!</span>
-              <p className="text-sm text-slate-500">No se registran tareas pendientes para el operario seleccionado.</p>
+              <span className="text-lg font-bold text-white">¡No tienes tareas asignadas pendientes!</span>
+              <p className="text-sm text-slate-500">
+                {isEncargado
+                  ? 'No tienes tareas pendientes asignadas en este momento.'
+                  : 'No se registran tareas pendientes para el operario seleccionado.'}
+              </p>
             </div>
           ) : (
             <div className="space-y-10">
@@ -1095,10 +1114,12 @@ export default function TareasPage() {
           )}
         </div>
 
-        {/* MÓDULO: ÚLTIMAS 10 TAREAS POR CATEGORÍA (DISPONIBLE PARA TODOS LOS ROLES) */}
-        <div className="mt-10">
-          <TasksByCategoryBox />
-        </div>
+        {/* MÓDULO: ÚLTIMAS 10 TAREAS POR CATEGORÍA (DISPONIBLE PARA OTROS ROLES) */}
+        {!isEncargado && (
+          <div className="mt-10">
+            <TasksByCategoryBox />
+          </div>
+        )}
 
         {/* Panel del pedido de la tarea (se abre al hacer clic en la fila o tarjeta) */}
         <PedidoDetailModal
@@ -1138,7 +1159,7 @@ export default function TareasPage() {
             </form>
           </Modal>
         )}
-      </main>
+      </div>
     </RoleGuard>
   )
 }

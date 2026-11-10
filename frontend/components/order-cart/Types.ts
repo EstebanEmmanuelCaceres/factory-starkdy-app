@@ -2,7 +2,7 @@ import type { ValoresAtributos } from '@/lib/entities/atributos'
 
 export type Prioridad = 'baja' | 'normal' | 'alta' | 'critica'
 
-export type MedioPago = 'transferencia' | 'efectivo' | 'mercadopago' | 'tarjeta'
+export type MedioPago = 'transferencia' | 'efectivo' | 'mercadopago' | 'tarjeta' | 'cheque' | 'otros' | 'otro'
 
 export interface ClienteResumen {
     id: number | null
@@ -16,6 +16,7 @@ export interface OrderLine {
     attributes: ValoresAtributos
     quantity: number
     unitPriceOverride: number | null
+    totalPrice?: number | null
     notes: string
     fileName: string
 }
@@ -56,6 +57,7 @@ export interface OrderFormValues {
     // Precio final del pedido cargado a mano; null = se usa el total calculado con los productos
     priceOverride: number | null
     payment: PaymentValue
+    customTotal: number | null
 }
 
 export function getDefaultOrderValues(): OrderFormValues {
@@ -68,26 +70,36 @@ export function getDefaultOrderValues(): OrderFormValues {
         discount: { mode: 'monto', value: 0 },
         priceOverride: null,
         payment: { amount: 0, method: 'transferencia' },
+        customTotal: null,
     }
 }
 
-export const getDefaultLine = (productId: number, precio: number | null): OrderLine => ({
+export const getDefaultLine = (productId: number, precio: number | null, qty = 10): OrderLine => ({
     productId,
     attributes: {},
-    quantity: 10,
+    quantity: qty,
     unitPriceOverride: precio,
+    totalPrice: precio != null ? precio * qty : null,
     notes: '',
     fileName: '',
 })
 
-export const getLineSubtotal = (line: OrderLine) =>
-    (line.unitPriceOverride ?? 0) * (line.quantity || 0)
+export const getLineSubtotal = (line: OrderLine) => {
+    if (line.totalPrice != null) return line.totalPrice
+    return (line.unitPriceOverride ?? 0) * (line.quantity || 0)
+}
 
-export function getOrderTotal(lines: OrderLine[], discount: DiscountValue): number {
-    const subtotal = lines.reduce((acc, line) => acc + getLineSubtotal(line), 0)
-    const discountAmount = discount.mode === 'porcentaje'
+export const getOrderLinesSubtotal = (lines: OrderLine[] = []) =>
+    lines.reduce((acc, line) => acc + getLineSubtotal(line), 0)
+
+export function getOrderTotal(lines: OrderLine[] = [], discount: DiscountValue, customTotal?: number | null): number {
+    if (customTotal != null && !isNaN(customTotal)) {
+        return Math.max(customTotal, 0)
+    }
+    const subtotal = getOrderLinesSubtotal(lines)
+    const discountAmount = discount?.mode === 'porcentaje'
         ? subtotal * (discount.value || 0) / 100
-        : discount.value || 0
+        : discount?.value || 0
     return Math.max(subtotal - discountAmount, 0)
 }
 

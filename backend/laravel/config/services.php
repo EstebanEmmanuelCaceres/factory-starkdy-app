@@ -35,4 +35,15 @@ return [
         ],
     ],
 
+    'tiendanube' => [
+        'app_id' => env('TIENDANUBE_APP_ID'),
+        'client_secret' => env('TIENDANUBE_CLIENT_SECRET'),
+        'store_id' => env('TIENDANUBE_STORE_ID'),
+        'access_token' => env('TIENDANUBE_ACCESS_TOKEN'),
+        'user_agent' => env('TIENDANUBE_USER_AGENT', 'StarkDY'),
+        'webhook_url' => env('TIENDANUBE_WEBHOOK_URL'),
+        // Usuario (vendedor) al que se asignan los pedidos importados; si está vacío se usa el primer admin
+        'user_id' => env('TIENDANUBE_USER_ID'),
+    ],
+
 ];

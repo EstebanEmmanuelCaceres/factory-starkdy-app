@@ -29,8 +29,11 @@ export const currentMonthRange = () => {
 }
 
 // Los registros viejos pueden tener medios fuera de la lista: se muestra el valor tal cual
-export const medioPagoLabel = (medio: string | null) =>
-  medio ? MEDIOS_PAGO.find((m) => m.value === medio)?.label ?? medio : '—'
+export const medioPagoLabel = (medio: string | null) => {
+  if (!medio) return '—'
+  if (medio === 'mercadopago') return 'Mercado Pago'
+  return MEDIOS_PAGO.find((m) => m.value === medio)?.label ?? medio
+}
 
 export const tipoCobroLabel = (tipo: TipoCobro | null) =>
   tipo ? TIPOS_COBRO.find((t) => t.value === tipo)?.label ?? tipo : '—'

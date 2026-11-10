@@ -16,6 +16,8 @@ export const MEDIOS_PAGO: { value: string; label: string }[] = [
   { value: 'transferencia', label: 'Transferencia' },
   { value: 'tarjeta', label: 'Tarjeta' },
   { value: 'mercado_pago', label: 'Mercado Pago' },
+  { value: 'cheque', label: 'Cheque' },
+  { value: 'otros', label: 'Otros' },
   { value: 'otro', label: 'Otro' },
 ]
 

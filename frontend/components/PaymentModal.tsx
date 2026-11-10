@@ -375,6 +375,8 @@ export default function PaymentModal({
                     <option value="transferencia">🏦 Transferencia</option>
                     <option value="tarjeta">💳 Tarjeta</option>
                     <option value="mercado_pago">📱 Mercado Pago</option>
+                    <option value="cheque">📄 Cheque</option>
+                    <option value="otros">⚙️ Otros</option>
                     <option value="otro">⚙️ Otro</option>
                   </select>
                 </div>

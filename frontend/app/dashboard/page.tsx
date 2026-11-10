@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useRef } from 'react'
+import Link from 'next/link'
 import RoleGuard from '@/components/RoleGuard'
 import Modal from '@/components/Modal'
 import PedidoDetailModal from '@/components/PedidoDetailModal'
@@ -16,8 +17,9 @@ import {
   type Pedido,
   type PedidoFilters
 } from '@/lib/pedidos'
-import PendingDesignsCard from '@/components/PendingDesignsCard'
+import PedidosSinImagenPanel from '@/components/PedidosSinImagenPanel'
 import PaymentModal from '@/components/PaymentModal'
+import VendedoresLineChart from '@/components/VendedoresLineChart'
 
 export default function DashboardPage() {
   const [users, setUsers] = useState<User[]>([])
@@ -27,6 +29,7 @@ export default function DashboardPage() {
   const [refreshing, setRefreshing] = useState(false)
   const [error, setError] = useState('')
   const [currentUser, setCurrentUser] = useState<User | null>(null)
+  const isDisenadora = currentUser?.role === 'disenadora' || currentUser?.role === 'disenador' || currentUser?.role_id === 7 || currentUser?.role_id === 2
 
   // Modal de Detalle Completo del Pedido, Galería de Imágenes y Cobros
   const [selectedPedidoForCommentModal, setSelectedPedidoForCommentModal] = useState<Pedido | null>(null)
@@ -39,6 +42,8 @@ export default function DashboardPage() {
   const [isSubmittingComment, setIsSubmittingComment] = useState(false)
   const [completedUnpaidPedidos, setCompletedUnpaidPedidos] = useState<Pedido[]>([])
   const [loadingUnpaid, setLoadingUnpaid] = useState(true)
+  // Estado para contraer/desplegar la caja de completados por cobrar (solo para admin)
+  const [isUnpaidCollapsed, setIsUnpaidCollapsed] = useState(true)
 
   // Meses y Años para el filtro de comisiones
   const monthsList = [
@@ -135,7 +140,8 @@ export default function DashboardPage() {
       const user = getStoredUser()
       setCurrentUser(user)
 
-      if (user?.role !== 'vendedor') {
+      const userIsDisenadora = user?.role === 'disenadora' || user?.role === 'disenador' || user?.role_id === 7 || user?.role_id === 2
+      if (user?.role !== 'vendedor' || userIsDisenadora) {
         const usersData = await fetchUsers()
         setUsers(usersData)
       }
@@ -145,7 +151,7 @@ export default function DashboardPage() {
       ])
       setPedidos(pedidosData)
       setCompletedUnpaidPedidos(unpaidData)
-      if (isRefresh && user && user.role !== 'encargado') loadMetricas()
+      if (isRefresh && user && user.role !== 'encargado' && !userIsDisenadora) loadMetricas()
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Error al cargar los datos'
       setError(msg)
@@ -164,7 +170,7 @@ export default function DashboardPage() {
   }, [])
 
   useEffect(() => {
-    if (!currentUser || currentUser.role === 'encargado') return
+    if (!currentUser || currentUser.role === 'encargado' || isDisenadora) return
     loadMetricas()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentUser, selectedCommissionMonth, selectedCommissionYear, selectedVendedorId])
@@ -212,17 +218,23 @@ export default function DashboardPage() {
   // - Vendedor / Diseñador: solo ven sus pedidos.
   // - Operarios: ven únicamente los pedidos fuera del estado 'pendiente'.
   // - Encargado / Supervisor / Admin: ven todos los pedidos (incluyendo los pendientes de todos los vendedores).
-  const isVendedor = ['vendedor', 'disenador', 'disenadora'].includes(currentUser?.role || '')
+  const isVendedor = currentUser?.role === 'vendedor' && !isDisenadora
   const isEncargado = currentUser?.role === 'encargado'
   const isOperativo = ['operario', 'operator'].includes(currentUser?.role || '')
-  const showPendingDesigns = ['vendedor', 'disenador', 'disenadora'].includes(currentUser?.role || '')
-  const hasRightColumnContent = showPendingDesigns || !isEncargado
+  const hasRightColumnContent = !isDisenadora
+
+  const isActivoOPendiente = (p: Pedido) => {
+    const estado = p.estado || ''
+    return !['completado', 'completado_pd', 'finalizado', 'cancelado', 'enviado', 'enviado_faltante'].includes(estado)
+  }
 
   const scopedPedidos = isVendedor && currentUser
     ? pedidos.filter(p => p.user_id === currentUser.id)
     : isOperativo
       ? pedidos.filter(p => p.estado !== 'pendiente')
-      : pedidos
+      : isEncargado
+        ? pedidos.filter(isActivoOPendiente)
+        : pedidos
 
   const searchFilteredPedidos = filters.search?.trim()
     ? scopedPedidos.filter((p) => {
@@ -255,6 +267,41 @@ export default function DashboardPage() {
     return 0
   })
 
+  // En Pedidos Actuales del dashboard:
+  // Para encargado se muestran todos los pedidos activos y pendientes (sin limitar a 15).
+  // Para otros roles se muestran únicamente los últimos 15 pedidos.
+  const latestPedidos = isEncargado ? sortedPedidos : sortedPedidos.slice(0, 15)
+
+  // Helper para verificar si una fecha corresponde al día de hoy (fecha local)
+  const isCreatedToday = (dateStr?: string | null) => {
+    if (!dateStr) return false
+    const d = new Date(dateStr)
+    if (isNaN(d.getTime())) return false
+    const today = new Date()
+    return (
+      d.getFullYear() === today.getFullYear() &&
+      d.getMonth() === today.getMonth() &&
+      d.getDate() === today.getDate()
+    )
+  }
+
+  // Métricas para la caja de pedidos del Admin:
+  // Contar pedidos activos y pendientes
+  const adminPedidosActivosYPendientes = scopedPedidos.filter(isActivoOPendiente)
+  const countActivosYPendientes = adminPedidosActivosYPendientes.length
+  const countPendientes = scopedPedidos.filter((p) => (p.estado || '').toLowerCase() === 'pendiente').length
+  const countEnProgreso = scopedPedidos.filter((p) => {
+    const est = (p.estado || '').toLowerCase()
+    return isActivoOPendiente(p) && est !== 'pendiente'
+  }).length
+
+  // Pedidos cargados el día de la fecha (se evalúan tanto activos/pendientes como completados por cobrar)
+  const allLoadedPedidos = Array.from(
+    new Map([...scopedPedidos, ...completedUnpaidPedidos].map((p) => [p.id, p])).values()
+  )
+  const pedidosCargadosHoy = allLoadedPedidos.filter((p) => isCreatedToday(p.created_at))
+  const countCargadosHoy = pedidosCargadosHoy.length
+
   // Helper para saldo pendiente de un pedido
   const getPendingBalance = (p: Pedido) => {
     if (p.saldo_pendiente !== undefined && p.saldo_pendiente !== null) {
@@ -266,6 +313,9 @@ export default function DashboardPage() {
       : (p.pago && p.pago.estado === 'pagado' ? Number(p.pago.monto) : 0)
     return Math.max(0, precio - paidAmount)
   }
+
+  // Total acumulado por cobrar de los pedidos completados
+  const totalCompletedUnpaidBalance = completedUnpaidPedidos.reduce((sum, p) => sum + getPendingBalance(p), 0)
 
   // Lista ordenada de pedidos completados por cobrar (por fecha de creación o por saldo pendiente)
   const sortedCompletedUnpaidPedidos = [...completedUnpaidPedidos].sort((a, b) => {
@@ -410,15 +460,21 @@ export default function DashboardPage() {
 
   return (
     <RoleGuard allowedRoles={['admin', 'supervisor', 'encargado', 'vendedor', 'disenador', 'disenadora']} fallbackHref="/dashboard/tareas">
-      <main className="page-content p-6 max-w-7xl mx-auto text-white space-y-8">
+      <div className="w-full max-w-[1920px] mx-auto text-white space-y-6">
         {/* Cabecera */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
             <h1 className="text-3xl font-extrabold text-white tracking-tight">
-              {isVendedor ? `Dashboard de Vendedor - ${currentUser?.name || ''}` : 'Dashboard General'}
+              {isDisenadora
+                ? `Dashboard de Diseñadora - ${currentUser?.name || ''}`
+                : isVendedor
+                  ? `Dashboard de Vendedor - ${currentUser?.name || ''}`
+                  : 'Dashboard General'}
             </h1>
             <p className="text-sm text-slate-400">
-              {isVendedor
+              {isDisenadora
+                ? 'Gestión de diseños, pedidos pendientes de imagen y seguimiento de producción.'
+                : isVendedor
                 ? 'Métricas personales de cobros, comisiones y seguimiento de tus pedidos.'
                 : 'Resumen y métricas en tiempo real de fabricación y cobros.'}
             </p>
@@ -439,8 +495,25 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* Tarjetas de Métricas de Cobros y Comisiones */}
-        {!isEncargado && (
+        {/* Panel de Pedidos a los que les falta cargar imagen (Rol Diseñadora) */}
+        {isDisenadora && (
+          <PedidosSinImagenPanel
+            pedidos={pedidos}
+            vendedores={vendedores}
+            loading={loadingPedidos}
+            onOpenImageModal={(pedido) => {
+              setSelectedPedidoForImages(pedido)
+              setIsImagesModalOpen(true)
+            }}
+            onOpenDetailModal={(pedido) => {
+              setSelectedPedidoForCommentModal(pedido)
+            }}
+            onRefresh={() => loadData(true)}
+          />
+        )}
+
+        {/* Tarjetas de Métricas de Cobros y Comisiones (Ocultas para rol Diseñadora y Encargado) */}
+        {!isEncargado && !isDisenadora && (
           isAdmin ? (
             /* VISTA DE 3 CAJAS REDISEÑADAS PARA EL ROL ADMIN CON GRID ADAPTATIVO POR RESOLUCIÓN */
             <div className="grid grid-cols-1 min-[718px]:grid-cols-2 min-[1501px]:grid-cols-3 gap-6">
@@ -705,9 +778,101 @@ export default function DashboardPage() {
         )}
 
         {/* Grid de Tablas: Pedidos Actuales + Completados por Cobrar */}
-        <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
-          {/* Tabla de Pedidos Actuales con Filtros integrados */}
-          <div className={`${hasRightColumnContent ? 'lg:col-span-7' : 'lg:col-span-12'} bg-slate-900 border border-slate-800 rounded-2xl shadow-xl overflow-hidden flex flex-col justify-between`}>
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+          {isAdmin ? (
+            /* CAJA PARA ROL ADMIN: Pedidos Activos y Cargados Hoy */
+            <div className="lg:col-span-5 2xl:col-span-4 flex flex-col gap-6">
+              <div className="relative overflow-hidden bg-gradient-to-br from-slate-900 via-slate-900 to-blue-950/30 border border-slate-800 hover:border-blue-500/30 rounded-2xl p-6 shadow-xl flex flex-col justify-between gap-6 transition duration-300">
+                <div className="absolute top-0 right-0 -mt-6 -mr-6 w-32 h-32 bg-blue-500/10 rounded-full blur-2xl pointer-events-none"></div>
+
+                {/* Cabecera de la Caja */}
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex items-center gap-3.5">
+                    <div className="flex items-center justify-center w-12 h-12 rounded-2xl bg-blue-500/10 border border-blue-500/20 text-blue-400 text-2xl shadow-inner select-none shrink-0">
+                      📦
+                    </div>
+                    <div>
+                      <h2 className="text-base font-bold text-white tracking-tight flex items-center gap-2">
+                        Pedidos Activos
+                        <span className="bg-blue-500/20 text-blue-300 text-xs font-extrabold px-2 py-0.5 rounded-full border border-blue-500/30">
+                          {loadingPedidos ? '...' : countActivosYPendientes}
+                        </span>
+                      </h2>
+                      <p className="text-xs text-slate-400">Total en proceso de fabricación y pendientes</p>
+                    </div>
+                  </div>
+
+                  <Link
+                    href="/dashboard/pedidos"
+                    className="inline-flex items-center gap-1.5 bg-slate-950 hover:bg-slate-800 border border-slate-800 hover:border-blue-500/40 text-blue-400 hover:text-blue-300 font-bold px-3 py-1.5 rounded-xl text-xs transition duration-150 shadow-sm shrink-0 group"
+                    title="Ir a Gestión de Pedidos"
+                  >
+                    <span>Ver pedidos</span>
+                    <span className="group-hover:translate-x-0.5 transition-transform">→</span>
+                  </Link>
+                </div>
+
+                {/* Número Principal de Activos + Pendientes */}
+                <div className="bg-slate-950/60 border border-slate-800/80 rounded-xl p-4 flex items-center justify-between gap-4">
+                  <div>
+                    <span className="block text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+                      Total Activos + Pendientes
+                    </span>
+                    <div className="flex items-baseline gap-2 mt-1">
+                      <span className="text-3xl md:text-4xl font-black text-white font-mono">
+                        {loadingPedidos ? '...' : countActivosYPendientes}
+                      </span>
+                      <span className="text-xs text-slate-400">pedidos</span>
+                    </div>
+                  </div>
+
+                  {/* Mini desglose */}
+                  <div className="flex flex-col gap-1 text-right">
+                    <div className="inline-flex items-center gap-1.5 justify-end text-xs">
+                      <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
+                      <span className="text-slate-400">Pendientes:</span>
+                      <span className="font-bold text-amber-400 font-mono">{loadingPedidos ? '...' : countPendientes}</span>
+                    </div>
+                    <div className="inline-flex items-center gap-1.5 justify-end text-xs">
+                      <span className="w-2 h-2 rounded-full bg-blue-400"></span>
+                      <span className="text-slate-400">En fabricación:</span>
+                      <span className="font-bold text-blue-400 font-mono">{loadingPedidos ? '...' : countEnProgreso}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Tarjeta Destacada: Pedidos cargados el día de la fecha */}
+                <div className="relative overflow-hidden bg-gradient-to-r from-emerald-950/40 via-slate-950/80 to-slate-950 border border-emerald-500/30 rounded-xl p-4 shadow-inner">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                      <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xl shadow-inner select-none shrink-0">
+                        📅
+                      </div>
+                      <div>
+                        <span className="block text-[10px] font-bold text-emerald-400 uppercase tracking-wider">
+                          Cargados Hoy (Día de la Fecha)
+                        </span>
+                        <span className="block text-2xl font-black text-white font-mono leading-tight mt-0.5">
+                          {loadingPedidos ? '...' : countCargadosHoy} {countCargadosHoy === 1 ? 'pedido' : 'pedidos'}
+                        </span>
+                      </div>
+                    </div>
+
+                    <span className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-300">
+                      {new Date().toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-400 mt-2">
+                    {countCargadosHoy > 0
+                      ? `Se han registrado ${countCargadosHoy} ${countCargadosHoy === 1 ? 'nuevo pedido' : 'nuevos pedidos'} en la jornada de hoy.`
+                      : 'No se han registrado nuevos pedidos en lo que va del día.'}
+                  </p>
+                </div>
+              </div>
+            </div>
+          ) : (
+            /* Tabla de Pedidos Actuales con Filtros integrados (Para otros roles) */
+            <div className={`${hasRightColumnContent ? 'lg:col-span-7 2xl:col-span-8' : 'lg:col-span-12'} bg-slate-900 border border-slate-800 rounded-2xl shadow-xl overflow-hidden flex flex-col justify-between`}>
             {/* Cabecera y Filtros Integrados */}
             <div className="border-b border-slate-800 p-5 space-y-4 bg-slate-950/40">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -716,7 +881,9 @@ export default function DashboardPage() {
                     <span>📋</span> Pedidos Actuales
                   </h2>
                   <span className="text-xs text-slate-400">
-                    {scopedPedidos.length} {scopedPedidos.length === 1 ? 'pedido encontrado' : 'pedidos encontrados'}
+                    {isEncargado
+                      ? `Mostrando ${latestPedidos.length} ${latestPedidos.length === 1 ? 'pedido activo / pendiente' : 'pedidos activos y pendientes'}`
+                      : `Mostrando los últimos ${latestPedidos.length} ${latestPedidos.length === 1 ? 'pedido' : 'pedidos'}${scopedPedidos.length > latestPedidos.length ? ` de ${scopedPedidos.length} encontrados` : ''}`}
                   </span>
                 </div>
                 <div className="flex items-center gap-3">
@@ -739,7 +906,7 @@ export default function DashboardPage() {
               </div>
 
               {/* Barra de Filtros */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
+              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-2.5 pt-1">
                 {/* Buscador de Cliente / Empresa */}
                 <div>
                   <label className="block text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">
@@ -764,15 +931,25 @@ export default function DashboardPage() {
                     onChange={(e) => handleFilterChange('estado', e.target.value)}
                     className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-blue-500 transition"
                   >
-                    <option value="">Estados Activos (sin finalizados/cancelados)</option>
-                    <option value="todos">Todos los estados (incl. completados/cancelados)</option>
-                    <option value="pendiente">Pendiente</option>
-                    <option value="en_progreso">En Progreso</option>
-                    <option value="completado">Completado</option>
-                    <option value="completado_pd">Completado - Pend. Pago (PD)</option>
-                    <option value="enviado">Enviado</option>
-                    <option value="enviado_faltante">Enviado con Faltante</option>
-                    <option value="cancelado">Cancelado</option>
+                    {isEncargado ? (
+                      <>
+                        <option value="">Todos los activos y pendientes</option>
+                        <option value="pendiente">Pendiente</option>
+                        <option value="en_progreso">En Progreso</option>
+                      </>
+                    ) : (
+                      <>
+                        <option value="">Estados Activos (sin finalizados/cancelados)</option>
+                        <option value="todos">Todos los estados (incl. completados/cancelados)</option>
+                        <option value="pendiente">Pendiente</option>
+                        <option value="en_progreso">En Progreso</option>
+                        <option value="completado">Completado</option>
+                        <option value="completado_pd">Completado - Pend. Pago (PD)</option>
+                        <option value="enviado">Enviado</option>
+                        <option value="enviado_faltante">Enviado con Faltante</option>
+                        <option value="cancelado">Cancelado</option>
+                      </>
+                    )}
                   </select>
                 </div>
 
@@ -819,7 +996,7 @@ export default function DashboardPage() {
                   {/* VISTA EN TARJETAS PARA MOBILE (< md) CON LÍMITE DE 5 POR PÁGINA */}
                   <div className="md:hidden space-y-3 p-3">
                     <div className="max-h-[420px] overflow-y-auto space-y-3 pr-1">
-                      {sortedPedidos
+                      {latestPedidos
                         .slice((mobilePedidosPage - 1) * 5, mobilePedidosPage * 5)
                         .map((pedido) => {
                           const coverUrl =
@@ -879,7 +1056,7 @@ export default function DashboardPage() {
                                   </span>
                                 </div>
 
-                                {!isEncargado && (
+                                {!isEncargado && !isDisenadora && (
                                   <div>
                                     <span className="text-slate-500 text-[10px] block mb-0.5">Cobro</span>
                                     {(() => {
@@ -906,6 +1083,28 @@ export default function DashboardPage() {
                                 )}
                               </div>
 
+                              {/* Lista de productos en mobile para encargado */}
+                              {isEncargado && pedido.productos && pedido.productos.length > 0 && (
+                                <div className="pt-2 border-t border-slate-800/60 space-y-1">
+                                  <span className="text-[10px] text-slate-500 uppercase font-bold tracking-wider block">
+                                    Productos ({pedido.productos.length})
+                                  </span>
+                                  <div className="space-y-1">
+                                    {pedido.productos.map((prod, idx) => {
+                                      const cant = prod.pivot?.cantidad ?? (prod as any).cantidad ?? 1
+                                      return (
+                                        <div key={idx} className="flex items-center gap-1.5 text-xs text-slate-300">
+                                          <span className="font-mono font-bold text-amber-400 bg-amber-500/10 border border-amber-500/20 px-1.5 py-0.2 rounded text-[10px]">
+                                            {cant} u.
+                                          </span>
+                                          <span className="truncate">{prod.nombre}</span>
+                                        </div>
+                                      )
+                                    })}
+                                  </div>
+                                </div>
+                              )}
+
                               {/* Footer: Acciones */}
                               <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-800/80">
                                 <button
@@ -921,9 +1120,9 @@ export default function DashboardPage() {
                     </div>
 
                     {/* Paginación Mobile */}
-                    {Math.ceil(sortedPedidos.length / 5) > 1 && (
+                    {Math.ceil(latestPedidos.length / 5) > 1 && (
                       <div className="flex items-center justify-between px-4 py-2 border-t border-slate-800 text-xs text-slate-400">
-                        <span>Página {mobilePedidosPage} de {Math.ceil(sortedPedidos.length / 5)}</span>
+                        <span>Página {mobilePedidosPage} de {Math.ceil(latestPedidos.length / 5)}</span>
                         <div className="flex gap-2">
                           <button
                             onClick={() => setMobilePedidosPage(prev => Math.max(prev - 1, 1))}
@@ -933,8 +1132,8 @@ export default function DashboardPage() {
                             Anterior
                           </button>
                           <button
-                            onClick={() => setMobilePedidosPage(prev => Math.min(prev + 1, Math.ceil(sortedPedidos.length / 5)))}
-                            disabled={mobilePedidosPage >= Math.ceil(sortedPedidos.length / 5)}
+                            onClick={() => setMobilePedidosPage(prev => Math.min(prev + 1, Math.ceil(latestPedidos.length / 5)))}
+                            disabled={mobilePedidosPage >= Math.ceil(latestPedidos.length / 5)}
                             className="px-2.5 py-1 bg-slate-800 rounded disabled:opacity-40"
                           >
                             Siguiente
@@ -977,12 +1176,16 @@ export default function DashboardPage() {
                           >
                             Estado {sortField === 'estado' && (sortOrder === 'asc' ? '↑' : '↓')}
                           </th>
-                          {!isEncargado && <th className="px-4 py-3">Dinero</th>}
-                          <th className="px-4 py-3 text-center">Acciones</th>
+                          {!isEncargado && !isDisenadora && <th className="px-4 py-3">Dinero</th>}
+                          {isEncargado ? (
+                            <th className="px-4 py-3">Productos y Cantidades</th>
+                          ) : (
+                            <th className="px-4 py-3 text-center">Acciones</th>
+                          )}
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-800 text-sm">
-                        {sortedPedidos.map((pedido) => {
+                        {latestPedidos.map((pedido) => {
                           const coverUrl =
                             pedido.imagen_principal?.url ||
                             pedido.imagenes?.find((img) => img.es_principal)?.url ||
@@ -1001,7 +1204,7 @@ export default function DashboardPage() {
                                 {coverUrl ? (
                                   <div
                                     className="w-9 h-9 rounded-lg overflow-hidden border border-slate-700 bg-slate-950 relative flex items-center justify-center shadow"
-                                    title="Portada del pedido"
+                                    title={`Portada ${pedido.codigo}`}
                                   >
                                     {/* eslint-disable-next-line @next/next/no-img-element */}
                                     <img
@@ -1012,19 +1215,33 @@ export default function DashboardPage() {
                                   </div>
                                 ) : (
                                   <div
-                                    className="w-9 h-9 rounded-lg border border-slate-800/80 bg-slate-950/50 flex items-center justify-center text-slate-600 text-xs"
-                                    title="Sin imagen"
+                                    data-prevent-row-click
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      setSelectedPedidoForImages(pedido)
+                                      setIsImagesModalOpen(true)
+                                    }}
+                                    className="w-9 h-9 rounded-lg border border-dashed border-amber-500/50 bg-amber-500/10 flex items-center justify-center text-amber-400 text-xs cursor-pointer hover:bg-amber-500/20 transition"
+                                    title="Sin imagen - Clic para cargar"
                                   >
                                     📷
                                   </div>
                                 )}
                               </td>
                               <td className="px-4 py-3">
-                                <span className="font-semibold text-white text-xs">
-                                  {pedido.cliente?.nombre_empresa || pedido.cliente?.nombre_cliente || 'Sin empresa'}
-                                </span>
+                                <div className="flex flex-col">
+                                  <span className="text-[10px] text-blue-400 font-mono font-bold">#{pedido.codigo}</span>
+                                  <span className="font-semibold text-white text-xs leading-snug">
+                                    {pedido.cliente?.nombre_empresa || pedido.cliente?.nombre_cliente || 'Sin empresa'}
+                                  </span>
+                                  {pedido.cliente?.nombre_empresa && pedido.cliente?.nombre_cliente && (
+                                    <span className="text-[11px] text-slate-400">
+                                      {pedido.cliente.nombre_cliente}
+                                    </span>
+                                  )}
+                                </div>
                               </td>
-                              <td className="px-4 py-3 text-xs text-slate-300 font-mono">
+                              <td className="px-4 py-3 text-xs text-slate-300 font-mono whitespace-nowrap">
                                 {pedido.created_at ? new Date(pedido.created_at).toLocaleDateString('es-AR') : 'N/A'}
                               </td>
                               <td className="px-4 py-3">
@@ -1032,7 +1249,7 @@ export default function DashboardPage() {
                                   {getStatusLabel(pedido.estado)}
                                 </span>
                               </td>
-                              {!isEncargado && (
+                              {!isEncargado && !isDisenadora && (
                                 <td className="px-4 py-3">
                                   {(() => {
                                     const precio = Number(pedido.precio) || 0
@@ -1061,15 +1278,54 @@ export default function DashboardPage() {
                                   })()}
                                 </td>
                               )}
-                              <td className="px-4 py-3 text-center">
-                                <button
-                                  onClick={() => setSelectedPedidoForCommentModal(pedido)}
-                                  className="inline-flex items-center gap-1 bg-blue-600/20 hover:bg-blue-600/40 text-blue-300 border border-blue-500/30 px-2.5 py-1 rounded text-xs font-bold transition shadow-sm"
-                                  title="Ver detalle del pedido"
-                                >
-                                  👁️ Ver Pedido
-                                </button>
-                              </td>
+                              {isEncargado ? (
+                                <td className="px-4 py-3">
+                                  {pedido.productos && pedido.productos.length > 0 ? (
+                                    <div className="flex flex-col gap-1.5 py-0.5 max-w-md">
+                                      {pedido.productos.map((prod, idx) => {
+                                        const cant = prod.pivot?.cantidad ?? (prod as any).cantidad ?? 1
+                                        const atributos = prod.pivot?.atributos
+                                        const attrText = atributos && typeof atributos === 'object'
+                                          ? Object.entries(atributos)
+                                              .filter(([_, v]) => v)
+                                              .map(([k, v]) => `${k}: ${v}`)
+                                              .join(' · ')
+                                          : ''
+
+                                        return (
+                                          <div key={idx} className="flex items-center gap-2 text-xs">
+                                            <span className="font-mono font-bold text-amber-300 bg-amber-500/15 border border-amber-500/30 px-2 py-0.5 rounded text-[11px] whitespace-nowrap shadow-sm">
+                                              {cant} u.
+                                            </span>
+                                            <div className="min-w-0 flex-1">
+                                              <span className="font-semibold text-slate-100 truncate block text-xs" title={prod.nombre}>
+                                                {prod.nombre}
+                                              </span>
+                                              {attrText && (
+                                                <span className="text-[10px] text-slate-400 truncate block" title={attrText}>
+                                                  {attrText}
+                                                </span>
+                                              )}
+                                            </div>
+                                          </div>
+                                        )
+                                      })}
+                                    </div>
+                                  ) : (
+                                    <span className="text-xs text-slate-500 italic">Sin productos</span>
+                                  )}
+                                </td>
+                              ) : (
+                                <td className="px-4 py-3 text-center">
+                                  <button
+                                    onClick={() => setSelectedPedidoForCommentModal(pedido)}
+                                    className="inline-flex items-center gap-1 bg-blue-600/20 hover:bg-blue-600/40 text-blue-300 border border-blue-500/30 px-2.5 py-1 rounded text-xs font-bold transition shadow-sm"
+                                    title="Ver detalle del pedido"
+                                  >
+                                    👁️ Ver Pedido
+                                  </button>
+                                </td>
+                              )}
                             </tr>
                           )
                         })}
@@ -1079,23 +1335,32 @@ export default function DashboardPage() {
                 </div>
               )}
             </div>
+
+            {/* Pie con botón de Ver más hacia la vista de la tabla de pedidos */}
+            <div className="border-t border-slate-800 p-3.5 bg-slate-950/40 flex items-center justify-center">
+              <Link
+                href="/dashboard/pedidos"
+                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-slate-950 hover:bg-slate-850 border border-slate-750 hover:border-blue-500/50 text-blue-400 hover:text-blue-300 font-bold px-6 py-2.5 rounded-xl text-xs transition duration-150 shadow-md group"
+              >
+                <span>{isEncargado ? 'Ver historial completo en la tabla' : 'Ver más pedidos en la tabla'}</span>
+                <span className="group-hover:translate-x-1 transition-transform">→</span>
+              </Link>
+            </div>
           </div>
+        )}
 
-          {/* Columna Derecha: Diseños Pendientes + Completados por Cobrar */}
+          {/* Columna Derecha: Completados por Cobrar */}
           {hasRightColumnContent && (
-            <div className="lg:col-span-5 flex flex-col gap-6">
-              {/* Caja de Diseños Pendientes */}
-              {showPendingDesigns && (
-                <PendingDesignsCard
-                  currentUserId={currentUser?.id}
-                  onDesignCompleted={() => loadData(true)}
-                />
-              )}
-
-              {/* Tabla Adyacente: Completados por Cobrar (Solo visible para roles con módulo financiero) */}
-              {!isEncargado && (
+            <div className={`${isAdmin ? 'lg:col-span-7 2xl:col-span-8' : 'lg:col-span-5 2xl:col-span-4'} flex flex-col gap-6`}>
+              {/* Tabla Adyacente: Completados por Cobrar */}
+              {!isDisenadora && (
                 <div className="bg-slate-900 border border-slate-800 rounded-2xl shadow-xl overflow-hidden flex flex-col">
-                  <div className="border-b border-slate-800 p-5 bg-slate-950/40 flex flex-wrap items-center justify-between gap-3">
+                  <div
+                    className={`border-b border-slate-800 p-5 bg-slate-950/40 flex flex-wrap items-center justify-between gap-3 ${isAdmin ? 'cursor-pointer select-none transition hover:bg-slate-950/70' : ''}`}
+                    onClick={() => {
+                      if (isAdmin) setIsUnpaidCollapsed((prev) => !prev)
+                    }}
+                  >
                     <div>
                       <h2 className="text-base font-bold text-white flex items-center gap-2">
                         <span>⚠️</span> Completados por Cobrar
@@ -1106,13 +1371,13 @@ export default function DashboardPage() {
                         )}
                       </h2>
                       <p className="text-xs text-slate-400 mt-0.5">
-                        Clientes con fabricación terminada y saldo pendiente
+                        {isEncargado ? 'Pedidos completados pendientes de cobro' : 'Clientes con fabricación terminada y saldo pendiente'}
                       </p>
                     </div>
 
-                    <div className="flex items-center gap-2">
-                      {/* Controles de ordenamiento por Saldo y Fecha */}
-                      {completedUnpaidPedidos.length > 0 && (
+                    <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                      {/* Controles de ordenamiento por Saldo y Fecha (visibles cuando no está contraído) */}
+                      {(!isAdmin || !isUnpaidCollapsed) && completedUnpaidPedidos.length > 0 && (
                         <div className="flex items-center bg-slate-950 border border-slate-800 rounded-xl p-1 text-xs gap-1 shadow-inner">
                           <button
                             type="button"
@@ -1136,28 +1401,30 @@ export default function DashboardPage() {
                               <span className="font-bold text-blue-400">{unpaidSortOrder === 'asc' ? '↑' : '↓'}</span>
                             )}
                           </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              if (unpaidSortField === 'saldo') {
-                                setUnpaidSortOrder(prev => prev === 'asc' ? 'desc' : 'asc')
-                              } else {
-                                setUnpaidSortField('saldo')
-                                setUnpaidSortOrder('desc')
-                              }
-                            }}
-                            className={`px-2.5 py-1 rounded-lg flex items-center gap-1.5 transition text-xs font-semibold cursor-pointer ${
-                              unpaidSortField === 'saldo'
-                                ? 'bg-amber-600/25 text-amber-300 border border-amber-500/30 font-bold'
-                                : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
-                            }`}
-                            title="Ordenar por saldo pendiente (ascendente / descendente)"
-                          >
-                            <span>Saldo</span>
-                            {unpaidSortField === 'saldo' && (
-                              <span className="font-bold text-amber-400">{unpaidSortOrder === 'asc' ? '↑' : '↓'}</span>
-                            )}
-                          </button>
+                          {!isEncargado && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (unpaidSortField === 'saldo') {
+                                  setUnpaidSortOrder(prev => prev === 'asc' ? 'desc' : 'asc')
+                                } else {
+                                  setUnpaidSortField('saldo')
+                                  setUnpaidSortOrder('desc')
+                                }
+                              }}
+                              className={`px-2.5 py-1 rounded-lg flex items-center gap-1.5 transition text-xs font-semibold cursor-pointer ${
+                                unpaidSortField === 'saldo'
+                                  ? 'bg-amber-600/25 text-amber-300 border border-amber-500/30 font-bold'
+                                  : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+                              }`}
+                              title="Ordenar por saldo pendiente (ascendente / descendente)"
+                            >
+                              <span>Saldo</span>
+                              {unpaidSortField === 'saldo' && (
+                                <span className="font-bold text-amber-400">{unpaidSortOrder === 'asc' ? '↑' : '↓'}</span>
+                              )}
+                            </button>
+                          )}
                         </div>
                       )}
 
@@ -1169,10 +1436,53 @@ export default function DashboardPage() {
                       >
                         🔄
                       </button>
+
+                      {isAdmin && (
+                        <button
+                          type="button"
+                          onClick={() => setIsUnpaidCollapsed((prev) => !prev)}
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-950 hover:bg-slate-800 border border-slate-800 hover:border-amber-500/40 text-amber-300 text-xs font-bold transition shadow-sm cursor-pointer select-none"
+                          title={isUnpaidCollapsed ? 'Desplegar panel' : 'Contraer panel'}
+                        >
+                          <span>{isUnpaidCollapsed ? 'Desplegar' : 'Contraer'}</span>
+                          <span className={`inline-block transform transition-transform duration-200 ${isUnpaidCollapsed ? 'rotate-0' : 'rotate-180'}`}>
+                            ▼
+                          </span>
+                        </button>
+                      )}
                     </div>
                   </div>
 
-                  <div className="p-0 flex-grow">
+                  {isAdmin && isUnpaidCollapsed ? (
+                    /* VISTA CONTRAÍDA PARA ADMIN: Resumen compacto de pedidos completados con saldo */
+                    <div
+                      onClick={() => setIsUnpaidCollapsed(false)}
+                      className="p-4 bg-slate-950/30 hover:bg-slate-950/60 transition cursor-pointer flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400 text-xl shrink-0 select-none">
+                          💰
+                        </div>
+                        <div>
+                          <span className="text-slate-200 font-semibold block text-sm">
+                            {completedUnpaidPedidos.length === 0
+                              ? 'No hay pedidos completados pendientes de cobro'
+                              : completedUnpaidPedidos.length === 1
+                                ? '1 pedido completado con cobro pendiente'
+                                : `${completedUnpaidPedidos.length} pedidos completados con cobro pendiente`}
+                          </span>
+                          <span className="text-xs text-slate-400 mt-0.5 block">
+                            Total a cobrar acumulado: <strong className="text-amber-400 font-mono text-xs">{formatCurrency(totalCompletedUnpaidBalance)}</strong>
+                          </span>
+                        </div>
+                      </div>
+
+                      <span className="inline-flex items-center gap-1.5 text-blue-400 hover:text-blue-300 font-bold text-xs">
+                        Desplegar listado completo →
+                      </span>
+                    </div>
+                  ) : (
+                    <div className="p-0 flex-grow">
                     {loadingUnpaid ? (
                       <div className="py-20 flex flex-col items-center justify-center text-slate-400 gap-3">
                         <div className="animate-spin rounded-full h-8 w-8 border-2 border-blue-500 border-t-transparent"></div>
@@ -1216,28 +1526,43 @@ export default function DashboardPage() {
                                         <span className="text-xs text-slate-400 block mt-0.5">
                                           {pedido.created_at ? new Date(pedido.created_at).toLocaleDateString('es-AR') : '-'}
                                         </span>
+                                        {isEncargado && (
+                                          <span className="text-[11px] text-slate-400 block mt-1">
+                                            Vendedor: <span className="text-slate-300 font-medium">{pedido.vendedor?.name || (users.find(u => u.id === pedido.user_id)?.name) || '-'}</span>
+                                          </span>
+                                        )}
                                       </div>
                                       <div className="text-right">
-                                        <span className="text-[10px] text-slate-400 block">Saldo Pendiente</span>
-                                        <span className="font-bold text-amber-400 font-mono text-sm block">
-                                          {formatCurrency(pending)}
-                                        </span>
+                                        {isEncargado ? (
+                                          <span className="inline-block bg-amber-500/10 text-amber-400 text-[10px] font-bold px-2 py-1 rounded-md border border-amber-500/20">
+                                            Pend. Cobro
+                                          </span>
+                                        ) : (
+                                          <>
+                                            <span className="text-[10px] text-slate-400 block">Saldo Pendiente</span>
+                                            <span className="font-bold text-amber-400 font-mono text-sm block">
+                                              {formatCurrency(pending)}
+                                            </span>
+                                          </>
+                                        )}
                                       </div>
                                     </div>
 
-                                    <div className="pt-2 border-t border-slate-800/80 flex items-center justify-end">
-                                      <button
-                                        type="button"
-                                        onClick={(e) => {
-                                          e.stopPropagation()
-                                          setSelectedPedidoForPayments(pedido)
-                                          setIsPaymentsModalOpen(true)
-                                        }}
-                                        className="inline-flex items-center gap-1 bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition shadow-sm cursor-pointer"
-                                      >
-                                        💵 Cobrar
-                                      </button>
-                                    </div>
+                                    {!isEncargado && (
+                                      <div className="pt-2 border-t border-slate-800/80 flex items-center justify-end">
+                                        <button
+                                          type="button"
+                                          onClick={(e) => {
+                                            e.stopPropagation()
+                                            setSelectedPedidoForPayments(pedido)
+                                            setIsPaymentsModalOpen(true)
+                                          }}
+                                          className="inline-flex items-center gap-1 bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition shadow-sm cursor-pointer"
+                                        >
+                                          💵 Cobrar
+                                        </button>
+                                      </div>
+                                    )}
                                   </div>
                                 )
                               })}
@@ -1278,8 +1603,17 @@ export default function DashboardPage() {
                             <thead>
                               <tr className="border-b border-slate-800 bg-slate-950/40 text-slate-400 font-semibold text-xs uppercase tracking-wider">
                                 <th className="px-4 py-3">Cliente / Empresa</th>
-                                <th className="px-4 py-3 text-right">Saldo Pendiente</th>
-                                <th className="px-4 py-3 text-center">Acciones</th>
+                                {isEncargado ? (
+                                  <>
+                                    <th className="px-4 py-3 text-center">Estado</th>
+                                    <th className="px-4 py-3 text-center">Vendedor</th>
+                                  </>
+                                ) : (
+                                  <>
+                                    <th className="px-4 py-3 text-right">Saldo Pendiente</th>
+                                    <th className="px-4 py-3 text-center">Acciones</th>
+                                  </>
+                                )}
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-800 text-sm">
@@ -1302,25 +1636,42 @@ export default function DashboardPage() {
                                         </span>
                                       </div>
                                     </td>
-                                    <td className="px-4 py-3 text-right">
-                                      <span className="font-bold text-amber-400 font-mono text-xs">
-                                        {formatCurrency(pending)}
-                                      </span>
-                                    </td>
-                                    <td className="px-4 py-3 text-center">
-                                      <button
-                                        type="button"
-                                        onClick={(e) => {
-                                          e.stopPropagation()
-                                          setSelectedPedidoForPayments(pedido)
-                                          setIsPaymentsModalOpen(true)
-                                        }}
-                                        className="inline-flex items-center gap-1 bg-emerald-600/20 hover:bg-emerald-600/40 text-emerald-300 border border-emerald-500/30 px-3 py-1.5 rounded-lg text-xs font-bold transition shadow-sm cursor-pointer"
-                                        title="Cargar cobro a este pedido"
-                                      >
-                                        💵 Cobrar
-                                      </button>
-                                    </td>
+                                    {isEncargado ? (
+                                      <>
+                                        <td className="px-4 py-3 text-center">
+                                          <span className="inline-block bg-amber-500/10 text-amber-400 text-[10px] font-bold px-2 py-1 rounded-md border border-amber-500/20">
+                                            Pend. Cobro
+                                          </span>
+                                        </td>
+                                        <td className="px-4 py-3 text-center">
+                                          <span className="text-xs text-slate-300 font-medium">
+                                            {pedido.vendedor?.name || (users.find(u => u.id === pedido.user_id)?.name) || '-'}
+                                          </span>
+                                        </td>
+                                      </>
+                                    ) : (
+                                      <>
+                                        <td className="px-4 py-3 text-right">
+                                          <span className="font-bold text-amber-400 font-mono text-xs">
+                                            {formatCurrency(pending)}
+                                          </span>
+                                        </td>
+                                        <td className="px-4 py-3 text-center">
+                                          <button
+                                            type="button"
+                                            onClick={(e) => {
+                                              e.stopPropagation()
+                                              setSelectedPedidoForPayments(pedido)
+                                              setIsPaymentsModalOpen(true)
+                                            }}
+                                            className="inline-flex items-center gap-1 bg-emerald-600/20 hover:bg-emerald-600/40 text-emerald-300 border border-emerald-500/30 px-3 py-1.5 rounded-lg text-xs font-bold transition shadow-sm cursor-pointer"
+                                            title="Cargar cobro a este pedido"
+                                          >
+                                            💵 Cobrar
+                                          </button>
+                                        </td>
+                                      </>
+                                    )}
                                   </tr>
                                 )
                               })}
@@ -1330,11 +1681,15 @@ export default function DashboardPage() {
                       </div>
                     )}
                   </div>
+                )}
                 </div>
               )}
             </div>
           )}
         </div>
+
+        {/* Gráfico de Líneas de Rendimiento Diario por Vendedor (Solo Admin) */}
+        {isAdmin && <VendedoresLineChart />}
 
         {/* Modal de Detalle Completo del Pedido */}
         <PedidoDetailModal
@@ -1355,6 +1710,7 @@ export default function DashboardPage() {
             setIsImagesModalOpen(true)
           }}
           onOpenPayments={(pedidoToPay) => {
+            if (isEncargado) return
             setSelectedPedidoForPayments(pedidoToPay)
             setIsPaymentsModalOpen(true)
           }}
@@ -1401,7 +1757,7 @@ export default function DashboardPage() {
             isOpen={isImagesModalOpen}
             onClose={() => {
               setIsImagesModalOpen(false)
-              fetchPedidos().then(setPedidos).catch(console.error)
+              loadData(true)
             }}
             className="max-w-4xl p-6 flex flex-col text-slate-300"
           >
@@ -1419,11 +1775,11 @@ export default function DashboardPage() {
             <OrderImageGallery
               orderId={selectedPedidoForImages.id}
               orderCode={selectedPedidoForImages.codigo}
-              onImagesUpdated={() => fetchPedidos().then(setPedidos).catch(console.error)}
+              onImagesUpdated={() => loadData(true)}
             />
           </Modal>
         )}
-      </main>
+      </div>
     </RoleGuard>
   )
 }

@@ -147,8 +147,11 @@ export default function PedidoDetailModal({
   })()
   const isOperario = userRole === 'operario' || userRole === 'operator'
   const isVendedor = userRole === 'vendedor'
+  const isEncargado = userRole === 'encargado'
   const isAdminOrEncargado = ['admin', 'encargado', 'supervisor'].includes(userRole)
   const isAuthorizedRole = !userRole || ['admin', 'encargado', 'vendedor'].includes(userRole)
+  const canManagePayments = !userRole || ['admin', 'vendedor'].includes(userRole)
+  const canViewFinancials = !isOperario && !isEncargado && userRole !== 'disenadora' && userRole !== 'disenador'
   // Operarios y administradores/encargados pueden accionar etapas; los vendedores solo ven el estado
   const canManageStages = !isVendedor
 
@@ -655,7 +658,7 @@ export default function PedidoDetailModal({
           </div>
 
           {/* Resumen Financiero y Botón de Cobro */}
-          {!isOperario && currentPedido.precio !== null && currentPedido.precio !== undefined && (
+          {canViewFinancials && currentPedido.precio !== null && currentPedido.precio !== undefined && (
             <div className="bg-slate-950/60 border border-slate-800/80 p-3.5 rounded-xl flex flex-wrap items-center justify-between gap-3 text-xs shadow-inner">
               <div className="flex flex-wrap items-center gap-4 sm:gap-6">
                 <div>
@@ -678,7 +681,7 @@ export default function PedidoDetailModal({
                 </div>
               </div>
 
-              {onOpenPayments && isAuthorizedRole && (
+              {onOpenPayments && canManagePayments && (
                 <button
                   type="button"
                   onClick={() => onOpenPayments(currentPedido)}

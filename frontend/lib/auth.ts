@@ -7,6 +7,7 @@ export interface User {
   email: string
   role: 'admin' | 'supervisor' | 'operator' | 'user' | 'vendedor' | 'disenador' | 'disenadora' | 'encargado' | 'operario'
   role_label: string
+  role_id?: number
   created_at: string
 }
 
