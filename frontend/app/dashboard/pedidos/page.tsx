@@ -20,6 +20,7 @@ import {
   createPedidoPago,
   deletePedidoPago,
   createPedidoComentario,
+  isPedidoPagoCompletado,
   type Pedido,
   type CreatePedidoInput,
   type UpdatePedidoInput,
@@ -951,6 +952,8 @@ export default function PedidosPage() {
     }
   }
 
+  const isEncargada = currentUser?.role === 'encargado' || (currentUser?.role as string) === 'encargada'
+
   // Filtrado y ordenamiento de pedidos
   const filteredAndSortedPedidos = pedidos
     .filter((p) => {
@@ -1021,8 +1024,13 @@ export default function PedidosPage() {
         valA = a.created_at ? new Date(a.created_at).getTime() : 0
         valB = b.created_at ? new Date(b.created_at).getTime() : 0
       } else if (sortField === 'precio') {
-        valA = a.precio ? parseFloat(a.precio.toString()) : 0
-        valB = b.precio ? parseFloat(b.precio.toString()) : 0
+        if (isEncargada) {
+          valA = isPedidoPagoCompletado(a) ? 1 : 0
+          valB = isPedidoPagoCompletado(b) ? 1 : 0
+        } else {
+          valA = a.precio ? parseFloat(a.precio.toString()) : 0
+          valB = b.precio ? parseFloat(b.precio.toString()) : 0
+        }
       } else if (sortField === 'user') {
         valA = (a.user?.name || '').toLowerCase()
         valB = (b.user?.name || '').toLowerCase()
@@ -1337,14 +1345,33 @@ export default function PedidosPage() {
                         </div>
                         {!isOperario && (
                           <div className="col-span-2 pt-1 border-t border-slate-850 flex justify-between items-center">
-                            <span className="text-slate-500 text-[11px] font-medium">Precio Total</span>
-                            <span className="font-bold text-emerald-400 text-sm">
-                              {pedido.precio !== null && pedido.precio !== undefined ? (
-                                `$ ${parseFloat(pedido.precio.toString()).toLocaleString('es-AR', { minimumFractionDigits: 2 })}`
-                              ) : (
-                                'Sin precio'
-                              )}
-                            </span>
+                            {isEncargada ? (
+                              <>
+                                <span className="text-slate-500 text-[11px] font-medium">Estado de Pago</span>
+                                {isPedidoPagoCompletado(pedido) ? (
+                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+                                    <span className="size-1.5 rounded-full bg-emerald-400"></span>
+                                    Pago completado
+                                  </span>
+                                ) : (
+                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-amber-500/15 text-amber-400 border border-amber-500/30">
+                                    <span className="size-1.5 rounded-full bg-amber-400"></span>
+                                    Pago pendiente
+                                  </span>
+                                )}
+                              </>
+                            ) : (
+                              <>
+                                <span className="text-slate-500 text-[11px] font-medium">Precio Total</span>
+                                <span className="font-bold text-emerald-400 text-sm">
+                                  {pedido.precio !== null && pedido.precio !== undefined ? (
+                                    `$ ${parseFloat(pedido.precio.toString()).toLocaleString('es-AR', { minimumFractionDigits: 2 })}`
+                                  ) : (
+                                    'Sin precio'
+                                  )}
+                                </span>
+                              </>
+                            )}
                           </div>
                         )}
                       </div>
@@ -1423,9 +1450,15 @@ export default function PedidosPage() {
                         Fecha{sortArrow('created_at', 'fecha_entrega')}
                       </th>
                       {!isOperario && (
-                        <th onClick={() => handleSort('precio')} className={`${CELL_MID} text-right cursor-pointer hover:text-white transition`}>
-                          Precio{sortArrow('precio')}
-                        </th>
+                        isEncargada ? (
+                          <th onClick={() => handleSort('precio')} className={`${CELL_MID} text-center cursor-pointer hover:text-white transition`}>
+                            Pago{sortArrow('precio')}
+                          </th>
+                        ) : (
+                          <th onClick={() => handleSort('precio')} className={`${CELL_MID} text-right cursor-pointer hover:text-white transition`}>
+                            Precio{sortArrow('precio')}
+                          </th>
+                        )
                       )}
                       <th onClick={() => handleSort('user')} className={`${CELL_MID} cursor-pointer hover:text-white transition`}>
                         Registrado por{sortArrow('user')}
@@ -1547,7 +1580,21 @@ export default function PedidosPage() {
                           </td>
                           {!isOperario && (
                             <td className={`${CELL_MID} whitespace-nowrap text-right text-sm font-semibold tabular-nums text-white`}>
-                              {pedido.precio !== null && pedido.precio !== undefined ? (
+                              {isEncargada ? (
+                                <div className="flex justify-center">
+                                  {isPedidoPagoCompletado(pedido) ? (
+                                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+                                      <span className="size-1.5 rounded-full bg-emerald-400"></span>
+                                      Pago completado
+                                    </span>
+                                  ) : (
+                                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-amber-500/15 text-amber-400 border border-amber-500/30">
+                                      <span className="size-1.5 rounded-full bg-amber-400"></span>
+                                      Pago pendiente
+                                    </span>
+                                  )}
+                                </div>
+                              ) : pedido.precio !== null && pedido.precio !== undefined ? (
                                 `$ ${parseFloat(pedido.precio.toString()).toLocaleString('es-AR', { minimumFractionDigits: 2 })}`
                               ) : (
                                 <span className="text-slate-600 italic font-normal">-</span>

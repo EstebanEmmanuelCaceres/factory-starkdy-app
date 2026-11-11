@@ -7,7 +7,8 @@ import {
   type Pedido,
   getPedido,
   updatePedido,
-  completarEtapasProducto
+  completarEtapasProducto,
+  isPedidoPagoCompletado
 } from '@/lib/pedidos'
 import PedidoComentarios from '@/components/PedidoComentarios'
 import { topologicalSortEtapas, type Etapa } from '@/lib/entities/etapas'
@@ -147,7 +148,7 @@ export default function PedidoDetailModal({
   })()
   const isOperario = userRole === 'operario' || userRole === 'operator'
   const isVendedor = userRole === 'vendedor'
-  const isEncargado = userRole === 'encargado'
+  const isEncargado = userRole === 'encargado' || userRole === 'encargada'
   const isAdminOrEncargado = ['admin', 'encargado', 'supervisor'].includes(userRole)
   const isAuthorizedRole = !userRole || ['admin', 'encargado', 'vendedor'].includes(userRole)
   const canManagePayments = !userRole || ['admin', 'vendedor'].includes(userRole)
@@ -575,6 +576,29 @@ export default function PedidoDetailModal({
                     options={PEDIDO_STATE_OPTIONS}
                   />
                 </div>
+
+                {/* Aviso de Pago en Encabezado para Encargada */}
+                {isEncargado && (
+                  <div
+                    className={`flex items-center gap-1.5 border rounded-xl px-3 py-1 shadow-inner text-xs font-bold ${
+                      isPedidoPagoCompletado(currentPedido)
+                        ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-400'
+                        : 'bg-amber-500/15 border-amber-500/30 text-amber-400'
+                    }`}
+                    title={
+                      isPedidoPagoCompletado(currentPedido)
+                        ? 'El cliente ha completado el pago de este pedido'
+                        : 'El cliente registra pago pendiente de cobro'
+                    }
+                  >
+                    <span
+                      className={`size-2 rounded-full ${
+                        isPedidoPagoCompletado(currentPedido) ? 'bg-emerald-400' : 'bg-amber-400'
+                      }`}
+                    ></span>
+                    <span>{isPedidoPagoCompletado(currentPedido) ? 'Pago completado' : 'Pago pendiente'}</span>
+                  </div>
+                )}
               </div>
 
               <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5 pt-0.5">
@@ -691,6 +715,49 @@ export default function PedidoDetailModal({
                   <span>Cargar Cobro</span>
                 </button>
               )}
+            </div>
+          )}
+
+          {/* Aviso de Pago para Encargada (sin montos visibles) */}
+          {isEncargado && (
+            <div
+              className={`p-4 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs shadow-inner transition ${
+                isPedidoPagoCompletado(currentPedido)
+                  ? 'bg-emerald-950/20 border-emerald-500/30 text-emerald-300'
+                  : 'bg-amber-950/20 border-amber-500/30 text-amber-300'
+              }`}
+            >
+              <div className="flex items-center gap-3">
+                <span className="text-2xl">
+                  {isPedidoPagoCompletado(currentPedido) ? '✅' : '⏳'}
+                </span>
+                <div>
+                  <span className="text-slate-400 block text-[10px] uppercase font-bold tracking-wider mb-0.5">
+                    Estado de Pago del Cliente
+                  </span>
+                  <span
+                    className={`font-black text-sm sm:text-base flex items-center gap-2 ${
+                      isPedidoPagoCompletado(currentPedido) ? 'text-emerald-400' : 'text-amber-400'
+                    }`}
+                  >
+                    {isPedidoPagoCompletado(currentPedido) ? 'Pago completado' : 'Pago pendiente'}
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <span
+                  className={`px-3 py-1.5 rounded-full text-xs font-bold border ${
+                    isPedidoPagoCompletado(currentPedido)
+                      ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-300'
+                      : 'bg-amber-500/15 border-amber-500/40 text-amber-300'
+                  }`}
+                >
+                  {isPedidoPagoCompletado(currentPedido)
+                    ? 'El pedido se encuentra totalmente pagado'
+                    : 'El cliente registra pago pendiente de cobro'}
+                </span>
+              </div>
             </div>
           )}
 

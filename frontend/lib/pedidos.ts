@@ -94,6 +94,30 @@ export interface Pedido {
 }
 
 // Datos de la línea del pedido (pedido_productos)
+/**
+ * Determina si un pedido tiene su pago totalmente completado o si está pendiente.
+ */
+export function isPedidoPagoCompletado(pedido: Pedido): boolean {
+  if (pedido.estado_pago === 'pagado') {
+    return true
+  }
+  if (pedido.estado_pago === 'sin_pago' || pedido.estado_pago === 'parcial') {
+    return false
+  }
+  const precio = Number(pedido.precio) || 0
+  let paid = 0
+  if (Array.isArray(pedido.pagos)) {
+    paid = pedido.pagos
+      .filter((p: any) => p.estado === 'pagado')
+      .reduce((sum: number, p: any) => sum + Number(p.monto || 0), 0)
+  } else if (pedido.pago && (pedido.pago as any).estado === 'pagado') {
+    paid = Number((pedido.pago as any).monto || 0)
+  } else if (pedido.monto_pagado !== undefined && pedido.monto_pagado !== null) {
+    paid = Number(pedido.monto_pagado)
+  }
+  return precio > 0 && paid >= precio
+}
+
 export interface LineaPedidoPivot {
   id?: number
   cantidad: number
