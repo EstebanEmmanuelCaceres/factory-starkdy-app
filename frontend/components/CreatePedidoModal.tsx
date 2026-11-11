@@ -12,7 +12,7 @@ import { InitialPaymentField } from './order-cart/InitialPaymentField'
 import { OrderFooterSummary } from './order-cart/OrderFooterSummary'
 import { WizardFooter, WIZARD_FOOTER_SPACE, type WizardFooterAction } from './WizardFooter'
 import { FormProvider, useFieldArray, useForm, useWatch } from 'react-hook-form'
-import { OrderFormValues, getDefaultOrderValues } from './order-cart/Types'
+import { OrderFormValues, getDefaultOrderValues, getLineSubtotal } from './order-cart/Types'
 import { ProductDrawer } from './order-cart/ProductDrawer'
 import { OrderSummary } from './order-cart/OrderSummary'
 import { OrderCreated } from './order-cart/OrderCreated'
@@ -137,7 +137,13 @@ export const CreatePedidoModal = ({
     const key = claveLinea(line.productId, line.attributes)
     const index = lines.findIndex((l) => claveLinea(l.productId, l.attributes) === key)
     if (index >= 0) {
-      updateLine(index, { ...lines[index], quantity: lines[index].quantity + line.quantity })
+      // Se suman cantidad y precio total (el subtotal de la línea sale de totalPrice)
+      const actual = lines[index]
+      updateLine(index, {
+        ...actual,
+        quantity: actual.quantity + line.quantity,
+        totalPrice: getLineSubtotal(actual) + getLineSubtotal(line),
+      })
     } else {
       appendLine(line)
     }
@@ -1028,11 +1034,21 @@ export const CreatePedidoModal = ({
         }
 
         {/* Paso 3: Resumen antes de crear */}
-        {wizardStep === 'order_summary' && <OrderSummary products={productosList} onEditLine={handleEditLine} />}
+        {wizardStep === 'order_summary' && (
+          <OrderSummary
+            products={productosList}
+            onEditLine={handleEditLine}
+            codigo={formData.codigo}
+          />
+        )}
 
         {/* Pedido creado */}
         {wizardStep === 'order_confirmation' && createdPedidoResult && (
-          <OrderCreated pedido={createdPedidoResult} />
+          <OrderCreated
+            pedido={createdPedidoResult}
+            formLines={watchedLines}
+            products={productosList}
+          />
         )}
       </Modal >
     </FormProvider >

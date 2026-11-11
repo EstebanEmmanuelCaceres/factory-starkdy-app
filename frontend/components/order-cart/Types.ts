@@ -55,6 +55,7 @@ export interface OrderFormValues {
     lines: OrderLine[]
     discount: DiscountValue
     payment: PaymentValue
+    // Total del pedido cargado a mano; null = se usa la suma de los productos
     customTotal: number | null
 }
 

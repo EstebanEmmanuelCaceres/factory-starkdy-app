@@ -16,16 +16,30 @@ use Illuminate\Support\Facades\Auth;
 use App\Services\PedidoWorkflowService;
 use App\Services\PedidoLineasService;
 use App\Services\PedidoProgresoService;
+use App\Services\LocalStorageService;
+use App\Models\User;
 use App\Http\Resources\ProgresoPedidoResource;
 use Illuminate\Support\Collection;
 
 class PedidoController extends Controller
 {
+    public const ESTADOS = [
+        'pendiente', 'listo_para_produccion', 'en_progreso', 'completado', 'completado_pd',
+        'enviado', 'enviado_faltante', 'cancelado',
+    ];
+
+    // Lo que se manda de cada comentario: autor e imágenes, sin el resto de los modelos
+    private const RELACIONES_COMENTARIO = ['user:id,name', 'imagenes:id,comentario_id,url'];
+
     protected PedidoWorkflowService $workflowService;
     protected PedidoProgresoService $progresoService;
 
-    public function __construct(PedidoWorkflowService $workflowService, PedidoProgresoService $progresoService, private PedidoLineasService $lineasService)
-    {
+    public function __construct(
+        PedidoWorkflowService $workflowService,
+        PedidoProgresoService $progresoService,
+        private PedidoLineasService $lineasService,
+        private LocalStorageService $storageService,
+    ) {
         $this->workflowService = $workflowService;
         $this->progresoService = $progresoService;
     }
@@ -81,7 +95,8 @@ class PedidoController extends Controller
                 'pago',
                 'pagos',
                 'comentarios:id,pedido_id,user_id,cuerpo,created_at,updated_at',
-                'comentarios.user:id,name'
+                'comentarios.user:id,name',
+                'comentarios.imagenes:id,comentario_id,url',
             ]);
 
         $hasSearch = $request->has('search') && !empty(trim($request->input('search')));
@@ -110,7 +125,18 @@ class PedidoController extends Controller
         // Filtro por estado
         if ($request->has('estado') && !empty($request->input('estado'))) {
             $estadoInput = $request->input('estado');
-            if ($estadoInput !== 'todos' && $estadoInput !== 'all') {
+            if ($estadoInput === 'activos' || $estadoInput === 'active') {
+                $query->whereHas('ultimoEstado', function ($q) {
+                    $q->whereNotIn('estado', [
+                        'completado',
+                        'completado_pd',
+                        'finalizado',
+                        'cancelado',
+                        'enviado',
+                        'enviado_faltante'
+                    ]);
+                });
+            } elseif ($estadoInput !== 'todos' && $estadoInput !== 'all') {
                 $query->whereHas('ultimoEstado', function ($q) use ($estadoInput) {
                     $q->where('estado', $estadoInput);
                 });
@@ -384,7 +410,8 @@ class PedidoController extends Controller
             'pago',
             'pagos',
             'comentarios',
-            'comentarios.user'
+            'comentarios.user:id,name',
+            'comentarios.imagenes:id,comentario_id,url',
         ])->find($id);
 
         if (!$pedido) {
@@ -611,12 +638,13 @@ class PedidoController extends Controller
         if (!$pedido) {
             return response()->json(['status' => 'error', 'message' => 'Pedido no encontrado'], 404);
         }
-        $comentarios = $pedido->comentarios()->with('user')->get();
+        $comentarios = $pedido->comentarios()->with(self::RELACIONES_COMENTARIO)->get();
         return response()->json(['status' => 'success', 'data' => $comentarios]);
     }
 
     /**
-     * Agregar un comentario a un pedido.
+     * Agregar un comentario a un pedido, con texto y/o imágenes.
+     * Las imágenes se guardan como imágenes del pedido (con comentario_id), así también aparecen en la galería.
      */
     public function addComentario(Request $request, $id): JsonResponse
     {
@@ -626,27 +654,149 @@ class PedidoController extends Controller
         }
 
         $validator = Validator::make($request->all(), [
-            'cuerpo' => 'required|string|max:1000',
+            'cuerpo' => 'nullable|required_without:imagenes|string|max:1000',
+            'imagenes' => 'nullable|array|max:10',
+            'imagenes.*' => 'image|mimes:jpeg,png,jpg,webp,gif|max:10240',
+        ], [
+            'cuerpo.required_without' => 'Escribí un comentario o adjuntá una imagen.',
         ]);
 
         if ($validator->fails()) {
             return response()->json([
                 'status' => 'error',
-                'message' => 'Error de validación',
+                'message' => implode(' ', $validator->errors()->all()),
                 'errors' => $validator->errors()
             ], 422);
         }
 
-        $comentario = $pedido->comentarios()->create([
-            'user_id' => auth()->id() ?? 1,
-            'cuerpo' => $request->input('cuerpo')
-        ]);
+        $comentario = DB::transaction(function () use ($request, $pedido) {
+            $comentario = $pedido->comentarios()->create([
+                'user_id' => auth()->id() ?? 1,
+                'cuerpo' => (string) $request->input('cuerpo', ''),
+            ]);
+
+            $orden = (int) $pedido->imagenes()->max('orden');
+            foreach ($request->file('imagenes', []) as $archivo) {
+                $subida = $this->storageService->uploadImage($archivo, 'pedidos');
+                $comentario->imagenes()->create([
+                    'pedido_id' => $pedido->id,
+                    'url' => $subida['url'],
+                    'path_almacenamiento' => $subida['path_almacenamiento'],
+                    'orden' => ++$orden,
+                    'es_principal' => false, // la portada se elige desde la galería
+                ]);
+            }
+
+            return $comentario;
+        });
 
         return response()->json([
             'status' => 'success',
             'message' => 'Comentario agregado correctamente',
-            'data' => $comentario->load('user')
+            // Las imágenes van completas para sumarlas a la galería del pedido sin volver a pedirla
+            'data' => $comentario->load(['user:id,name', 'imagenes'])
         ], 201);
+    }
+
+    /**
+     * Editar el texto de un comentario (solo su autor o un admin).
+     */
+    public function updateComentario(Request $request, $id, $comentarioId): JsonResponse
+    {
+        $comentario = ComentarioPedido::where('pedido_id', $id)->find($comentarioId);
+        if (!$comentario) {
+            return response()->json(['status' => 'error', 'message' => 'Comentario no encontrado'], 404);
+        }
+        if (!$this->puedeModificarComentario($comentario)) {
+            return response()->json(['status' => 'error', 'message' => 'Solo el autor o un administrador pueden editar este comentario.'], 403);
+        }
+
+        $validator = Validator::make($request->all(), [
+            'cuerpo' => 'required|string|max:1000',
+        ]);
+        if ($validator->fails()) {
+            return response()->json([
+                'status' => 'error',
+                'message' => implode(' ', $validator->errors()->all()),
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        $comentario->update(['cuerpo' => $request->input('cuerpo')]);
+
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Comentario actualizado',
+            'data' => $comentario->only(['id', 'cuerpo', 'updated_at'])
+        ]);
+    }
+
+    /**
+     * Borrado lógico de un comentario (solo su autor o un admin).
+     * Sus imágenes quedan en la galería del pedido; desde ahí se pueden borrar.
+     */
+    public function deleteComentario($id, $comentarioId): JsonResponse
+    {
+        $comentario = ComentarioPedido::where('pedido_id', $id)->find($comentarioId);
+        if (!$comentario) {
+            return response()->json(['status' => 'error', 'message' => 'Comentario no encontrado'], 404);
+        }
+        if (!$this->puedeModificarComentario($comentario)) {
+            return response()->json(['status' => 'error', 'message' => 'Solo el autor o un administrador pueden eliminar este comentario.'], 403);
+        }
+
+        $comentario->delete();
+
+        return response()->json(['status' => 'success', 'message' => 'Comentario eliminado']);
+    }
+
+    private function puedeModificarComentario(ComentarioPedido $comentario): bool
+    {
+        /** @var User|null $user */
+        $user = Auth::user();
+        return $user && ($comentario->user_id === $user->id || $user->isAdmin());
+    }
+
+    /**
+     * Cambiar el estado de varios pedidos a la vez (solo admin).
+     * Cada cambio queda en el historial igual que al editar un pedido.
+     */
+    public function cambiarEstado(Request $request): JsonResponse
+    {
+        /** @var User|null $user */
+        $user = Auth::user();
+        if (!$user || !$user->isAdmin()) {
+            return response()->json(['status' => 'error', 'message' => 'Solo un administrador puede cambiar pedidos en lote.'], 403);
+        }
+
+        $validator = Validator::make($request->all(), [
+            'ids' => 'required|array|min:1|max:200',
+            'ids.*' => 'integer|distinct',
+            'estado' => 'required|string|in:' . implode(',', self::ESTADOS),
+        ]);
+        if ($validator->fails()) {
+            return response()->json([
+                'status' => 'error',
+                'message' => implode(' ', $validator->errors()->all()),
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        $estado = $request->input('estado');
+        $pedidos = Pedido::with('ultimoEstado')->whereIn('id', $request->input('ids'))->get();
+
+        DB::transaction(function () use ($pedidos, $estado) {
+            foreach ($pedidos as $pedido) {
+                $pedido->estado = $estado; // el mutator registra el cambio en pedido_historial_estado
+                $this->workflowService->desbloquearTareasSatisfechas($pedido->id);
+            }
+        });
+
+        return response()->json([
+            'status' => 'success',
+            'message' => "{$pedidos->count()} pedido(s) pasaron a {$estado}",
+            'data' => ['ids' => $pedidos->pluck('id'), 'estado' => $estado],
+        ]);
     }
 
     /**

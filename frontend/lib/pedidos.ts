@@ -26,6 +26,9 @@ export interface Pago {
   vendedor?: User
 }
 
+// Imagen adjunta a un comentario: es una imagen del pedido, así que también está en la galería
+export type ImagenComentario = Pick<OrderImage, 'id' | 'url'>
+
 export interface ComentarioPedido {
   id: number
   pedido_id: number
@@ -33,7 +36,8 @@ export interface ComentarioPedido {
   cuerpo: string
   created_at: string
   updated_at: string
-  user?: User
+  user?: Pick<User, 'id' | 'name'>
+  imagenes?: ImagenComentario[]
 }
 
 // Progreso de producción: % de etapas completadas por producto y promedio del pedido
@@ -73,6 +77,7 @@ export interface Pedido {
   updated_at: string
   cliente?: Cliente
   user?: User
+  vendedor?: User
   // Una entrada por línea: un producto puede repetirse con distintos atributos
   productos?: (Product & { pivot?: LineaPedidoPivot })[]
   progreso?: ProgresoPedido
@@ -138,6 +143,7 @@ export interface PedidoFilters {
   search?: string
   prioridad?: string
   estado?: string
+  user_id?: string | number
   fecha_desde?: string
   fecha_hasta?: string
   pago_estado?: string
@@ -237,8 +243,43 @@ export async function fetchPedidoComentarios(pedidoId: number): Promise<Comentar
   return data.data
 }
 
-export async function createPedidoComentario(pedidoId: number, cuerpo: string): Promise<ComentarioPedido> {
-  const { data } = await api.post<{ status: string; data: ComentarioPedido }>(`/pedidos/${pedidoId}/comentarios`, { cuerpo })
+// Las imágenes vuelven completas para sumarlas a las del pedido (galería y portada)
+export async function createPedidoComentario(
+  pedidoId: number,
+  cuerpo: string,
+  imagenes: File[] = [],
+): Promise<ComentarioPedido & { imagenes: OrderImage[] }> {
+  const form = new FormData()
+  if (cuerpo.trim()) form.append('cuerpo', cuerpo.trim())
+  imagenes.forEach((file) => form.append('imagenes[]', file))
+  const { data } = await api.post<{ status: string; data: ComentarioPedido & { imagenes: OrderImage[] } }>(
+    `/pedidos/${pedidoId}/comentarios`,
+    form,
+    { headers: { 'Content-Type': 'multipart/form-data' } },
+  )
+  return data.data
+}
+
+export async function updatePedidoComentario(
+  pedidoId: number,
+  comentarioId: number,
+  cuerpo: string,
+): Promise<Pick<ComentarioPedido, 'id' | 'cuerpo' | 'updated_at'>> {
+  const { data } = await api.patch<{ status: string; data: Pick<ComentarioPedido, 'id' | 'cuerpo' | 'updated_at'> }>(
+    `/pedidos/${pedidoId}/comentarios/${comentarioId}`,
+    { cuerpo },
+  )
+  return data.data
+}
+
+// Borrado lógico: el comentario deja de listarse, sus imágenes quedan en la galería
+export async function deletePedidoComentario(pedidoId: number, comentarioId: number): Promise<void> {
+  await api.delete(`/pedidos/${pedidoId}/comentarios/${comentarioId}`)
+}
+
+// Cambia el estado de varios pedidos en una sola petición (solo admin)
+export async function cambiarEstadoPedidos(ids: number[], estado: string): Promise<{ ids: number[]; estado: string }> {
+  const { data } = await api.patch<{ status: string; data: { ids: number[]; estado: string } }>('/pedidos/estado', { ids, estado })
   return data.data
 }
 
