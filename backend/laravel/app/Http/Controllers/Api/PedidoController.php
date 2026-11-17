@@ -766,15 +766,15 @@ class PedidoController extends Controller
     }
 
     /**
-     * Cambiar el estado de varios pedidos a la vez (solo admin).
+     * Cambiar el estado de varios pedidos a la vez (admin o encargado).
      * Cada cambio queda en el historial igual que al editar un pedido.
      */
     public function cambiarEstado(Request $request): JsonResponse
     {
         /** @var User|null $user */
         $user = Auth::user();
-        if (!$user || !$user->isAdmin()) {
-            return response()->json(['status' => 'error', 'message' => 'Solo un administrador puede cambiar pedidos en lote.'], 403);
+        if (!$user || !$user->isAdminOrEncargado()) {
+            return response()->json(['status' => 'error', 'message' => 'Solo un administrador o encargado puede cambiar pedidos en lote.'], 403);
         }
 
         $validator = Validator::make($request->all(), [
@@ -928,6 +928,65 @@ class PedidoController extends Controller
             $paid = $pedido->pagos ? (float) $pedido->pagos->where('estado', 'pagado')->sum('monto') : 0.0;
             return ($precio - $paid) > 0.001;
         })->values();
+
+        return response()->json([
+            'status' => 'success',
+            'data' => $pedidos
+        ]);
+    }
+
+    /**
+     * Obtener pedidos completados y con pago completo listos para despacho (solo admin y encargado).
+     */
+    public function listosParaDespacho(): JsonResponse
+    {
+        /** @var User|null $currentUser */
+        $currentUser = Auth::user();
+        if (!$currentUser || !$currentUser->isAdminOrEncargado()) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'No autorizado. Solo administradores o encargados pueden acceder al módulo de despacho.'
+            ], 403);
+        }
+
+        $query = Pedido::select('id', 'cliente_id', 'user_id', 'codigo', 'prioridad', 'fecha_entrega', 'precio', 'comentario', 'tipo_pago', 'created_at', 'updated_at')
+            ->with([
+                'cliente:id,nombre_empresa,nombre_cliente,telefono,email,dni,direccion,localidad,provincia,cp,observaciones',
+                'user:id,name',
+                'productos',
+                'productos.imagenPrincipal',
+                'imagenPrincipal',
+                'imagenes',
+                'pago',
+                'pagos',
+                'comentarios:id,pedido_id,user_id,cuerpo,created_at,updated_at',
+                'comentarios.user:id,name',
+                'comentarios.imagenes:id,comentario_id,url',
+            ])
+            ->whereHas('ultimoEstado', function ($q) {
+                $q->whereIn('estado', ['completado', 'completado_pd']);
+            });
+
+        $isEncargado = in_array($currentUser->role?->slug, ['encargado', 'encargada'], true);
+
+        $pedidos = $query->latest()->get()->filter(function ($pedido) {
+            $precio = (float) ($pedido->precio ?? 0);
+            $paid = $pedido->pagos ? (float) $pedido->pagos->where('estado', 'pagado')->sum('monto') : 0.0;
+            return $precio > 0 && ($precio - $paid) <= 0.001;
+        })->values();
+
+        $pedidos->each(function ($pedido) use ($isEncargado) {
+            if ($pedido->relationLoaded('cliente') && $pedido->cliente) {
+                $pedido->cliente->makeHidden(['total_pedidos', 'saldo_disponible', 'alcanzo_limite']);
+            }
+            if ($pedido->relationLoaded('comentarios')) {
+                $pedido->comentarios->makeHidden(['pedido_id', 'user_id']);
+            }
+            if ($isEncargado) {
+                // Preservar estado_pago = 'pagado' pero ocultar montos sensibles para encargada
+                $pedido->makeHidden(['precio', 'monto_pagado', 'saldo_pendiente', 'porcentaje_pagado', 'pagos', 'pago']);
+            }
+        });
 
         return response()->json([
             'status' => 'success',

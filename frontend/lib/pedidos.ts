@@ -311,3 +311,8 @@ export async function fetchCompletadosPorCobrar(): Promise<Pedido[]> {
   const { data } = await api.get<{ status: string; data: Pedido[] }>('/pedidos/completados-por-cobrar')
   return data.data
 }
+
+export async function fetchPedidosDespacho(): Promise<Pedido[]> {
+  const { data } = await api.get<{ status: string; data: Pedido[] }>('/pedidos/despacho')
+  return data.data
+}
