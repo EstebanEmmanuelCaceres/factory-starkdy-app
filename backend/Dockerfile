@@ -27,6 +27,9 @@ RUN ln -sf /etc/nginx/sites-available/default /etc/nginx/sites-enabled/default \
 # ── Configuración de Supervisor ───────────────────────────────────
 COPY supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 
+# ── Límites de subida de archivos en PHP (alineado con Nginx 50M) ─
+RUN printf "upload_max_filesize = 50M\npost_max_size = 55M\nmax_file_uploads = 20\nmemory_limit = 256M\n" > /usr/local/etc/php/conf.d/uploads.ini
+
 # ── Directorios de logs ───────────────────────────────────────────
 RUN mkdir -p /var/log/supervisor /var/log/nginx /var/log/php-fpm
 

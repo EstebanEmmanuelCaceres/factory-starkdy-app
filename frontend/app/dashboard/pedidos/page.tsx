@@ -263,21 +263,31 @@ export default function PedidosPage() {
     setLoading(true)
     setError('')
     try {
-      const [pedidosData, clientesData, productosData, usersData, stagesData] = await Promise.all([
-        fetchPedidos(buildPedidoFilters(targetSearch, targetPriority, targetStatus, targetVendedor)),
-        fetchClientes(),
-        fetchProducts(),
-        fetchUsers(),
-        fetchEtapas()
-      ])
+      const pedidosData = await fetchPedidos(
+        buildPedidoFilters(targetSearch, targetPriority, targetStatus, targetVendedor)
+      )
 
-      if (requestId === requestIdRef.current) setPedidos(pedidosData)
-      setClientes(clientesData)
-      setProductos(productosData)
-      setOperarios(usersData)
-      setAllStages(stagesData)
+      if (requestId === requestIdRef.current) {
+        setPedidos(pedidosData)
+        setLoading(false)
+      }
+
+      // Cargar catálogos auxiliares en segundo plano sin bloquear la tabla principal
+      Promise.all([
+        clientes.length === 0 ? fetchClientes().catch(() => null) : Promise.resolve(null),
+        productos.length === 0 ? fetchProducts().catch(() => null) : Promise.resolve(null),
+        operarios.length === 0 ? fetchUsers().catch(() => null) : Promise.resolve(null),
+        allStages.length === 0 ? fetchEtapas().catch(() => null) : Promise.resolve(null)
+      ]).then(([clientesData, productosData, usersData, stagesData]) => {
+        if (clientesData) setClientes(clientesData)
+        if (productosData) setProductos(productosData)
+        if (usersData) setOperarios(usersData)
+        if (stagesData) setAllStages(stagesData)
+      })
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Error al cargar los datos')
+      if (requestId === requestIdRef.current) {
+        setError(err instanceof Error ? err.message : 'Error al cargar los datos')
+      }
     } finally {
       if (requestId === requestIdRef.current) setLoading(false)
     }

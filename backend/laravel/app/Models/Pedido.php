@@ -175,9 +175,17 @@ class Pedido extends Model
     }
 
     // Accessors para atributos dinámicos de pago
+    protected ?float $cachedMontoPagado = null;
+
     public function getMontoPagadoAttribute(): float
     {
-        return (float) $this->pagos()->where('estado', 'pagado')->sum('monto');
+        if ($this->relationLoaded('pagos')) {
+            return (float) $this->pagos->where('estado', 'pagado')->sum('monto');
+        }
+        if ($this->cachedMontoPagado !== null) {
+            return $this->cachedMontoPagado;
+        }
+        return $this->cachedMontoPagado = (float) $this->pagos()->where('estado', 'pagado')->sum('monto');
     }
 
     public function getSaldoPendienteAttribute(): float

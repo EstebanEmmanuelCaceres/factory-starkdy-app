@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { getStoredUser } from '@/lib/auth'
 import type { OrderImage } from '@/lib/entities/orderImages'
 import {
@@ -26,6 +26,45 @@ const formatFecha = (iso: string) => {
   return `${d.toLocaleDateString('es-AR')} ${d.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}`
 }
 
+/**
+ * Extrae archivos de imagen desde DataTransfer (portapapeles o drag & drop).
+ * Soporta tanto `items` (capturas de pantalla Win+Shift+S, copiar imagen del navegador/WhatsApp)
+ * como `files` directos del sistema de archivos.
+ */
+function extraerImagenesDeDataTransfer(dataTransfer: DataTransfer | null, pedidoId: number): File[] {
+  if (!dataTransfer) return []
+
+  const archivosExtraidos: File[] = []
+  const items = dataTransfer.items
+
+  if (items && items.length > 0) {
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i]
+      if (item.type && item.type.startsWith('image/')) {
+        const blob = item.getAsFile()
+        if (blob) {
+          const ext = (blob.type || item.type).split('/')[1]?.split('+')[0] || 'png'
+          const nombreOriginal = blob.name && blob.name !== 'image.png' ? blob.name : `comentario_pedido_${pedidoId}_${Date.now()}_${i + 1}.${ext}`
+          archivosExtraidos.push(
+            new File([blob], nombreOriginal, { type: blob.type || item.type || 'image/png' })
+          )
+        }
+      }
+    }
+  }
+
+  if (archivosExtraidos.length === 0 && dataTransfer.files && dataTransfer.files.length > 0) {
+    for (let i = 0; i < dataTransfer.files.length; i++) {
+      const file = dataTransfer.files[i]
+      if (file.type.startsWith('image/')) {
+        archivosExtraidos.push(file)
+      }
+    }
+  }
+
+  return archivosExtraidos
+}
+
 // Comentarios del pedido: publicar con texto y/o imágenes, editar y eliminar (autor o admin)
 export default function PedidoComentarios({ pedidoId, comentarios, onChange, onImagenesAgregadas }: PedidoComentariosProps) {
   const [texto, setTexto] = useState('')
@@ -33,11 +72,17 @@ export default function PedidoComentarios({ pedidoId, comentarios, onChange, onI
   const [publicando, setPublicando] = useState(false)
   const [editando, setEditando] = useState<{ id: number; texto: string } | null>(null)
   const [error, setError] = useState('')
+  const [avisoPegado, setAvisoPegado] = useState('')
+  const [arrastrando, setArrastrando] = useState(false)
   const [lightbox, setLightbox] = useState<{ urls: string[]; index: number } | null>(null)
+
   const inputArchivos = useRef<HTMLInputElement>(null)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const contenedorRef = useRef<HTMLDivElement>(null)
 
   const usuario = getStoredUser()
-  const puedeModificar = (c: ComentarioPedido) => !!usuario && (c.user_id === usuario.id || usuario.role === 'admin')
+  const puedeModificar = (c: ComentarioPedido) =>
+    !!usuario && (c.user_id === usuario.id || c.user?.id === usuario.id || usuario.role === 'admin')
 
   // Vistas previas de las imágenes elegidas (se liberan al cambiar la selección)
   const [previews, setPreviews] = useState<string[]>([])
@@ -47,11 +92,73 @@ export default function PedidoComentarios({ pedidoId, comentarios, onChange, onI
     return () => urls.forEach(URL.revokeObjectURL)
   }, [archivos])
 
+  const enfocarMensajeAdjunto = useCallback(() => {
+    setTimeout(() => {
+      if (textareaRef.current) {
+        textareaRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+        textareaRef.current.focus()
+      }
+    }, 30)
+  }, [])
+
+  const mostrarAvisoTemporal = useCallback((msg: string) => {
+    setAvisoPegado(msg)
+    setTimeout(() => {
+      setAvisoPegado((actual) => (actual === msg ? '' : actual))
+    }, 4000)
+  }, [])
+
+  const agregarImagenes = useCallback(
+    (nuevasImagenes: File[], desdePortapapeles = false) => {
+      const filtradas = nuevasImagenes.filter((f) => f.type.startsWith('image/'))
+      if (filtradas.length === 0) return false
+
+      setError('')
+      setArchivos((prev) => [...prev, ...filtradas].slice(0, MAX_IMAGENES))
+      if (desdePortapapeles) {
+        mostrarAvisoTemporal(
+          filtradas.length === 1
+            ? '📋 Imagen pegada — podés escribir un mensaje adjunto antes de publicar'
+            : `📋 ${filtradas.length} imágenes pegadas — podés escribir un mensaje adjunto antes de publicar`
+        )
+      }
+      enfocarMensajeAdjunto()
+      return true
+    },
+    [enfocarMensajeAdjunto, mostrarAvisoTemporal]
+  )
+
   const agregarArchivos = (files: FileList | null) => {
     if (!files) return
-    const imagenes = Array.from(files).filter((f) => f.type.startsWith('image/'))
-    setArchivos((prev) => [...prev, ...imagenes].slice(0, MAX_IMAGENES))
+    agregarImagenes(Array.from(files), false)
   }
+
+  // Permitir pegar imágenes con Ctrl + V desde cualquier parte del modal del pedido
+  // (salvo que esté abierto el modal de Galería por encima o se esté escribiendo en otro input ajeno)
+  useEffect(() => {
+    const handleGlobalPaste = (e: ClipboardEvent) => {
+      // Si el modal de Galería de Imágenes está abierto, dejar que ese modal maneje el pegado
+      if (document.querySelector('[data-order-image-gallery="true"]')) return
+
+      const target = e.target as HTMLElement | null
+      // Si el evento ocurrió dentro de nuestro propio contenedor, lo maneja el onPaste local
+      if (target && contenedorRef.current?.contains(target)) return
+
+      // Si el usuario está enfocado en otro input/textarea fuera de Comentarios (ej. editando descripción), no interceptar
+      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) {
+        return
+      }
+
+      const extraidas = extraerImagenesDeDataTransfer(e.clipboardData, pedidoId)
+      if (extraidas.length > 0) {
+        e.preventDefault()
+        agregarImagenes(extraidas, true)
+      }
+    }
+
+    window.addEventListener('paste', handleGlobalPaste)
+    return () => window.removeEventListener('paste', handleGlobalPaste)
+  }, [pedidoId, agregarImagenes])
 
   const ejecutar = async (accion: () => Promise<void>, mensajeError: string) => {
     setError('')
@@ -71,6 +178,7 @@ export default function PedidoComentarios({ pedidoId, comentarios, onChange, onI
         if (nuevo.imagenes.length > 0) onImagenesAgregadas?.(nuevo.imagenes)
         setTexto('')
         setArchivos([])
+        setAvisoPegado('')
       } finally {
         setPublicando(false)
       }
@@ -91,70 +199,175 @@ export default function PedidoComentarios({ pedidoId, comentarios, onChange, onI
       onChange(comentarios.filter((c) => c.id !== comentario.id))
     }, 'Error al eliminar el comentario')
 
-  const puedePublicar = (texto.trim() !== '' || archivos.length > 0) && !publicando
+  const tieneImagenesCargadas = archivos.length > 0
+  const puedePublicar = (texto.trim() !== '' || tieneImagenesCargadas) && !publicando
 
   return (
-    <div className="flex flex-col text-left">
+    <div ref={contenedorRef} className="flex flex-col text-left">
       {/* Nuevo comentario */}
       <div
-        className="space-y-2 mb-4"
-        onPaste={(e) => agregarArchivos(e.clipboardData.files)}
+        className={`space-y-2.5 mb-4 rounded-xl border p-3 transition ${
+          arrastrando
+            ? 'border-blue-500 bg-blue-500/10'
+            : tieneImagenesCargadas
+              ? 'border-blue-500/40 bg-slate-950/80 shadow-lg shadow-blue-950/20'
+              : 'border-slate-800/80 bg-slate-950/40'
+        }`}
+        onPaste={(e) => {
+          const extraidas = extraerImagenesDeDataTransfer(e.clipboardData, pedidoId)
+          if (extraidas.length > 0) {
+            e.preventDefault()
+            agregarImagenes(extraidas, true)
+          }
+        }}
+        onDragOver={(e) => {
+          e.preventDefault()
+          setArrastrando(true)
+        }}
+        onDragLeave={() => setArrastrando(false)}
+        onDrop={(e) => {
+          e.preventDefault()
+          setArrastrando(false)
+          const extraidas = extraerImagenesDeDataTransfer(e.dataTransfer, pedidoId)
+          if (extraidas.length > 0) {
+            agregarImagenes(extraidas, false)
+          }
+        }}
       >
-        <textarea
-          value={texto}
-          onChange={(e) => setTexto(e.target.value)}
-          placeholder="Escribe un comentario o pegá una imagen..."
-          maxLength={1000}
-          className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 transition resize-none h-16"
-        />
-
-        {previews.length > 0 && (
-          <div className="flex flex-wrap gap-2">
-            {previews.map((url, i) => (
-              <div key={url} className="relative">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={url} alt="" className="size-14 rounded-md object-cover border border-slate-700" />
-                <button
-                  type="button"
-                  onClick={() => setArchivos((prev) => prev.filter((_, j) => j !== i))}
-                  className="absolute -top-1.5 -right-1.5 grid size-5 place-items-center rounded-full bg-slate-800 text-[10px] text-slate-200 hover:bg-rose-600"
-                  aria-label="Quitar imagen"
-                >
-                  ✕
-                </button>
-              </div>
-            ))}
+        {avisoPegado && (
+          <div className="rounded-lg border border-blue-500/30 bg-blue-500/10 px-2.5 py-1.5 text-[11px] font-medium text-blue-300 animate-in fade-in">
+            {avisoPegado}
           </div>
         )}
 
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            disabled={!puedePublicar}
-            onClick={publicar}
-            className="px-3 py-1 bg-blue-600 hover:bg-blue-500 disabled:bg-slate-800 disabled:text-slate-500 text-white rounded text-xs font-semibold transition"
-          >
-            {publicando ? 'Publicando...' : 'Comentar'}
-          </button>
-          <button
-            type="button"
-            onClick={() => inputArchivos.current?.click()}
-            disabled={archivos.length >= MAX_IMAGENES}
-            className="px-2.5 py-1 rounded text-xs font-semibold text-slate-300 bg-slate-800 hover:bg-slate-700 disabled:opacity-50 transition"
-          >
-            📎 Imagen
-          </button>
-          <input
-            ref={inputArchivos}
-            type="file"
-            accept="image/*"
-            multiple
-            hidden
-            onChange={(e) => {
-              agregarArchivos(e.target.files)
-              e.target.value = ''
+        {/* Vista previa de imágenes adjuntas al comentario por publicar */}
+        {previews.length > 0 && (
+          <div className="space-y-2 rounded-lg border border-slate-800 bg-slate-900/60 p-2.5">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-[11px] font-bold text-blue-300 flex items-center gap-1.5">
+                <span>🖼️</span>
+                <span>
+                  {previews.length === 1
+                    ? '1 imagen lista para adjuntar'
+                    : `${previews.length} imágenes listas para adjuntar`}
+                </span>
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  setArchivos([])
+                  setAvisoPegado('')
+                }}
+                className="text-[10px] font-semibold text-slate-400 hover:text-rose-400 transition"
+              >
+                Quitar todas
+              </button>
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              {previews.map((url, i) => (
+                <div key={url} className="relative group/preview">
+                  <button
+                    type="button"
+                    onClick={() => setLightbox({ urls: previews, index: i })}
+                    title="Ver imagen completa"
+                    className="block cursor-zoom-in"
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={url}
+                      alt={archivos[i]?.name || `Imagen adjunta ${i + 1}`}
+                      className="size-20 rounded-lg object-cover border border-slate-700 hover:border-blue-400 transition shadow"
+                    />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setArchivos((prev) => prev.filter((_, j) => j !== i))}
+                    className="absolute -top-1.5 -right-1.5 grid size-5 place-items-center rounded-full bg-slate-900 border border-slate-700 text-[10px] text-slate-200 hover:bg-rose-600 hover:border-rose-500 shadow"
+                    aria-label="Quitar imagen"
+                    title="Quitar esta imagen"
+                  >
+                    ✕
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Campo de texto / mensaje adjunto a la imagen */}
+        <div className="space-y-1">
+          {tieneImagenesCargadas && (
+            <label
+              htmlFor={`comentario-texto-${pedidoId}`}
+              className="block text-[11px] font-semibold text-slate-300"
+            >
+              💬 Mensaje adjunto a la imagen <span className="font-normal text-slate-500">(opcional)</span>
+            </label>
+          )}
+          <textarea
+            id={`comentario-texto-${pedidoId}`}
+            ref={textareaRef}
+            value={texto}
+            onChange={(e) => setTexto(e.target.value)}
+            onKeyDown={(e) => {
+              if ((e.ctrlKey || e.metaKey) && e.key === 'Enter' && puedePublicar) {
+                e.preventDefault()
+                publicar()
+              }
             }}
+            placeholder={
+              tieneImagenesCargadas
+                ? 'Escribe un mensaje adjunto para acompañar la imagen (opcional)...'
+                : 'Escribe un comentario o pegá una imagen (Ctrl + V)...'
+            }
+            maxLength={1000}
+            className={`w-full bg-slate-950 border rounded-lg p-2.5 text-xs text-white placeholder-slate-500 focus:outline-none transition resize-none h-16 ${
+              tieneImagenesCargadas
+                ? 'border-blue-500/40 focus:border-blue-400'
+                : 'border-slate-800 focus:border-blue-500'
+            }`}
           />
+        </div>
+
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              disabled={!puedePublicar}
+              onClick={publicar}
+              className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 disabled:bg-slate-800 disabled:text-slate-500 text-white rounded-lg text-xs font-semibold transition cursor-pointer disabled:cursor-not-allowed"
+            >
+              {publicando
+                ? 'Publicando...'
+                : tieneImagenesCargadas
+                  ? 'Publicar con imagen'
+                  : 'Comentar'}
+            </button>
+            <button
+              type="button"
+              onClick={() => inputArchivos.current?.click()}
+              disabled={archivos.length >= MAX_IMAGENES}
+              className="px-2.5 py-1.5 rounded-lg text-xs font-semibold text-slate-300 bg-slate-800 hover:bg-slate-700 disabled:opacity-50 transition cursor-pointer"
+              title="Adjuntar imagen desde tu dispositivo o pegar con Ctrl + V"
+            >
+              📎 {tieneImagenesCargadas ? 'Agregar otra' : 'Imagen'}
+            </button>
+            <input
+              ref={inputArchivos}
+              type="file"
+              accept="image/*"
+              multiple
+              hidden
+              onChange={(e) => {
+                agregarArchivos(e.target.files)
+                e.target.value = ''
+              }}
+            />
+          </div>
+          <span className="text-[10px] text-slate-500">
+            {tieneImagenesCargadas ? 'Ctrl + Enter para publicar' : 'Podés pegar con Ctrl + V'}
+          </span>
         </div>
         {error && <p className="text-xs text-rose-400">{error}</p>}
       </div>
@@ -168,7 +381,7 @@ export default function PedidoComentarios({ pedidoId, comentarios, onChange, onI
             const enEdicion = editando?.id === c.id
             const urls = (c.imagenes ?? []).map((img) => img.url)
             return (
-              <div key={c.id} className="group bg-slate-950/30 border border-slate-800/50 p-2.5 rounded-lg space-y-1.5">
+              <div key={c.id} className="group bg-slate-950/30 border border-slate-800/50 p-2.5 rounded-lg space-y-2">
                 <div className="flex items-center justify-between gap-2 text-[10px]">
                   <span className="font-bold text-slate-300">{c.user?.name || 'Usuario'}</span>
                   <span className="text-slate-500 font-mono">
@@ -177,11 +390,23 @@ export default function PedidoComentarios({ pedidoId, comentarios, onChange, onI
                   </span>
                 </div>
 
+                {urls.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5">
+                    {urls.map((url, i) => (
+                      <button key={url} type="button" onClick={() => setLightbox({ urls, index: i })} className="cursor-zoom-in">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={url} alt="" className="size-16 rounded-md object-cover border border-slate-700 hover:border-blue-500 transition" />
+                      </button>
+                    ))}
+                  </div>
+                )}
+
                 {enEdicion ? (
                   <div className="space-y-1.5">
                     <textarea
                       value={editando.texto}
                       onChange={(e) => setEditando({ id: c.id, texto: e.target.value })}
+                      placeholder="Escribe un mensaje para este comentario..."
                       maxLength={1000}
                       autoFocus
                       className="w-full bg-slate-950 border border-slate-700 rounded p-2 text-xs text-white focus:outline-none focus:border-blue-500 resize-none h-16"
@@ -199,24 +424,11 @@ export default function PedidoComentarios({ pedidoId, comentarios, onChange, onI
                   c.cuerpo && <p className="text-xs text-slate-200 leading-relaxed break-words whitespace-pre-wrap">{c.cuerpo}</p>
                 )}
 
-                {urls.length > 0 && (
-                  <div className="flex flex-wrap gap-1.5">
-                    {urls.map((url, i) => (
-                      <button key={url} type="button" onClick={() => setLightbox({ urls, index: i })} className="cursor-zoom-in">
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={url} alt="" className="size-16 rounded-md object-cover border border-slate-700 hover:border-blue-500 transition" />
-                      </button>
-                    ))}
-                  </div>
-                )}
-
                 {puedeModificar(c) && !enEdicion && (
                   <div className="flex gap-3 text-[11px] font-semibold">
-                    {c.cuerpo && (
-                      <button type="button" onClick={() => setEditando({ id: c.id, texto: c.cuerpo })} className="text-slate-400 hover:text-white">
-                        Editar
-                      </button>
-                    )}
+                    <button type="button" onClick={() => setEditando({ id: c.id, texto: c.cuerpo || '' })} className="text-slate-400 hover:text-white">
+                      {c.cuerpo ? 'Editar' : '+ Agregar mensaje'}
+                    </button>
                     <button type="button" onClick={() => eliminar(c)} className="text-slate-400 hover:text-rose-400">
                       Eliminar
                     </button>

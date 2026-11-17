@@ -41,12 +41,20 @@ class Cliente extends Model
         'alcanzo_limite',
     ];
 
+    protected ?float $cachedTotalPedidos = null;
+
     /**
      * Total acumulado de los precios de los pedidos activos del cliente.
      */
     public function getTotalPedidosAttribute(): float
     {
-        return (float) $this->pedidos()
+        if (array_key_exists('total_pedidos_calculado', $this->attributes)) {
+            return (float) ($this->attributes['total_pedidos_calculado'] ?? 0);
+        }
+        if ($this->cachedTotalPedidos !== null) {
+            return $this->cachedTotalPedidos;
+        }
+        return $this->cachedTotalPedidos = (float) $this->pedidos()
             ->whereDoesntHave('ultimoEstado', function ($q) {
                 $q->where('estado', 'cancelado');
             })

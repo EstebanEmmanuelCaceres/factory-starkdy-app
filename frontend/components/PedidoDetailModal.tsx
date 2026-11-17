@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { AtributosLineaResumen } from '@/components/PedidoAtributos/AtributosLineaResumen'
 import { Modal } from '@/components/Modal/Modal'
 import {
@@ -47,6 +47,8 @@ export default function PedidoDetailModal({
   onOpenEdit
 }: PedidoDetailModalProps) {
   const [currentPedido, setCurrentPedido] = useState<Pedido | null>(pedido)
+  const currentPedidoRef = useRef<Pedido | null>(pedido)
+  currentPedidoRef.current = currentPedido
   const [assignments, setAssignments] = useState<ResponsableEtapa[]>(propTaskAssignments || [])
 
   // Las etapas de cada producto salen de las tareas del pedido (no de la configuración actual del producto):
@@ -188,9 +190,14 @@ export default function PedidoDetailModal({
     }
   }
 
-  // Cambios que no necesitan volver a pedir el pedido (comentarios, imágenes nuevas)
+  // Cambios que no necesitan volver a pedir el pedido (comentarios, imágenes nuevas).
+  // Actualiza currentPedidoRef sincrónicamente para que llamadas consecutivas en el mismo tick
+  // (ej. onChange de comentarios + onImagenesAgregadas) conserven ambos cambios sin pisarse.
   const actualizarPedidoLocal = (cambios: Partial<Pedido>) => {
-    const actualizado: Pedido = { ...currentPedido, ...cambios }
+    const base = currentPedidoRef.current ?? currentPedido
+    if (!base) return
+    const actualizado: Pedido = { ...base, ...cambios }
+    currentPedidoRef.current = actualizado
     setCurrentPedido(actualizado)
     onUpdatePedido?.(actualizado)
   }
@@ -1283,7 +1290,9 @@ export default function PedidoDetailModal({
               comentarios={currentPedido.comentarios ?? []}
               onChange={(comentarios) => actualizarPedidoLocal({ comentarios })}
               onImagenesAgregadas={(imagenes) =>
-                actualizarPedidoLocal({ imagenes: [...(currentPedido.imagenes ?? []), ...imagenes] })
+                actualizarPedidoLocal({
+                  imagenes: [...(currentPedidoRef.current?.imagenes ?? currentPedido.imagenes ?? []), ...imagenes],
+                })
               }
             />
           </div>

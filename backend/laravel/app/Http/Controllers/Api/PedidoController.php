@@ -201,6 +201,9 @@ class PedidoController extends Controller
             if ($currentUser && in_array($currentUser->role?->slug, ['operario', 'operator'])) {
                 $pedido->makeHidden(['precio', 'monto_pagado', 'saldo_pendiente', 'pagos']);
             }
+            if ($pedido->relationLoaded('cliente') && $pedido->cliente) {
+                $pedido->cliente->makeHidden(['total_pedidos', 'saldo_disponible', 'alcanzo_limite']);
+            }
             if ($pedido->relationLoaded('comentarios')) {
                 $pedido->comentarios->makeHidden(['pedido_id', 'user_id']);
             }
@@ -656,9 +659,14 @@ class PedidoController extends Controller
         $validator = Validator::make($request->all(), [
             'cuerpo' => 'nullable|required_without:imagenes|string|max:1000',
             'imagenes' => 'nullable|array|max:10',
-            'imagenes.*' => 'image|mimes:jpeg,png,jpg,webp,gif|max:10240',
+            'imagenes.*' => 'image|mimes:jpeg,png,jpg,webp,gif|max:25600',
         ], [
             'cuerpo.required_without' => 'Escribí un comentario o adjuntá una imagen.',
+            'imagenes.max' => 'Podés adjuntar hasta 10 imágenes por comentario.',
+            'imagenes.*.uploaded' => 'No se pudo subir la imagen (verificá que no supere los 25 MB).',
+            'imagenes.*.image' => 'El archivo adjunto debe ser una imagen válida.',
+            'imagenes.*.mimes' => 'Formato de imagen no soportado (usá JPG, PNG, WEBP o GIF).',
+            'imagenes.*.max' => 'Cada imagen no puede superar los 25 MB.',
         ]);
 
         if ($validator->fails()) {
@@ -913,6 +921,9 @@ class PedidoController extends Controller
         }
 
         $pedidos = $query->latest()->get()->filter(function ($pedido) {
+            if ($pedido->relationLoaded('cliente') && $pedido->cliente) {
+                $pedido->cliente->makeHidden(['total_pedidos', 'saldo_disponible', 'alcanzo_limite']);
+            }
             $precio = (float) ($pedido->precio ?? 0);
             $paid = $pedido->pagos ? (float) $pedido->pagos->where('estado', 'pagado')->sum('monto') : 0.0;
             return ($precio - $paid) > 0.001;
