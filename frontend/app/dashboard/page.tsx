@@ -20,6 +20,7 @@ import {
 import PedidosSinImagenPanel from '@/components/PedidosSinImagenPanel'
 import PaymentModal from '@/components/PaymentModal'
 import VendedoresLineChart from '@/components/VendedoresLineChart'
+import UnidadesVendidasPanel from '@/components/UnidadesVendidasPanel'
 
 export default function DashboardPage() {
   const [users, setUsers] = useState<User[]>([])
@@ -1687,6 +1688,9 @@ export default function DashboardPage() {
             </div>
           )}
         </div>
+
+        {/* Panel de Unidades Vendidas por Producto e Intervalo Acotado */}
+        {!isDisenadora && <UnidadesVendidasPanel />}
 
         {/* Gráfico de Líneas de Rendimiento Diario por Vendedor (Solo Admin) */}
         {isAdmin && <VendedoresLineChart />}

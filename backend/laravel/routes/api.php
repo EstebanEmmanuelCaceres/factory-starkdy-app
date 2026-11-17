@@ -12,6 +12,7 @@ use App\Http\Controllers\Api\OperarioTaskController;
 use App\Http\Controllers\Api\EtapaDependenciaController;
 use App\Http\Controllers\Api\PagoController;
 use App\Http\Controllers\Api\MetricaController;
+use App\Http\Controllers\Api\UnidadesVendidasController;
 use App\Http\Controllers\Api\Admin\CobroController;
 use App\Http\Controllers\Api\ProductoImagenController;
 use App\Http\Controllers\Api\PedidoImagenController;
@@ -148,6 +149,7 @@ Route::middleware('auth:sanctum')->group(function () {
     // ── Métricas ──────────────────────────────────────────────────
     Route::get('metricas/cobros', [MetricaController::class, 'cobros']);
     Route::get('metricas/vendedores-diario', [MetricaController::class, 'vendedoresDiario']);
+    Route::get('metricas/unidades-vendidas', [UnidadesVendidasController::class, 'index']);
 
     // ── Responsabilidades ──────────────────────────────────────────
     Route::get('responsabilidades', [ResponsabilidadController::class, 'index']);
