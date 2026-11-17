@@ -60,11 +60,19 @@ class PedidoImagenController extends Controller
 
         $validator = Validator::make($request->all(), [
             'imagenes' => 'nullable|array',
-            'imagenes.*' => 'image|mimes:jpeg,png,jpg,webp,svg,gif|max:10240',
-            'imagen' => 'nullable|image|mimes:jpeg,png,jpg,webp,svg,gif|max:10240',
+            'imagenes.*' => 'image|mimes:jpeg,png,jpg,webp,svg,gif|max:25600',
+            'imagen' => 'nullable|image|mimes:jpeg,png,jpg,webp,svg,gif|max:25600',
             'url' => 'nullable|url',
             'urls' => 'nullable|array',
             'urls.*' => 'url',
+        ], [
+            'imagenes.*.uploaded' => 'No se pudo subir la imagen (verificá que no supere los 25 MB).',
+            'imagenes.*.image' => 'El archivo adjunto debe ser una imagen válida.',
+            'imagenes.*.mimes' => 'Formato de imagen no soportado (usá JPG, PNG, WEBP, SVG o GIF).',
+            'imagenes.*.max' => 'Cada imagen no puede superar los 25 MB.',
+            'imagen.uploaded' => 'No se pudo subir la imagen (verificá que no supere los 25 MB).',
+            'imagen.image' => 'El archivo adjunto debe ser una imagen válida.',
+            'imagen.max' => 'La imagen no puede superar los 25 MB.',
         ]);
 
         if ($validator->fails()) {

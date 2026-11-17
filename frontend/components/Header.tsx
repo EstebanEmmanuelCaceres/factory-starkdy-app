@@ -9,6 +9,7 @@ const PAGE_TITLES: Record<string, { title: string; subtitle: string }> = {
   '/dashboard/productos': { title: 'Productos', subtitle: 'Catálogo y gestión de productos' },
   '/dashboard/clientes': { title: 'Clientes', subtitle: 'Directorio y cuentas de clientes' },
   '/dashboard/pedidos': { title: 'Pedidos', subtitle: 'Gestión y seguimiento de pedidos' },
+  '/dashboard/despacho': { title: 'Despacho', subtitle: 'Pedidos completados y pagos listos para enviar' },
   '/dashboard/saldos': { title: 'Saldos Pendientes', subtitle: 'Control de cobros y cuentas corrientes' },
   '/dashboard/tareas': { title: 'Mis Tareas', subtitle: 'Tareas operativas de producción' },
   '/dashboard/historial': { title: 'Historial', subtitle: 'Registro de producción y cambios de estado' },

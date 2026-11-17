@@ -15,7 +15,13 @@ class ClienteController extends Controller
      */
     public function index(Request $request): JsonResponse
     {
-        $query = Cliente::query();
+        $query = Cliente::query()->withSum([
+            'pedidos as total_pedidos_calculado' => function ($q) {
+                $q->whereDoesntHave('ultimoEstado', function ($uq) {
+                    $uq->where('estado', 'cancelado');
+                });
+            }
+        ], 'precio');
 
         // Búsqueda opcional por nombre de empresa, nombre de cliente, email o término general (search)
         if ($request->has('search') && !empty($request->input('search'))) {
@@ -177,7 +183,13 @@ class ClienteController extends Controller
      */
     public function clientesWithPedidos(Request $request): JsonResponse
     {
-        $query = Cliente::query();
+        $query = Cliente::query()->withSum([
+            'pedidos as total_pedidos_calculado' => function ($q) {
+                $q->whereDoesntHave('ultimoEstado', function ($uq) {
+                    $uq->where('estado', 'cancelado');
+                });
+            }
+        ], 'precio');
 
         if ($request->has('search') && !empty($request->input('search'))) {
             $searchTerm = mb_strtolower(trim($request->input('search')));

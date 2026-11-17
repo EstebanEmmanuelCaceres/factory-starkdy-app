@@ -157,9 +157,8 @@ setup_laravel() {
         echo "✅ Sanctum instalado."
     fi
 
-    # Permisos
-    chown -R www-data:www-data "$LARAVEL_PATH" 2>/dev/null || true
-    chmod -R 755 "$LARAVEL_PATH" 2>/dev/null || true
+    # Permisos (solo sobre storage y bootstrap/cache para evitar recorrer vendor/ en cada reinicio)
+    chown -R www-data:www-data "$LARAVEL_PATH/storage" "$LARAVEL_PATH/bootstrap/cache" 2>/dev/null || true
     chmod -R 775 "$LARAVEL_PATH/storage" "$LARAVEL_PATH/bootstrap/cache" 2>/dev/null || true
 
     # Migraciones
@@ -193,6 +192,7 @@ setup_laravel() {
         echo "✅ Base de datos poblada con datos iniciales."
     else
         echo "✅ Base ya poblada ($user_count usuarios) — omitiendo seeders."
+        php artisan db:seed --class=FixSequencesSeeder --force --quiet || true
     fi
 
     # Caché de configuración y rutas
@@ -206,6 +206,13 @@ setup_laravel() {
 # ─────────────────────────────────────────────────────────────────
 # EJECUCIÓN PRINCIPAL
 # ─────────────────────────────────────────────────────────────────
+cat > /usr/local/etc/php/conf.d/uploads.ini << 'EOF'
+upload_max_filesize = 50M
+post_max_size = 55M
+max_file_uploads = 20
+memory_limit = 256M
+EOF
+
 print_banner
 wait_for_postgres
 install_laravel

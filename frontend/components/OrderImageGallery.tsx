@@ -159,7 +159,7 @@ export default function OrderImageGallery({ orderId, orderCode, onImagesUpdated 
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" data-order-image-gallery="true">
       {/* Alertas */}
       {success && (
         <div className="bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs px-3.5 py-2.5 rounded-lg flex items-center gap-2 animate-in fade-in">
