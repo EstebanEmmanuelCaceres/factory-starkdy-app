@@ -46,10 +46,10 @@ class PedidoProducto extends Pivot
     }
 
     /**
-     * Relación: La línea referencia a un Producto del catálogo.
+     * Relación: La línea referencia a un Producto del catálogo (incluyendo dados de baja con soft delete).
      */
     public function producto(): BelongsTo
     {
-        return $this->belongsTo(Producto::class, 'producto_id');
+        return $this->belongsTo(Producto::class, 'producto_id')->withTrashed();
     }
 }

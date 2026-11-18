@@ -22,11 +22,11 @@ class EtapaProducto extends Model
     ];
 
     /**
-     * Relación: Pertenece a un producto.
+     * Relación: Pertenece a un producto (incluyendo dados de baja con soft delete).
      */
     public function producto(): BelongsTo
     {
-        return $this->belongsTo(Producto::class, 'producto_id');
+        return $this->belongsTo(Producto::class, 'producto_id')->withTrashed();
     }
 
     /**

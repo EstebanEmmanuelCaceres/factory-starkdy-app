@@ -32,7 +32,7 @@ class PedidoLineasService
      */
     public function normalizar(array $items): array
     {
-        $productos = Producto::whereIn('id', collect($items)->pluck('id')->filter()->unique())->get()->keyBy('id');
+        $productos = Producto::withTrashed()->whereIn('id', collect($items)->pluck('id')->filter()->unique())->get()->keyBy('id');
         $lineas = [];
         $errores = [];
 
@@ -205,7 +205,7 @@ class PedidoLineasService
     // Una línea por cada línea del pedido que tenga atributos, con las etiquetas en el orden del producto
     private function detalleAtributos(array $lineas): string
     {
-        $productos = Producto::whereIn('id', array_column($lineas, 'producto_id'))->get()->keyBy('id');
+        $productos = Producto::withTrashed()->whereIn('id', array_column($lineas, 'producto_id'))->get()->keyBy('id');
 
         $renglones = [];
         foreach ($lineas as $linea) {

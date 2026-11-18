@@ -87,10 +87,13 @@ class Pedido extends Model
 
     /**
      * Relación Muchos a Muchos con Productos.
+     * Incluye productos con soft delete (withTrashed) para que los pedidos existentes
+     * sigan mostrando los productos que fueron dados de baja del catálogo.
      */
     public function productos(): BelongsToMany
     {
         return $this->belongsToMany(Producto::class, 'pedido_productos', 'pedido_id', 'producto_id')
+            ->withTrashed()
             ->using(PedidoProducto::class)
             // Un producto puede repetirse en varias líneas con distintos atributos: cada una trae su pivot
             ->withPivot(['id', 'cantidad', 'atributos'])

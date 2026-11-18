@@ -76,11 +76,14 @@ function renderVariacionBadge(
 export default function UnidadesVendidasPanel() {
   const now = new Date()
   const currentYear = now.getFullYear()
+  const currentMonth = now.getMonth() + 1 // 1-12
+  // Mes de inicio por defecto: 6 meses hacia atrás desde el mes actual
+  // (Si estamos en mes <= 5, ej. Marzo (3), hace ((3 - 6 + 12) % 12) || 12 = Octubre (10) del año previo)
+  const defaultMesDesde = ((currentMonth - 6 + 12) % 12) + 1
 
-  // Filtros con el mismo estilo de "Valor Total Pedidos": Año + Rango de Meses (Desde / Hasta)
   const [selectedYear, setSelectedYear] = useState<number>(currentYear)
-  const [mesDesde, setMesDesde] = useState<number>(1)
-  const [mesHasta, setMesHasta] = useState<number>(12)
+  const [mesDesde, setMesDesde] = useState<number>(defaultMesDesde)
+  const [mesHasta, setMesHasta] = useState<number>(currentMonth)
   const [searchQuery, setSearchQuery] = useState('')
 
   const [data, setData] = useState<UnidadesVendidasResponse | null>(null)
@@ -93,20 +96,6 @@ export default function UnidadesVendidasPanel() {
     () => Array.from({ length: 7 }, (_, i) => currentYear - 5 + i),
     [currentYear]
   )
-
-  const handleMesDesdeChange = (nuevoDesde: number) => {
-    setMesDesde(nuevoDesde)
-    if (nuevoDesde > mesHasta) {
-      setMesHasta(nuevoDesde)
-    }
-  }
-
-  const handleMesHastaChange = (nuevoHasta: number) => {
-    setMesHasta(nuevoHasta)
-    if (nuevoHasta < mesDesde) {
-      setMesDesde(nuevoHasta)
-    }
-  }
 
   const cargarUnidades = async () => {
     setLoading(true)
@@ -185,6 +174,10 @@ export default function UnidadesVendidasPanel() {
     }
   }, [searchQuery, filaTotal, columnasMeses, productosFiltrados])
 
+  const esUltimos6Meses =
+    selectedYear === currentYear &&
+    mesDesde === defaultMesDesde &&
+    mesHasta === currentMonth
   const esAnioCompleto = mesDesde === 1 && mesHasta === 12
 
   return (
@@ -208,7 +201,7 @@ export default function UnidadesVendidasPanel() {
                 </span>
               </div>
               <span className="block text-[11px] text-slate-400">
-                Cantidad de productos vendidos por mes (`pedido_productos`), total del período y variación % vs mes anterior
+                Cantidad de productos vendidos del mes actual a 6 meses atrás (`pedido_productos`), total y variación % vs mes anterior
               </span>
             </div>
           </div>
@@ -241,7 +234,7 @@ export default function UnidadesVendidasPanel() {
               <span className="text-[10px] font-bold uppercase text-slate-400">Desde:</span>
               <select
                 value={mesDesde}
-                onChange={(e) => handleMesDesdeChange(Number(e.target.value))}
+                onChange={(e) => setMesDesde(Number(e.target.value))}
                 aria-label="Mes desde"
                 className="bg-slate-950 text-xs text-slate-200 focus:outline-none cursor-pointer"
               >
@@ -258,7 +251,7 @@ export default function UnidadesVendidasPanel() {
               <span className="text-[10px] font-bold uppercase text-slate-400">Hasta:</span>
               <select
                 value={mesHasta}
-                onChange={(e) => handleMesHastaChange(Number(e.target.value))}
+                onChange={(e) => setMesHasta(Number(e.target.value))}
                 aria-label="Mes hasta"
                 className="bg-slate-950 text-xs text-slate-200 focus:outline-none cursor-pointer"
               >
@@ -270,6 +263,21 @@ export default function UnidadesVendidasPanel() {
               </select>
             </div>
 
+            {!esUltimos6Meses && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedYear(currentYear)
+                  setMesDesde(defaultMesDesde)
+                  setMesHasta(currentMonth)
+                }}
+                className="bg-slate-950 hover:bg-slate-800 border border-slate-800 text-blue-400 text-xs font-semibold px-2.5 py-1 rounded-lg transition cursor-pointer"
+                title="Volver al intervalo de los últimos 6 meses hasta el mes actual"
+              >
+                Últimos 6 meses
+              </button>
+            )}
+
             {!esAnioCompleto && (
               <button
                 type="button"
@@ -277,10 +285,10 @@ export default function UnidadesVendidasPanel() {
                   setMesDesde(1)
                   setMesHasta(12)
                 }}
-                className="bg-slate-950 hover:bg-slate-800 border border-slate-800 text-blue-400 text-xs font-semibold px-2.5 py-1 rounded-lg transition cursor-pointer"
+                className="bg-slate-950 hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-white text-xs font-semibold px-2.5 py-1 rounded-lg transition cursor-pointer"
                 title="Mostrar los 12 meses del año"
               >
-                Todos los meses
+                Todo el año
               </button>
             )}
 
@@ -327,7 +335,7 @@ export default function UnidadesVendidasPanel() {
             <div className="py-12 px-4 text-center text-slate-400 space-y-1">
               <span className="text-2xl block">📭</span>
               <p className="text-xs font-semibold text-slate-300">
-                No se registraron unidades vendidas en los meses seleccionados de {selectedYear}.
+                No se registraron unidades vendidas en el período seleccionado.
               </p>
             </div>
           ) : (
@@ -346,7 +354,7 @@ export default function UnidadesVendidasPanel() {
                           className={`px-3 py-3.5 text-right min-w-[68px] ${
                             esMesComparado ? 'text-blue-400 bg-blue-950/20' : ''
                           }`}
-                          title={`${col.etiqueta_larga} ${col.anio}`}
+                          title={col.etiqueta_larga}
                         >
                           {col.etiqueta_corta}
                         </th>
@@ -376,7 +384,6 @@ export default function UnidadesVendidasPanel() {
                 <tbody className="divide-y divide-slate-800/60">
                   {productosFiltrados.map((prod) => (
                     <tr key={prod.producto_id} className="hover:bg-slate-800/35 transition group">
-                      {/* Nombre del Producto (sticky a la izquierda en scroll horizontal) */}
                       <td className="sticky left-0 z-10 bg-slate-900 group-hover:bg-slate-800/90 pl-5 pr-3 py-2.5 border-r border-slate-800/80">
                         <div className="flex flex-col">
                           <span className="font-bold text-white text-xs leading-snug">
@@ -390,7 +397,6 @@ export default function UnidadesVendidasPanel() {
                         </div>
                       </td>
 
-                      {/* Columnas de cada Mes */}
                       {columnasMeses.map((col) => {
                         const cant = prod.por_mes[col.clave] ?? 0
                         const esMesComparado = comparacion?.mes_actual_clave === col.clave
@@ -406,12 +412,10 @@ export default function UnidadesVendidasPanel() {
                         )
                       })}
 
-                      {/* Columna Total del Producto */}
                       <td className="px-4 py-2.5 text-right font-mono font-extrabold text-blue-300 bg-slate-950/50 border-l border-slate-800/80 tabular-nums">
                         {prod.total_unidades.toLocaleString('es-AR')}
                       </td>
 
-                      {/* Última Columna: Variación % vs Mes Anterior */}
                       <td className="pl-3 pr-5 py-2.5 text-right border-l border-slate-800/80">
                         {renderVariacionBadge(
                           prod.variacion_pct,
@@ -423,7 +427,6 @@ export default function UnidadesVendidasPanel() {
                   ))}
                 </tbody>
 
-                {/* Fila Inferior: Total unidades */}
                 {totalesVisibles && (
                   <tfoot className="sticky bottom-0 z-20 bg-slate-950 border-t-2 border-blue-500/40 font-extrabold text-xs shadow-lg">
                     <tr>

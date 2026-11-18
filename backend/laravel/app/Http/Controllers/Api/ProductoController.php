@@ -48,7 +48,7 @@ class ProductoController extends Controller
     {
         $validator = Validator::make($request->all(), [
             'nombre' => 'required|string|max:255',
-            'sku' => 'nullable|string|max:100|unique:productos,sku',
+            'sku' => 'nullable|string|max:100|unique:productos,sku,NULL,id,deleted_at,NULL',
             'descripcion' => 'nullable|string',
             'precio' => 'sometimes|numeric|min:0',
             'atributos' => ['sometimes', 'array', new AtributosProducto()],
@@ -107,7 +107,7 @@ class ProductoController extends Controller
 
         $validator = Validator::make($request->all(), [
             'nombre' => 'sometimes|required|string|max:255',
-            'sku' => 'sometimes|nullable|string|max:100|unique:productos,sku,' . $id,
+            'sku' => 'sometimes|nullable|string|max:100|unique:productos,sku,' . $id . ',id,deleted_at,NULL',
             'descripcion' => 'sometimes|nullable|string',
             'precio' => 'sometimes|numeric|min:0',
             // Se manda la lista completa: reemplaza los atributos que tenía el producto
