@@ -119,7 +119,7 @@ export default function UnidadesVendidasPanel() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedYear, mesDesde, mesHasta])
 
-  const columnasMeses = data?.meses ?? []
+  const columnasMeses = useMemo(() => data?.meses ?? [], [data?.meses])
   const filaTotal = data?.fila_total
   const comparacion = data?.periodo?.comparacion
 
@@ -201,7 +201,7 @@ export default function UnidadesVendidasPanel() {
                 </span>
               </div>
               <span className="block text-[11px] text-slate-400">
-                Cantidad de productos vendidos del mes actual a 6 meses atrás (`pedido_productos`), total y variación % vs mes anterior
+                Cantidad de productos vendidos por mes (`pedido_productos`), total y variación % (mes anterior vs anterior a ese)
               </span>
             </div>
           </div>

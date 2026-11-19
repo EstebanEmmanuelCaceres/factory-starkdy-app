@@ -13,7 +13,7 @@ use Carbon\Carbon;
  * - Las columnas de meses del rango seleccionado (por defecto: del mes actual a 6 meses hacia atrás)
  * - Las unidades por mes y el total por cada producto
  * - La fila de "Total unidades" por mes y total general
- * - La variación porcentual (%) del último mes del intervalo contra su mes inmediato anterior
+ * - La variación porcentual (%) del último mes cerrado contra su mes inmediato anterior (omitiendo el mes corriente por estar incompleto)
  */
 class UnidadesVendidasService
 {
@@ -97,19 +97,28 @@ class UnidadesVendidasService
             ? $usuarioActual?->id
             : ($filtros['vendedor_id'] ?? null);
 
-        // El mes de referencia para calcular "% vs mes anterior" es el último mes del intervalo
-        // (salvo que el intervalo incluya meses futuros del año actual, en cuyo caso se usa el mes actual).
-        $finMesActualReal = $ahora->copy()->endOfMonth()->endOfDay();
-        $fechaMesReferencia = ($finRangoVisible->gt($finMesActualReal) && $inicioRangoVisible->lte($finMesActualReal))
-            ? $ahora->copy()->startOfMonth()
-            : $finRangoVisible->copy()->startOfMonth();
+        // El mes de referencia para calcular "% vs mes anterior":
+        // Dado que el mes corriente (en curso) aún no ha concluido, comparar sus ventas parciales
+        // contra el mes anterior produce variaciones distorsionadas e incompletas. Por ello:
+        // - Si el rango visible incluye o sobrepasa el mes corriente, se toma como mes de referencia
+        //   el último mes cerrado (el mes anterior al corriente) y se compara contra el anterior a ese.
+        // - Si el rango es un período histórico del pasado ya concluido, se toma el último mes de dicho
+        //   rango cerrado y se compara contra su mes anterior.
+        $mesActualReal = $ahora->copy()->startOfMonth();
+
+        if ($finRangoVisible->gte($mesActualReal)) {
+            $fechaMesReferencia = $mesActualReal->copy()->subMonthNoOverflow();
+        } else {
+            $fechaMesReferencia = $finRangoVisible->copy()->startOfMonth();
+        }
 
         $fechaMesAnterior = $fechaMesReferencia->copy()->subMonthNoOverflow()->startOfMonth();
 
-        // Extender la consulta al repositorio 1 mes atrás si el mes anterior queda fuera del rango visible
-        $desdeConsulta = $fechaMesAnterior->lt($inicioRangoVisible)
-            ? $fechaMesAnterior->copy()->startOfDay()
-            : $inicioRangoVisible->copy();
+        // Extender la consulta al repositorio si los meses de comparación quedan fuera del rango visible
+        $desdeConsulta = $inicioRangoVisible->copy();
+        if ($fechaMesAnterior->lt($desdeConsulta)) {
+            $desdeConsulta = $fechaMesAnterior->copy()->startOfDay();
+        }
 
         $registros = $this->pedidoProductoRepository->obtenerUnidadesPorProductoYMes(
             $desdeConsulta,
