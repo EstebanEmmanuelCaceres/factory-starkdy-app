@@ -1,11 +1,5 @@
-import * as XLSX from 'xlsx'
 import type { Pedido } from './pedidos'
-import {
-  findAndreaniLocation,
-  parseNombreApellido,
-  parseCelular,
-  parseDireccion,
-} from './andreaniNormalizer'
+import { parseNombreApellido } from './andreaniNormalizer'
 
 /**
  * Escapa un valor para formato CSV estándar (RFC 4180).
@@ -24,11 +18,11 @@ function escapeCsvField(value: string | number | null | undefined, separator = '
 }
 
 /**
- * Encabezados oficiales de importación masiva de Andreani (Domicilio destino).
- * Fila 1: Grupos de columnas.
- * Fila 2: Títulos exactos con sus ejemplos y saltos de línea oficiales.
+ * Encabezados de importación masiva (Domicilio destino).
+ * Fila 1: Grupos de columnas (Características 7 cols, Destinatario 5 cols, Domicilio destino 5 cols).
+ * Fila 2: Títulos exactos con sus ejemplos y saltos de línea.
  */
-export const ANDREANI_ROW_1 = 'Características,,,,,,,Destinatario,,,,,,Domicilio destino,,,,,'
+export const ANDREANI_ROW_1 = 'Características,,,,,,,Destinatario,,,,,Domicilio destino,,,,'
 
 export const ANDREANI_HEADERS = [
   'Paquete Guardado \nEj: caja 30',
@@ -42,13 +36,11 @@ export const ANDREANI_HEADERS = [
   'Apellido *\nEj: ',
   'DNI *\nEj: ',
   'Email *\nEj: ',
-  'Celular código *\nEj: ',
-  'Celular número *\nEj: ',
-  'Calle *\nEj: ',
-  'Número *\nEj: ',
-  'Piso\nEj: ',
-  'Departamento\nEj: ',
-  'Provincia / Localidad / CP * \nEj: BUENOS AIRES / 11 DE SEPTIEMBRE / 1657',
+  'Celular *\nEj: ',
+  'Dirección *\nEj: ',
+  'Provincia *\nEj: ',
+  'Localidad *\nEj: ',
+  'Código Postal *\nEj: ',
   'Observaciones\nEj: ',
 ]
 
@@ -70,13 +62,11 @@ interface RowData {
   apellido: string
   dniLimpio: string
   email: string
-  celCodigo: string
-  celNumero: string
-  calle: string
-  numero: string
-  piso: string
-  depto: string
-  provLocCp: string
+  celular: string
+  direccion: string
+  provincia: string
+  localidad: string
+  cp: string
   observacionesFinal: string
 }
 
@@ -92,14 +82,16 @@ function mapPedidoToRowData(pedido: Pedido, options: DespachoCsvOptions = {}): R
   // 2. DNI limpio
   const dniLimpio = (cli?.dni ?? '').replace(/\D/g, '')
 
-  // 3. Celular separado en código y número sin 0 ni 15
-  const { codigo: celCodigo, numero: celNumero } = parseCelular(cli?.telefono)
+  // 3. Celular completo en una sola columna
+  const celular = cli?.telefono?.trim() ?? ''
 
-  // 4. Dirección separada en calle, número, piso y departamento
-  const { calle, numero, piso, depto } = parseDireccion(cli?.direccion)
+  // 4. Dirección completa en una sola columna
+  const direccion = cli?.direccion?.trim() ?? ''
 
-  // 5. Provincia / Localidad / CP canónico de Andreani
-  const provLocCp = findAndreaniLocation(cli?.provincia, cli?.localidad, cli?.cp)
+  // 5. Provincia, Localidad y CP en columnas separadas
+  const provincia = cli?.provincia?.trim() ?? ''
+  const localidad = cli?.localidad?.trim() ?? ''
+  const cp = cli?.cp?.trim() ?? ''
 
   // 6. Resumen de productos + observaciones
   const productosResumen = (pedido.productos ?? [])
@@ -120,106 +112,29 @@ function mapPedidoToRowData(pedido: Pedido, options: DespachoCsvOptions = {}): R
     ancho: '',
     profundidad: '',
     valorDeclarado,
-    numeroInterno: pedido.codigo ? `#${pedido.codigo}` : `#${pedido.id}`,
+    numeroInterno: cli?.nombre_empresa?.trim() ?? '',
     nombre,
     apellido,
     dniLimpio,
     email: cli?.email ?? '',
-    celCodigo,
-    celNumero,
-    calle,
-    numero,
-    piso,
-    depto,
-    provLocCp,
+    celular,
+    direccion,
+    provincia,
+    localidad,
+    cp,
     observacionesFinal,
   }
 }
 
 /**
- * Genera el archivo Excel (.xlsx) oficial de Andreani inyectando los datos
- * directamente en la plantilla original oficial (`/templates/plantilla_andreani.xlsx`).
- * Esto conserva intactas las hojas ("A domicilio", "A sucursal", "Configuracion"),
- * los estilos, validaciones y metadatos requeridos por la plataforma de Andreani.
- */
-export async function buildDespachoAndreaniXlsx(
-  pedidos: Pedido[],
-  options: DespachoCsvOptions = {}
-): Promise<Blob> {
-  const response = await fetch('/templates/plantilla_andreani.xlsx')
-  if (!response.ok) {
-    throw new Error('No se pudo cargar la plantilla oficial de Andreani desde /templates/plantilla_andreani.xlsx')
-  }
-  const arrayBuffer = await response.arrayBuffer()
-
-  const wb = XLSX.read(arrayBuffer, { type: 'array' })
-  const ws = wb.Sheets['A domicilio'] || wb.Sheets[wb.SheetNames[0]]
-
-  const dataRows: (string | number)[][] = pedidos.map((pedido) => {
-    const data = mapPedidoToRowData(pedido, options)
-    return [
-      data.paqueteGuardado,
-      data.pesoGramos,
-      data.alto,
-      data.ancho,
-      data.profundidad,
-      data.valorDeclarado,
-      data.numeroInterno,
-      data.nombre,
-      data.apellido,
-      data.dniLimpio,
-      data.email,
-      data.celCodigo,
-      data.celNumero,
-      data.calle,
-      data.numero,
-      data.piso,
-      data.depto,
-      data.provLocCp,
-      data.observacionesFinal,
-    ]
-  })
-
-  // origin: -1 agrega las filas al final de la hoja (después de las 2 filas de encabezados originales)
-  XLSX.utils.sheet_add_aoa(ws, dataRows, { origin: -1 })
-
-  const outBuf = XLSX.write(wb, { type: 'array', bookType: 'xlsx' })
-  return new Blob([outBuf], {
-    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-  })
-}
-
-/**
- * Descarga el archivo Excel oficial (.xlsx) de Andreani con los pedidos listos para despacho.
- */
-export async function downloadDespachoAndreaniXlsx(
-  pedidos: Pedido[],
-  options: DespachoCsvOptions = {},
-  filenamePrefix = 'despacho_andreani'
-): Promise<void> {
-  if (pedidos.length === 0) return
-
-  const blob = await buildDespachoAndreaniXlsx(pedidos, options)
-  const url = URL.createObjectURL(blob)
-
-  const dateStr = new Date().toISOString().split('T')[0]
-  const link = document.createElement('a')
-  link.href = url
-  link.setAttribute('download', `${filenamePrefix}_${dateStr}.xlsx`)
-  document.body.appendChild(link)
-  link.click()
-  document.body.removeChild(link)
-  URL.revokeObjectURL(url)
-}
-
-/**
- * Genera el archivo CSV con la plantilla oficial de Andreani para envíos a domicilio (alternativa texto).
+ * Genera el archivo CSV con la plantilla oficial para envíos a domicilio.
  */
 export function buildDespachoClientesCsv(
   pedidos: Pedido[],
   options: DespachoCsvOptions = {},
   separator = ','
 ): string {
+  const row1 = separator === ',' ? ANDREANI_ROW_1 : ANDREANI_ROW_1.split(',').join(separator)
   const row2 = ANDREANI_HEADERS.map((h) => escapeCsvField(h, separator)).join(separator)
 
   const rows = pedidos.map((pedido) => {
@@ -236,23 +151,22 @@ export function buildDespachoClientesCsv(
       data.apellido,
       data.dniLimpio,
       data.email,
-      data.celCodigo,
-      data.celNumero,
-      data.calle,
-      data.numero,
-      data.piso,
-      data.depto,
-      data.provLocCp,
+      data.celular,
+      data.direccion,
+      data.provincia,
+      data.localidad,
+      data.cp,
       data.observacionesFinal,
     ]
     return fields.map((f) => escapeCsvField(f, separator)).join(separator)
   })
 
-  return '\uFEFF' + [ANDREANI_ROW_1, row2, ...rows].join('\r\n')
+  // Incluye BOM UTF-8 (\uFEFF) para que Excel en Windows reconozca tildes y eñes automáticamente
+  return '\uFEFF' + [row1, row2, ...rows].join('\r\n')
 }
 
 /**
- * Descarga en el navegador el archivo CSV de despacho formateado para Andreani.
+ * Descarga en el navegador el archivo CSV de despacho para los pedidos indicados.
  */
 export function downloadDespachoClientesCsv(
   pedidos: Pedido[],

@@ -10,10 +10,7 @@ import {
   cambiarEstadoPedidos,
   type Pedido,
 } from '@/lib/pedidos'
-import {
-  downloadDespachoAndreaniXlsx,
-  downloadDespachoClientesCsv,
-} from '@/lib/despachoCsv'
+import { downloadDespachoClientesCsv } from '@/lib/despachoCsv'
 
 // Portada del pedido: imagen principal, o la primera del pedido, o la de sus productos
 const getPedidoCoverUrl = (pedido: Pedido) =>
@@ -141,29 +138,6 @@ export default function DespachoPage() {
     [pedidos, seleccionados]
   )
 
-  // Estado de exportación
-  const [exportando, setExportando] = useState(false)
-
-  const handleExportXlsx = async (lista: Pedido[]) => {
-    if (lista.length === 0) return
-    setExportando(true)
-    setError('')
-    try {
-      await downloadDespachoAndreaniXlsx(lista, {
-        paqueteGuardado: paqueteGuardado.trim() || 'caja 30',
-        pesoGramos,
-        valorDeclarado,
-      })
-      showNotification(
-        `Excel oficial Andreani (.xlsx) generado con ${lista.length} ${lista.length === 1 ? 'pedido' : 'pedidos'} (Plantilla oficial intacta)`
-      )
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Error al generar el archivo Excel de Andreani')
-    } finally {
-      setExportando(false)
-    }
-  }
-
   const handleExportCsv = (lista: Pedido[]) => {
     if (lista.length === 0) return
     downloadDespachoClientesCsv(lista, {
@@ -172,7 +146,7 @@ export default function DespachoPage() {
       valorDeclarado,
     })
     showNotification(
-      `CSV Andreani generado con ${lista.length} ${lista.length === 1 ? 'pedido' : 'pedidos'}`
+      `CSV generado correctamente con ${lista.length} ${lista.length === 1 ? 'pedido' : 'pedidos'}`
     )
   }
 
@@ -234,37 +208,20 @@ export default function DespachoPage() {
             <button
               type="button"
               onClick={() =>
-                handleExportXlsx(
-                  pedidosSeleccionados.length > 0 ? pedidosSeleccionados : pedidosFiltrados
-                )
-              }
-              disabled={loading || exportando || pedidosFiltrados.length === 0}
-              className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-800 disabled:text-slate-500 text-white font-bold px-4 py-2 rounded-xl text-xs shadow-lg shadow-emerald-950/40 transition cursor-pointer disabled:cursor-not-allowed"
-              title="Descargar archivo Excel oficial de Andreani (.xlsx) para importación masiva"
-            >
-              <span>📊</span>
-              <span>
-                {exportando
-                  ? 'Generando Excel...'
-                  : pedidosSeleccionados.length > 0
-                  ? `Descargar Excel Andreani (${pedidosSeleccionados.length} sel.)`
-                  : `Descargar Excel Andreani (Todos: ${pedidosFiltrados.length})`}
-              </span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() =>
                 handleExportCsv(
                   pedidosSeleccionados.length > 0 ? pedidosSeleccionados : pedidosFiltrados
                 )
               }
-              disabled={loading || exportando || pedidosFiltrados.length === 0}
-              className="flex items-center gap-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 disabled:bg-slate-900 disabled:text-slate-600 text-slate-300 font-semibold px-3 py-2 rounded-xl text-xs transition cursor-pointer disabled:cursor-not-allowed"
-              title="Descargar versión alternativa en CSV"
+              disabled={loading || pedidosFiltrados.length === 0}
+              className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-800 disabled:text-slate-500 text-white font-bold px-4 py-2 rounded-xl text-xs shadow-lg shadow-emerald-950/40 transition cursor-pointer disabled:cursor-not-allowed"
+              title="Descargar archivo CSV con los datos de envío"
             >
-              <span>📄</span>
-              <span>CSV</span>
+              <span>📥</span>
+              <span>
+                {pedidosSeleccionados.length > 0
+                  ? `Descargar CSV (${pedidosSeleccionados.length} seleccionados)`
+                  : `Descargar CSV (Todos: ${pedidosFiltrados.length})`}
+              </span>
             </button>
           </div>
         </div>
@@ -292,12 +249,12 @@ export default function DespachoPage() {
                 <span>🏷️</span>
                 <span>Configuración de Exportación Masiva (Andreani)</span>
               </span>
-              <span className="text-[10px] bg-blue-500/15 border border-blue-500/30 text-blue-300 font-extrabold px-2 py-0.5 rounded-full">
-                Plantilla Oficial Domicilio
+              <span className="text-[10px] bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 font-extrabold px-2 py-0.5 rounded-full">
+                Formato CSV Domicilio
               </span>
             </div>
             <span className="text-xs text-slate-400">
-              Formato de 19 columnas con normalización automática de dirección, celular y provincia/localidad/CP.
+              Formato de 17 columnas con celular y dirección en una sola columna, y provincia, localidad y CP separados.
             </span>
           </div>
 
@@ -421,23 +378,11 @@ export default function DespachoPage() {
             <div className="flex flex-wrap items-center gap-2">
               <button
                 type="button"
-                onClick={() => handleExportXlsx(pedidosSeleccionados)}
-                disabled={exportando}
-                className="h-9 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 px-4 text-xs font-bold text-white shadow transition flex items-center gap-1.5 cursor-pointer"
-              >
-                <span>📊</span>
-                <span>{exportando ? 'Generando...' : `Descargar Excel Andreani (${seleccionados.length})`}</span>
-              </button>
-
-              <button
-                type="button"
                 onClick={() => handleExportCsv(pedidosSeleccionados)}
-                disabled={exportando}
-                className="h-9 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 disabled:opacity-50 px-3 text-xs font-semibold text-slate-300 transition flex items-center gap-1 cursor-pointer"
-                title="Descargar versión alternativa en CSV"
+                className="h-9 rounded-lg bg-emerald-600 hover:bg-emerald-500 px-4 text-xs font-bold text-white shadow transition flex items-center gap-1.5 cursor-pointer"
               >
-                <span>📄</span>
-                <span>CSV</span>
+                <span>📥</span>
+                <span>Generar CSV ({seleccionados.length})</span>
               </button>
 
               <button
