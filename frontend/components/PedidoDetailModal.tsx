@@ -1300,7 +1300,13 @@ export default function PedidoDetailModal({
       </div>
 
       {/* Modal de Cliente, se apila encima del pedido */}
-      <ClientDetailModal clienteId={clientIdForModal} />
+      <ClientDetailModal
+        clienteId={clientIdForModal}
+        canEdit={!isOperario}
+        onClientUpdated={(updatedCliente) =>
+          actualizarPedidoLocal({ cliente: updatedCliente })
+        }
+      />
       {isLightboxOpen && coverImages.length > 0 && (
         <ImageLightbox
           images={coverImages}
