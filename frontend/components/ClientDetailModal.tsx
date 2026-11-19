@@ -4,6 +4,8 @@ import React, { useEffect, useState } from 'react'
 import { Modal } from '@/components/Modal/Modal'
 import { useModal } from '@/components/Modal/context/ModalContext'
 import Field from '@/components/Field'
+import ClientQuickPasteBox from '@/components/ClientQuickPasteBox'
+import { type ParsedClienteData } from '@/lib/parseClienteText'
 import { getCliente, updateCliente, type Cliente, type UpdateClienteInput } from '@/lib/clientes'
 
 export const CLIENT_DETAIL_MODAL_ID = 'cliente-detail'
@@ -157,6 +159,26 @@ export default function ClientDetailModal({
     setFormData((prev) => (prev ? { ...prev, [key]: value } : prev))
   }
 
+  const handleApplyParsedCliente = (parsed: ParsedClienteData) => {
+    setFormData((prev) =>
+      prev
+        ? {
+            ...prev,
+            nombre_cliente: parsed.nombre_cliente || prev.nombre_cliente,
+            nombre_empresa: parsed.nombre_empresa || prev.nombre_empresa,
+            telefono: parsed.telefono || prev.telefono,
+            email: parsed.email || prev.email,
+            dni: parsed.dni || prev.dni,
+            direccion: parsed.direccion || prev.direccion,
+            provincia: parsed.provincia || prev.provincia,
+            cp: parsed.cp || prev.cp,
+            localidad: parsed.localidad || prev.localidad,
+            observaciones: parsed.observaciones || prev.observaciones,
+          }
+        : prev
+    )
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!cliente || !formData || saving) return
@@ -253,6 +275,15 @@ export default function ClientDetailModal({
           )}
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-h-[65vh] overflow-y-auto pr-1">
+            {isEditing && (
+              <div className="sm:col-span-2">
+                <ClientQuickPasteBox
+                  onParsed={handleApplyParsedCliente}
+                  currentEmpresaValue={formData.nombre_empresa}
+                />
+              </div>
+            )}
+
             {CAMPOS.map((campo) => (
               <Field
                 key={campo.key}
