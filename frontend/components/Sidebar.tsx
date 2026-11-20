@@ -83,7 +83,7 @@ const NAV_SECTIONS = [
       { id: 'categorias', label: 'Categorías', href: '/dashboard/categorias', Icon: Icons.categories, available: true, roles: ['admin'] },
       { id: 'clientes', label: 'Clientes', href: '/dashboard/clientes', Icon: Icons.customers, available: true, roles: ['admin', 'encargado', 'vendedor', 'disenador', 'disenadora'] },
       { id: 'pedidos', label: 'Pedidos', href: '/dashboard/pedidos', Icon: Icons.orders, available: true, roles: ['admin', 'supervisor', 'encargado', 'vendedor', 'disenador', 'disenadora', 'operario', 'operator'] },
-      { id: 'despacho', label: 'Despacho', href: '/dashboard/despacho', Icon: Icons.despacho, available: true, roles: ['admin', 'encargado'] },
+      { id: 'despacho', label: 'Despacho', href: '/dashboard/despacho', Icon: Icons.despacho, available: true, roles: ['admin', 'encargado', 'vendedor'] },
       { id: 'usuarios', label: 'Usuarios', href: '/dashboard/usuarios', Icon: Icons.users, available: true, roles: ['admin'] },
       { id: 'cobros', label: 'Cobros', href: '/dashboard/cobros', Icon: Icons.saldos, available: true, roles: ['admin'] },
       { id: 'saldos', label: 'Saldos Pendientes', href: '/dashboard/saldos', Icon: Icons.saldos, available: true, roles: ['vendedor', 'disenador', 'disenadora'] },

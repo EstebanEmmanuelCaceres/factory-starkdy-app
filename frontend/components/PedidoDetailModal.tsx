@@ -34,6 +34,9 @@ export interface PedidoDetailModalProps {
   onOpenGallery?: (pedido: Pedido) => void
   onOpenPayments?: (pedido: Pedido) => void
   onOpenEdit?: (pedido: Pedido) => void
+  canChangeStatus?: boolean
+  canEditDescription?: boolean
+  clientShippingOnly?: boolean
 }
 
 export default function PedidoDetailModal({
@@ -44,7 +47,10 @@ export default function PedidoDetailModal({
   taskAssignments: propTaskAssignments,
   onOpenGallery,
   onOpenPayments,
-  onOpenEdit
+  onOpenEdit,
+  canChangeStatus = true,
+  canEditDescription = true,
+  clientShippingOnly = false
 }: PedidoDetailModalProps) {
   const [currentPedido, setCurrentPedido] = useState<Pedido | null>(pedido)
   const currentPedidoRef = useRef<Pedido | null>(pedido)
@@ -166,6 +172,7 @@ export default function PedidoDetailModal({
   }
 
   const handleStatusChange = async (newEstado: string) => {
+    if (!canChangeStatus) return
     try {
       setError('')
       const updated = await updatePedido(currentPedido.id, { estado: newEstado })
@@ -178,6 +185,7 @@ export default function PedidoDetailModal({
   }
 
   const handleSaveDescription = async () => {
+    if (!canEditDescription) return
     try {
       setError('')
       const updated = await updatePedido(currentPedido.id, { comentario: tempComentario, descripcion: tempComentario })
@@ -577,11 +585,17 @@ export default function PedidoDetailModal({
                   <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
                     Estado:
                   </span>
-                  <SelectStatus
-                    value={currentPedido.estado}
-                    onChange={handleStatusChange}
-                    options={PEDIDO_STATE_OPTIONS}
-                  />
+                  {canChangeStatus ? (
+                    <SelectStatus
+                      value={currentPedido.estado}
+                      onChange={handleStatusChange}
+                      options={PEDIDO_STATE_OPTIONS}
+                    />
+                  ) : (
+                    <span className="text-xs font-bold text-blue-400 pr-1">
+                      {PEDIDO_STATE_OPTIONS.find((opt) => opt.value === currentPedido.estado)?.label || currentPedido.estado}
+                    </span>
+                  )}
                 </div>
 
                 {/* Aviso de Pago en Encabezado para Encargada */}
@@ -780,13 +794,15 @@ export default function PedidoDetailModal({
                   <strong>&quot;Listo para producción&quot;</strong>.
                 </p>
               </div>
-              <button
-                onClick={() => handleStatusChange('listo_para_produccion')}
-                className="bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white font-extrabold text-xs px-4 py-2.5 rounded-xl transition shadow-lg shadow-cyan-600/20 hover:scale-[1.02] active:scale-[0.98] whitespace-nowrap shrink-0 flex items-center justify-center gap-1.5"
-              >
-                <span>🚀</span>
-                <span>Pasar a Listo para Producción</span>
-              </button>
+              {canChangeStatus && (
+                <button
+                  onClick={() => handleStatusChange('listo_para_produccion')}
+                  className="bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white font-extrabold text-xs px-4 py-2.5 rounded-xl transition shadow-lg shadow-cyan-600/20 hover:scale-[1.02] active:scale-[0.98] whitespace-nowrap shrink-0 flex items-center justify-center gap-1.5"
+                >
+                  <span>🚀</span>
+                  <span>Pasar a Listo para Producción</span>
+                </button>
+              )}
             </div>
           )}
         </div>
@@ -801,7 +817,7 @@ export default function PedidoDetailModal({
                 <h3 className="text-sm font-bold text-white flex items-center gap-2">
                   <span>📝</span> Descripción
                 </h3>
-                {!isEditCommentActive && (
+                {canEditDescription && !isEditCommentActive && (
                   <button
                     type="button"
                     onClick={() => setIsEditCommentActive(true)}
@@ -812,7 +828,7 @@ export default function PedidoDetailModal({
                 )}
               </div>
 
-              {isEditCommentActive ? (
+              {canEditDescription && isEditCommentActive ? (
                 <div className="space-y-2">
                   <textarea
                     value={tempComentario}
@@ -843,9 +859,11 @@ export default function PedidoDetailModal({
                 </div>
               ) : (
                 <div
-                  onClick={() => setIsEditCommentActive(true)}
-                  className="bg-slate-950/40 border border-slate-850 p-4 rounded-xl cursor-pointer hover:border-blue-500/50 hover:bg-slate-900/60 transition group"
-                  title="Haz clic para editar la descripción"
+                  onClick={canEditDescription ? () => setIsEditCommentActive(true) : undefined}
+                  className={`bg-slate-950/40 border border-slate-850 p-4 rounded-xl transition group ${
+                    canEditDescription ? 'cursor-pointer hover:border-blue-500/50 hover:bg-slate-900/60' : ''
+                  }`}
+                  title={canEditDescription ? 'Haz clic para editar la descripción' : undefined}
                 >
                   {(currentPedido.comentario || currentPedido.descripcion) ? (
                     <p className="text-sm text-slate-300 whitespace-pre-wrap group-hover:text-white transition">
@@ -1303,6 +1321,7 @@ export default function PedidoDetailModal({
       <ClientDetailModal
         clienteId={clientIdForModal}
         canEdit={!isOperario}
+        shippingOnly={clientShippingOnly}
         onClientUpdated={(updatedCliente) =>
           actualizarPedidoLocal({ cliente: updatedCliente })
         }

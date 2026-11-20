@@ -942,10 +942,10 @@ class PedidoController extends Controller
     {
         /** @var User|null $currentUser */
         $currentUser = Auth::user();
-        if (!$currentUser || !$currentUser->isAdminOrEncargado()) {
+        if (!$currentUser || (!$currentUser->isAdminOrEncargado() && !$currentUser->isVendedor())) {
             return response()->json([
                 'status' => 'error',
-                'message' => 'No autorizado. Solo administradores o encargados pueden acceder al módulo de despacho.'
+                'message' => 'No autorizado. Solo administradores, encargados o vendedores pueden acceder al módulo de despacho.'
             ], 403);
         }
 
@@ -966,6 +966,11 @@ class PedidoController extends Controller
             ->whereHas('ultimoEstado', function ($q) {
                 $q->whereIn('estado', ['completado', 'completado_pd']);
             });
+
+        // Restricción por rol: si es vendedor, solo ve sus propios pedidos listos para despacho
+        if ($currentUser->isVendedor()) {
+            $query->where('user_id', $currentUser->id);
+        }
 
         $isEncargado = in_array($currentUser->role?->slug, ['encargado', 'encargada'], true);
 

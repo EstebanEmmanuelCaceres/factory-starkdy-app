@@ -75,16 +75,22 @@ function clienteToFormState(cliente: Cliente): ClientFormState {
 
 interface ClientDetailModalProps {
   clienteId: number | null
+  modalId?: string
   canEdit?: boolean
+  initialEditMode?: boolean
+  shippingOnly?: boolean
   onClientUpdated?: (cliente: Cliente) => void
 }
 
 export default function ClientDetailModal({
   clienteId,
+  modalId = CLIENT_DETAIL_MODAL_ID,
   canEdit = true,
+  initialEditMode = false,
+  shippingOnly = false,
   onClientUpdated,
 }: ClientDetailModalProps) {
-  const { isOpen } = useModal(CLIENT_DETAIL_MODAL_ID)
+  const { isOpen } = useModal(modalId)
   const [cliente, setCliente] = useState<Cliente | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -119,6 +125,9 @@ export default function ClientDetailModal({
         if (!cancelado) {
           setCliente(data)
           setFormData(clienteToFormState(data))
+          if (initialEditMode && canEdit) {
+            setIsEditing(true)
+          }
         }
       })
       .catch(() => {
@@ -131,7 +140,7 @@ export default function ClientDetailModal({
     return () => {
       cancelado = true
     }
-  }, [isOpen, clienteId])
+  }, [isOpen, clienteId, initialEditMode, canEdit])
 
   useEffect(() => {
     if (!successMessage) return
@@ -199,13 +208,6 @@ export default function ClientDetailModal({
     const cpValue = formData.cp.trim() || null
     const direccionValue = formData.direccion.trim() || null
     const observacionesValue = formData.observaciones.trim() || null
-    const parsedSaldo = formData.saldo.trim() === '' ? 0 : Number(formData.saldo)
-
-    if (Number.isNaN(parsedSaldo) || parsedSaldo < 0) {
-      setSaveError('El límite de crédito debe ser un número válido mayor o igual a 0.')
-      return
-    }
-
     const payload: UpdateClienteInput = {}
     if (nombreCliente !== (cliente.nombre_cliente || '')) payload.nombre_cliente = nombreCliente
     if (nombreEmpresa !== (cliente.nombre_empresa || '')) payload.nombre_empresa = nombreEmpresa
@@ -217,7 +219,16 @@ export default function ClientDetailModal({
     if (cpValue !== (cliente.cp || null)) payload.cp = cpValue
     if (direccionValue !== (cliente.direccion || null)) payload.direccion = direccionValue
     if (observacionesValue !== (cliente.observaciones || null)) payload.observaciones = observacionesValue
-    if (parsedSaldo !== Number(cliente.saldo ?? 0)) payload.saldo = parsedSaldo
+
+    if (!shippingOnly) {
+      const parsedSaldo = formData.saldo.trim() === '' ? 0 : Number(formData.saldo)
+
+      if (Number.isNaN(parsedSaldo) || parsedSaldo < 0) {
+        setSaveError('El límite de crédito debe ser un número válido mayor o igual a 0.')
+        return
+      }
+      if (parsedSaldo !== Number(cliente.saldo ?? 0)) payload.saldo = parsedSaldo
+    }
 
     if (Object.keys(payload).length === 0) {
       setIsEditing(false)
@@ -241,14 +252,20 @@ export default function ClientDetailModal({
   }
 
   return (
-    <Modal id={CLIENT_DETAIL_MODAL_ID} loading={loading} loadingText="Cargando cliente..." className="max-w-xl">
+    <Modal id={modalId} loading={loading} loadingText="Cargando cliente..." className="max-w-xl">
       {error ? (
         <p className="text-rose-400 text-center py-10">{error}</p>
       ) : cliente && formData && (
         <form onSubmit={handleSubmit} className="text-slate-300 text-left">
           <div className="flex flex-wrap items-center justify-between gap-2 mb-4 pr-10">
             <h2 className="text-xl font-bold text-white">
-              {isEditing ? 'Editar Cliente' : 'Detalles Completos del Cliente'}
+              {shippingOnly
+                ? isEditing
+                  ? 'Editar Datos de Envío del Cliente'
+                  : 'Datos de Envío del Cliente'
+                : isEditing
+                  ? 'Editar Cliente'
+                  : 'Detalles Completos del Cliente'}
             </h2>
             {canEdit && !isEditing && (
               <button
@@ -303,62 +320,64 @@ export default function ClientDetailModal({
             ))}
 
             {/* Estado de Crédito / Límite */}
-            <div className="sm:col-span-2">
-              {isEditing ? (
-                <div>
-                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
-                    Límite de Crédito / Saldo ($)
-                  </label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    disabled={saving}
-                    value={formData.saldo}
-                    onChange={(e) => handleFieldChange('saldo', e.target.value)}
-                    placeholder="0.00 (Dejar en 0 o vacío para Sin Límite)"
-                    className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3.5 py-2 text-xs text-white focus:outline-none focus:border-blue-500 transition disabled:opacity-60"
-                  />
-                  <span className="text-[11px] text-slate-500 mt-1 block">
-                    Si es 0 o vacío, el cliente operará sin límite. Si es mayor a 0, se aplicará como tope máximo de crédito.
-                  </span>
-                </div>
-              ) : (
-                <>
-                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
-                    Estado de Crédito / Límite
-                  </label>
-                  {Number(cliente.saldo || 0) <= 0 ? (
-                    <div className="w-full bg-slate-950/50 border border-slate-850 rounded-lg px-3.5 py-2 text-sm font-bold text-slate-400 flex items-center justify-between opacity-80 select-none">
-                      <span>Monto Límite: Sin Límite ($0.00)</span>
-                      <span className="text-xs text-emerald-400 font-normal">♾️ Sin Restricción</span>
-                    </div>
-                  ) : (
-                    <div className="bg-slate-950/50 border border-slate-850 rounded-lg p-3.5 space-y-2 text-xs">
-                      <div className="flex justify-between items-center text-slate-300">
-                        <span>Límite Asignado:</span>
-                        <span className="font-bold text-white">${Number(cliente.saldo || 0).toFixed(2)}</span>
+            {!shippingOnly && (
+              <div className="sm:col-span-2">
+                {isEditing ? (
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
+                      Límite de Crédito / Saldo ($)
+                    </label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      disabled={saving}
+                      value={formData.saldo}
+                      onChange={(e) => handleFieldChange('saldo', e.target.value)}
+                      placeholder="0.00 (Dejar en 0 o vacío para Sin Límite)"
+                      className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3.5 py-2 text-xs text-white focus:outline-none focus:border-blue-500 transition disabled:opacity-60"
+                    />
+                    <span className="text-[11px] text-slate-500 mt-1 block">
+                      Si es 0 o vacío, el cliente operará sin límite. Si es mayor a 0, se aplicará como tope máximo de crédito.
+                    </span>
+                  </div>
+                ) : (
+                  <>
+                    <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
+                      Estado de Crédito / Límite
+                    </label>
+                    {Number(cliente.saldo || 0) <= 0 ? (
+                      <div className="w-full bg-slate-950/50 border border-slate-850 rounded-lg px-3.5 py-2 text-sm font-bold text-slate-400 flex items-center justify-between opacity-80 select-none">
+                        <span>Monto Límite: Sin Límite ($0.00)</span>
+                        <span className="text-xs text-emerald-400 font-normal">♾️ Sin Restricción</span>
                       </div>
-                      <div className="flex justify-between items-center text-slate-300">
-                        <span>Total en Pedidos:</span>
-                        <span className="font-bold text-amber-400">${Number(cliente.total_pedidos || 0).toFixed(2)}</span>
-                      </div>
-                      <div className="flex justify-between items-center border-t border-slate-800 pt-1.5">
-                        <span className="font-semibold text-slate-400">Crédito Disponible:</span>
-                        <span className={`font-bold ${cliente.alcanzo_limite ? 'text-rose-400' : 'text-emerald-400'}`}>
-                          ${Number(cliente.saldo_disponible || 0).toFixed(2)}
-                        </span>
-                      </div>
-                      {cliente.alcanzo_limite && (
-                        <div className="mt-1 bg-rose-500/10 border border-rose-500/20 p-2 rounded text-[11px] text-rose-300 font-bold text-center">
-                          🚨 Límite Alcanzado (Consumido: ${Number(cliente.total_pedidos || 0).toFixed(2)} / Límite: ${Number(cliente.saldo || 0).toFixed(2)})
+                    ) : (
+                      <div className="bg-slate-950/50 border border-slate-850 rounded-lg p-3.5 space-y-2 text-xs">
+                        <div className="flex justify-between items-center text-slate-300">
+                          <span>Límite Asignado:</span>
+                          <span className="font-bold text-white">${Number(cliente.saldo || 0).toFixed(2)}</span>
                         </div>
-                      )}
-                    </div>
-                  )}
-                </>
-              )}
-            </div>
+                        <div className="flex justify-between items-center text-slate-300">
+                          <span>Total en Pedidos:</span>
+                          <span className="font-bold text-amber-400">${Number(cliente.total_pedidos || 0).toFixed(2)}</span>
+                        </div>
+                        <div className="flex justify-between items-center border-t border-slate-800 pt-1.5">
+                          <span className="font-semibold text-slate-400">Crédito Disponible:</span>
+                          <span className={`font-bold ${cliente.alcanzo_limite ? 'text-rose-400' : 'text-emerald-400'}`}>
+                            ${Number(cliente.saldo_disponible || 0).toFixed(2)}
+                          </span>
+                        </div>
+                        {cliente.alcanzo_limite && (
+                          <div className="mt-1 bg-rose-500/10 border border-rose-500/20 p-2 rounded text-[11px] text-rose-300 font-bold text-center">
+                            🚨 Límite Alcanzado (Consumido: ${Number(cliente.total_pedidos || 0).toFixed(2)} / Límite: ${Number(cliente.saldo || 0).toFixed(2)})
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
 
             <Field
               label="Observaciones"
