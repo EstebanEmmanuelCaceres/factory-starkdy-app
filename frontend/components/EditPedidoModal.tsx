@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo, useRef } from 'react'
 import Modal from '@/components/Modal'
 import { type Pedido, updatePedido, getPedido, type UpdatePedidoInput } from '@/lib/pedidos'
 import { fetchClientes, type Cliente } from '@/lib/clientes'
+import ClienteCreateForm from '@/components/ClienteCreateForm'
 import { fetchProducts, type Product } from '@/lib/products'
 import { fetchUsers, type User } from '@/lib/auth'
 import { fetchEtapas, topologicalSortEtapas, type Etapa } from '@/lib/entities/etapas'
@@ -70,6 +71,11 @@ export default function EditPedidoModal({
   const [localAssignments, setLocalAssignments] = useState<Record<string, number | null>>({})
   const [productSearchQuery, setProductSearchQuery] = useState('')
 
+  // Buscador de cliente: null = mostrar el cliente seleccionado; string = texto que se está escribiendo
+  const [clientQuery, setClientQuery] = useState<string | null>(null)
+  const [isClientDropdownOpen, setIsClientDropdownOpen] = useState(false)
+  const [isCreateClienteOpen, setIsCreateClienteOpen] = useState(false)
+
   // Cargar catálogos si no vienen por props
   useEffect(() => {
     if (!isOpen) return
@@ -113,6 +119,8 @@ export default function EditPedidoModal({
   // Cargar datos del pedido seleccionado cuando se abre el modal
   useEffect(() => {
     if (!isOpen || !pedido) return
+    setClientQuery(null)
+    setIsClientDropdownOpen(false)
 
     setError('')
     setSuccess('')
@@ -346,6 +354,34 @@ export default function EditPedidoModal({
 
   if (!pedido) return null
 
+  const selectedCliente = clientesList.find((c) => c.id.toString() === formData.cliente_id) || null
+  const clienteLabel = (c: Cliente) =>
+    `${c.nombre_cliente}${c.nombre_empresa ? ` (${c.nombre_empresa})` : ''}`
+  const clientInputValue = clientQuery !== null ? clientQuery : selectedCliente ? clienteLabel(selectedCliente) : ''
+  const clientFilterText = (clientQuery || '').toLowerCase().trim()
+  const filteredClientes = clientesList.filter((c) => {
+    if (!clientFilterText) return true
+    return (
+      (c.nombre_cliente || '').toLowerCase().includes(clientFilterText) ||
+      (c.nombre_empresa || '').toLowerCase().includes(clientFilterText) ||
+      (c.email || '').toLowerCase().includes(clientFilterText) ||
+      (c.telefono || '').toLowerCase().includes(clientFilterText) ||
+      (c.dni || '').toLowerCase().includes(clientFilterText)
+    )
+  })
+
+  const handleSelectCliente = (c: Cliente) => {
+    setFormData((prev) => ({ ...prev, cliente_id: c.id.toString() }))
+    setClientQuery(null)
+    setIsClientDropdownOpen(false)
+  }
+
+  const handleClienteCreated = (c: Cliente) => {
+    setClientesList((prev) => [c, ...prev.filter((x) => x.id !== c.id)])
+    handleSelectCliente(c)
+    setIsCreateClienteOpen(false)
+  }
+
   return (
     <Modal
       isOpen={isOpen}
@@ -387,18 +423,77 @@ export default function EditPedidoModal({
             <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">
               Cliente
             </label>
-            <select
-              value={formData.cliente_id}
-              onChange={(e) => setFormData({ ...formData, cliente_id: e.target.value })}
-              className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition"
-            >
-              <option value="">-- Seleccionar Cliente --</option>
-              {clientesList.map((cli) => (
-                <option key={cli.id} value={cli.id}>
-                  {cli.nombre_cliente} {cli.nombre_empresa ? `(${cli.nombre_empresa})` : ''}
-                </option>
-              ))}
-            </select>
+            <div className="relative">
+              <input
+                type="text"
+                placeholder="Buscar cliente por nombre, empresa, email, teléfono..."
+                value={clientInputValue}
+                onChange={(e) => {
+                  setClientQuery(e.target.value)
+                  setIsClientDropdownOpen(true)
+                }}
+                onFocus={(e) => {
+                  setClientQuery('')
+                  setIsClientDropdownOpen(true)
+                  e.currentTarget.select()
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault()
+                    if (filteredClientes.length === 1) handleSelectCliente(filteredClientes[0])
+                  } else if (e.key === 'Escape') {
+                    setClientQuery(null)
+                    setIsClientDropdownOpen(false)
+                  }
+                }}
+                className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition"
+              />
+
+              {isClientDropdownOpen && (
+                <>
+                  <div
+                    className="fixed inset-0 z-40"
+                    onClick={() => {
+                      setIsClientDropdownOpen(false)
+                      setClientQuery(null)
+                    }}
+                  />
+                  <div className="absolute z-50 left-0 right-0 mt-1 max-h-56 overflow-y-auto bg-slate-950 border border-slate-800 rounded-lg shadow-xl divide-y divide-slate-900 text-left">
+                    {filteredClientes.map((c) => (
+                      <div
+                        key={c.id}
+                        onClick={() => handleSelectCliente(c)}
+                        className={`px-3.5 py-2 cursor-pointer text-sm transition flex justify-between items-center hover:bg-slate-900 ${
+                          c.id.toString() === formData.cliente_id ? 'text-blue-400' : 'text-slate-300 hover:text-white'
+                        }`}
+                      >
+                        <div>
+                          <span className="font-semibold">{c.nombre_cliente}</span>
+                          {c.nombre_empresa && (
+                            <span className="text-xs text-slate-500 block">{c.nombre_empresa}</span>
+                          )}
+                        </div>
+                        {c.email && <span className="text-xs text-slate-500">{c.email}</span>}
+                      </div>
+                    ))}
+                    {filteredClientes.length === 0 && (
+                      <div className="px-3.5 py-2 text-xs text-slate-500 italic text-center">
+                        No se encontraron clientes{clientQuery?.trim() ? ` para “${clientQuery.trim()}”` : ''}.
+                      </div>
+                    )}
+                    <div
+                      onClick={() => {
+                        setIsClientDropdownOpen(false)
+                        setIsCreateClienteOpen(true)
+                      }}
+                      className="px-3.5 py-2 cursor-pointer text-sm font-semibold text-blue-400 hover:bg-slate-900 hover:text-blue-300 transition sticky bottom-0 bg-slate-950"
+                    >
+                      ➕ Crear cliente{clientQuery?.trim() ? ` “${clientQuery.trim()}”` : ' nuevo'}
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
           </div>
 
           {/* Fecha de Entrega y Prioridad */}
@@ -686,6 +781,25 @@ export default function EditPedidoModal({
           </div>
         </form>
       )}
+
+      <Modal
+        isOpen={isCreateClienteOpen}
+        onClose={() => setIsCreateClienteOpen(false)}
+        className="max-w-2xl p-6"
+        containerClassName="z-[110]"
+      >
+        <h3 className="text-lg font-bold text-white mb-4">Registrar Nuevo Cliente</h3>
+        <ClienteCreateForm
+          initialNombre={clientQuery?.trim() || ''}
+          existingClientes={clientesList}
+          onCreated={handleClienteCreated}
+          onSelectExisting={(c) => {
+            handleSelectCliente(c)
+            setIsCreateClienteOpen(false)
+          }}
+          onCancel={() => setIsCreateClienteOpen(false)}
+        />
+      </Modal>
     </Modal>
   )
 }
