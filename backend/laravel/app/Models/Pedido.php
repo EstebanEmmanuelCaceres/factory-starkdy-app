@@ -23,10 +23,24 @@ class Pedido extends Model
 
     public const ESTADO_EN_PROGRESO = 'en_progreso';
 
+    // Tipo de pedido: una reposición se vuelve a hacer porque la venta llegó mal (no se cobra)
+    public const TIPO_VENTA = 'venta';
+    public const TIPO_REPOSICION = 'reposicion';
+
+    // Motivo => etiqueta. Las claves son las mismas que el CHECK pedidos_motivo_reposicion_chk
+    public const MOTIVOS_REPOSICION = [
+        'falla_produccion' => 'Falla de producción',
+        'error_diseno' => 'Error de diseño',
+        'danado_envio' => 'Dañado en el envío',
+        'faltante' => 'Faltante',
+        'otro' => 'Otro',
+    ];
+
     protected $with = ['ultimoEstado'];
 
     protected $attributes = [
         'tipo_pago' => 'parcial',
+        'tipo' => self::TIPO_VENTA,
     ];
 
     protected $fillable = [
@@ -42,6 +56,9 @@ class Pedido extends Model
         'tipo_pago',
         'origen',
         'tiendanube_order_id',
+        'tipo',
+        'pedido_origen_id',
+        'motivo_reposicion',
     ];
 
     protected $appends = [
@@ -124,6 +141,56 @@ class Pedido extends Model
     public function tareas(): HasMany
     {
         return $this->hasMany(ResponsableEtapa::class, 'pedido_id');
+    }
+
+    /**
+     * Líneas del pedido (pedido_productos) como modelos propios, con su id.
+     */
+    public function lineas(): HasMany
+    {
+        return $this->hasMany(PedidoProducto::class, 'pedido_id')->orderBy('id');
+    }
+
+    /**
+     * Reposición: la venta original que se repone.
+     */
+    public function pedidoOrigen(): BelongsTo
+    {
+        return $this->belongsTo(Pedido::class, 'pedido_origen_id');
+    }
+
+    /**
+     * Venta: las reposiciones que se hicieron de este pedido.
+     */
+    public function reposiciones(): HasMany
+    {
+        return $this->hasMany(Pedido::class, 'pedido_origen_id');
+    }
+
+    public function esReposicion(): bool
+    {
+        return $this->tipo === self::TIPO_REPOSICION;
+    }
+
+    public function etiquetaMotivoReposicion(): ?string
+    {
+        return self::MOTIVOS_REPOSICION[$this->motivo_reposicion] ?? null;
+    }
+
+    /**
+     * Scope: solo ventas. Usarlo en todo lo que cuente o sume ventas (métricas, unidades vendidas).
+     */
+    public function scopeVentas(Builder $query): Builder
+    {
+        return $query->where('pedidos.tipo', self::TIPO_VENTA);
+    }
+
+    /**
+     * Scope: solo reposiciones.
+     */
+    public function scopeDeReposicion(Builder $query): Builder
+    {
+        return $query->where('pedidos.tipo', self::TIPO_REPOSICION);
     }
 
     /**

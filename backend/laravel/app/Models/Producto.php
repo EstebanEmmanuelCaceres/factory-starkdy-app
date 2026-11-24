@@ -139,4 +139,27 @@ class Producto extends Model
         // finalizado depende de produccion
         $epFinalizado->dependencias()->attach($epProduccion->id);
     }
+
+    /**
+     * Valores de una línea de pedido ({clave: valor}) con la etiqueta que define el producto.
+     * Van en el orden en que el producto define sus atributos; si alguno ya no existe, al final con su clave.
+     *
+     * @param array<string, string> $valores
+     * @return array<int, array{clave: string, etiqueta: string, valor: string}>
+     */
+    public function etiquetarAtributos(array $valores): array
+    {
+        $definiciones = collect($this->atributos ?? [])->keyBy('clave');
+
+        return $definiciones->keys()
+            ->filter(fn($clave) => array_key_exists($clave, $valores))
+            ->merge(array_diff(array_keys($valores), $definiciones->keys()->all()))
+            ->map(fn($clave) => [
+                'clave' => $clave,
+                'etiqueta' => $definiciones->get($clave)['etiqueta'] ?? $clave,
+                'valor' => (string) $valores[$clave],
+            ])
+            ->values()
+            ->all();
+    }
 }

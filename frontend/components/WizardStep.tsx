@@ -9,12 +9,13 @@ export type WizardStep =
 
 type StepStatus = 'active' | 'completed' | 'pending';
 
-interface StepConfig {
+export interface StepConfig<T extends string = WizardStep> {
     label: string;
     /** Pasos del wizard que corresponden a esta etapa */
-    steps: WizardStep[];
+    steps: T[];
 }
 
+// Etapas del wizard de creación de pedido (las que se usan si no se pasan otras)
 const STEPS: StepConfig[] = [
     { label: 'Cliente', steps: ['select_client', 'client_confirmation'] },
     { label: 'Pedido', steps: ['order_details'] },
@@ -33,13 +34,16 @@ const LABEL_STYLES: Record<StepStatus, string> = {
     pending: 'text-slate-500',
 };
 
-interface WizardStepperProps {
-    currentStep: WizardStep;
+interface WizardStepperProps<T extends string> {
+    currentStep: T;
+    // Etapas de otro wizard (ej. la reposición); por defecto las de creación de pedido
+    steps?: StepConfig<T>[];
     className?: string;
 }
 
-export function WizardStepper({ currentStep, className = '' }: WizardStepperProps) {
-    const currentIndex = STEPS.findIndex((s) => s.steps.includes(currentStep));
+export function WizardStepper<T extends string = WizardStep>({ currentStep, steps, className = '' }: WizardStepperProps<T>) {
+    const etapas = (steps ?? STEPS) as StepConfig<T>[];
+    const currentIndex = etapas.findIndex((s) => s.steps.includes(currentStep));
 
     const getStatus = (index: number): StepStatus => {
         if (index === currentIndex) return 'active';
@@ -50,7 +54,7 @@ export function WizardStepper({ currentStep, className = '' }: WizardStepperProp
         <div
             className={`flex items-center w-full order-last mt-4 lg:order-none lg:mt-0 lg:absolute lg:top-0 lg:left-1/2 lg:-translate-x-1/2 lg:w-80 ${className}`}
         >
-            {STEPS.map((step, index) => {
+            {etapas.map((step, index) => {
                 const status = getStatus(index);
                 return (
                     <Fragment key={step.label}>

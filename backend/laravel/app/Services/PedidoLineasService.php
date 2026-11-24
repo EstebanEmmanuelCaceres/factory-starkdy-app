@@ -212,16 +212,10 @@ class PedidoLineasService
             if (empty($linea['atributos'])) {
                 continue;
             }
-            $producto = $productos->get($linea['producto_id']);
-            $definiciones = collect($producto?->atributos ?? [])->keyBy('clave');
-
-            // Primero en el orden en que el producto define sus atributos; si alguno ya no existe, al final
-            $claves = $definiciones->keys()->filter(fn($clave) => array_key_exists($clave, $linea['atributos']))
-                ->merge(array_diff(array_keys($linea['atributos']), $definiciones->keys()->all()));
-
-            $valores = $claves->map(
-                fn($clave) => ($definiciones->get($clave)['etiqueta'] ?? $clave) . ': ' . $linea['atributos'][$clave]
-            )->implode(' · ');
+            $producto = $productos->get($linea['producto_id']) ?? new Producto();
+            $valores = collect($producto->etiquetarAtributos($linea['atributos']))
+                ->map(fn(array $a) => "{$a['etiqueta']}: {$a['valor']}")
+                ->implode(' · ');
 
             $nombre = $producto?->nombre ?? "Producto #{$linea['producto_id']}";
             $renglones[] = "• {$nombre} x{$linea['cantidad']}: {$valores}";

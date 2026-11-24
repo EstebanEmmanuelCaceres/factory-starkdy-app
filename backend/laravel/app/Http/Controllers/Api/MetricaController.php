@@ -86,6 +86,7 @@ class MetricaController extends Controller
 
         // ── Pedidos del período (valor total y saldo por cobrar) ───────
         $pedidosQuery = Pedido::query()
+            ->ventas() // las reposiciones no son ventas
             ->whereBetween('created_at', [$desde, $hasta])
             ->whereDoesntHave('ultimoEstado', fn ($q) => $q->where('estado', 'cancelado'));
 
@@ -225,6 +226,7 @@ class MetricaController extends Controller
 
         // ── Ventas (pedidos creados) por día y vendedor ───────────────
         $pedidosQuery = Pedido::query()
+            ->ventas() // las reposiciones no son ventas
             ->whereBetween('created_at', [$desde, $hasta])
             ->whereDoesntHave('ultimoEstado', fn ($q) => $q->where('estado', 'cancelado'))
             ->selectRaw('DATE(created_at) as fecha')

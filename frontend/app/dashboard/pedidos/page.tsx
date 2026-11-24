@@ -41,6 +41,9 @@ import SelectFilter from '@/components/SelectFilter/SelectFilter'
 import { PRIORITY_OPTIONS, PEDIDO_STATE_OPTIONS } from '@/lib/order-status'
 import ImagePedido from '@/components/ImagePedido/ImagePedido'
 import { CreatePedidoModal } from '@/components/CreatePedidoModal'
+import { ReposicionModal, REPOSICION_MODAL_ID } from '@/components/Reposicion/ReposicionModal'
+import BotonReponer from '@/components/Reposicion/BotonReponer'
+import ReposicionBadge from '@/components/Reposicion/ReposicionBadge'
 import { AtributosLineaResumen } from '@/components/PedidoAtributos/AtributosLineaResumen'
 import { useModalContext } from '@/components/Modal/context/ModalContext'
 import PedidoThumbnail from '@/components/PedidoThumbnail'
@@ -104,6 +107,8 @@ export default function PedidosPage() {
   // Estados para el Modal de Visualización Trello
   const [isViewModalOpen, setIsViewModalOpen] = useState(false)
   const [selectedPedidoForView, setSelectedPedidoForView] = useState<Pedido | null>(null)
+  // Pedido elegido para reponer (lo usa ReposicionModal)
+  const [pedidoAReponer, setPedidoAReponer] = useState<Pedido | null>(null)
   const [nuevoComentario, setNuevoComentario] = useState('')
   const [isSubmittingComment, setIsSubmittingComment] = useState(false)
   const [isEditCommentActive, setIsEditCommentActive] = useState(false)
@@ -420,6 +425,11 @@ export default function PedidosPage() {
 
   const handleOpenCreateModal = () => {
     openModal('create-pedido')
+  }
+
+  const handleReponer = (pedido: Pedido) => {
+    setPedidoAReponer(pedido)
+    openModal(REPOSICION_MODAL_ID)
   }
 
   const handleOpenEditModal = async (pedido: Pedido) => {
@@ -1298,6 +1308,7 @@ export default function PedidosPage() {
                           <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wide ${getStatusBadgeClass(pedido.estado)}`}>
                             {getStatusLabel(pedido.estado)}
                           </span>
+                          <ReposicionBadge pedido={pedido} />
                         </div>
                       </div>
 
@@ -1416,6 +1427,7 @@ export default function PedidosPage() {
                         >
                           👁️ <span className="text-xs">Ver</span>
                         </button>
+                        <BotonReponer pedido={pedido} onClick={handleReponer} />
                         {!isOperario && (
                           <button
                             onClick={() => handleDelete(pedido.id)}
@@ -1559,6 +1571,7 @@ export default function PedidosPage() {
                               <span className={`inline-flex items-center whitespace-nowrap px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide ${getStatusBadgeClass(pedido.estado)}`}>
                                 {getStatusLabel(pedido.estado)}
                               </span>
+                              <ReposicionBadge pedido={pedido} />
                               {pedido.progreso && (
                                 <ProgressBar value={pedido.progreso.porcentaje} className="w-40" title="Etapas completadas del pedido" />
                               )}
@@ -1623,6 +1636,7 @@ export default function PedidosPage() {
                               >
                                 👁️
                               </button>
+                              <BotonReponer pedido={pedido} onClick={handleReponer} variante="icono" />
                               {!isOperario && (
                                 <button
                                   onClick={() => handleDelete(pedido.id)}
@@ -1697,6 +1711,15 @@ export default function PedidosPage() {
           clientes={clientes}
           productos={productos}
           onPedidoCreated={() => loadData()}
+        />
+        {/* Modal de Reposición: volver a hacer un pedido que llegó mal */}
+        <ReposicionModal
+          pedido={pedidoAReponer}
+          onCreada={(reposicion) => {
+            showNotification(`Reposición ${reposicion.codigo} creada`)
+            loadData()
+          }}
+          onClose={() => setPedidoAReponer(null)}
         />
         {/* Modal de Edición de Pedido */}
         <EditPedidoModal
