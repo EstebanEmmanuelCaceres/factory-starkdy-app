@@ -125,6 +125,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::patch('pedidos/{id}', [PedidoController::class, 'update']);
     Route::delete('pedidos/{id}', [PedidoController::class, 'destroy']);
     Route::post('pedidos/{id}/generar-tareas', [PedidoController::class, 'generarTareasManual']);
+    Route::post('pedidos/{id}/reposicion', [PedidoController::class, 'crearReposicion']); // admin y encargado/a
     Route::post('pedidos/{id}/productos/{productoId}/completar-etapas', [PedidoController::class, 'completarEtapasProducto']);
     Route::get('pedidos/{id}/comentarios', [PedidoController::class, 'getComentarios']);
     Route::post('pedidos/{id}/comentarios', [PedidoController::class, 'addComentario']);

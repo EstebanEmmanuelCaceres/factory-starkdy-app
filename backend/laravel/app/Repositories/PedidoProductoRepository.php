@@ -2,6 +2,7 @@
 
 namespace App\Repositories;
 
+use App\Models\Pedido;
 use App\Models\PedidoProducto;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
@@ -24,6 +25,7 @@ class PedidoProductoRepository
         return PedidoProducto::query()
             ->join('pedidos', 'pedidos.id', '=', 'pedido_productos.pedido_id')
             ->whereNull('pedidos.deleted_at')
+            ->where('pedidos.tipo', Pedido::TIPO_VENTA) // las reposiciones no son unidades vendidas
             ->whereBetween('pedidos.created_at', [$desde, $hasta])
             ->whereNotExists(function ($subquery) {
                 $subquery->selectRaw('1')
@@ -73,6 +75,7 @@ class PedidoProductoRepository
         return PedidoProducto::query()
             ->whereHas('pedido', function (Builder $pedidoQuery) use ($desde, $hasta, $vendedorId) {
                 $pedidoQuery
+                    ->ventas()
                     ->whereBetween('pedidos.created_at', [$desde, $hasta])
                     ->whereDoesntHave('ultimoEstado', fn (Builder $eq) => $eq->where('estado', 'cancelado'));
 

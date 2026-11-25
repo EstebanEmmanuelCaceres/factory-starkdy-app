@@ -17,6 +17,9 @@ use App\Services\PedidoWorkflowService;
 use App\Services\PedidoLineasService;
 use App\Services\PedidoProgresoService;
 use App\Services\LocalStorageService;
+use App\Services\ReposicionService;
+use App\Http\Requests\CrearReposicionRequest;
+use App\Http\Resources\ReposicionResource;
 use App\Models\User;
 use App\Http\Resources\ProgresoPedidoResource;
 use Illuminate\Support\Collection;
@@ -39,6 +42,7 @@ class PedidoController extends Controller
         PedidoProgresoService $progresoService,
         private PedidoLineasService $lineasService,
         private LocalStorageService $storageService,
+        private ReposicionService $reposicionService,
     ) {
         $this->workflowService = $workflowService;
         $this->progresoService = $progresoService;
@@ -84,8 +88,9 @@ class PedidoController extends Controller
      */
     public function index(Request $request): JsonResponse
     {
-        $query = Pedido::select('id', 'cliente_id', 'user_id', 'codigo', 'prioridad', 'fecha_entrega', 'precio', 'comentario', 'tipo_pago', 'created_at', 'updated_at')
+        $query = Pedido::select('id', 'cliente_id', 'user_id', 'codigo', 'prioridad', 'fecha_entrega', 'precio', 'comentario', 'tipo_pago', 'tipo', 'pedido_origen_id', 'motivo_reposicion', 'created_at', 'updated_at')
             ->with([
+                'pedidoOrigen:id,codigo',
                 'cliente:id,nombre_empresa,nombre_cliente,telefono',
                 'user:id,name',
                 'productos',
@@ -120,6 +125,11 @@ class PedidoController extends Controller
         // Filtro por prioridad
         if ($request->has('prioridad') && !empty($request->input('prioridad'))) {
             $query->where('prioridad', $request->input('prioridad'));
+        }
+
+        // Filtro por tipo: 'venta' o 'reposicion'
+        if (in_array($request->input('tipo'), [Pedido::TIPO_VENTA, Pedido::TIPO_REPOSICION], true)) {
+            $query->where('tipo', $request->input('tipo'));
         }
 
         // Filtro por estado
@@ -415,6 +425,8 @@ class PedidoController extends Controller
             'comentarios',
             'comentarios.user:id,name',
             'comentarios.imagenes:id,comentario_id,url',
+            'pedidoOrigen:id,codigo',
+            'reposiciones:id,codigo,pedido_origen_id,motivo_reposicion,created_at',
         ])->find($id);
 
         if (!$pedido) {
@@ -501,6 +513,9 @@ class PedidoController extends Controller
             return $errorLineas;
         }
 
+        // Una reposición no cambia de precio, cliente ni código (lanza 422)
+        $this->reposicionService->validarEdicion($pedido, $request->only(['precio', 'cliente_id', 'codigo']));
+
         $updateData = $request->only(['cliente_id', 'codigo', 'estado', 'prioridad', 'fecha_entrega', 'precio', 'comentario', 'tipo_pago', 'user_id', 'vendedor_id']);
         // 'descripcion' es un alias de 'comentario'
         $comentarioEnviado = $request->has('comentario') || $request->has('descripcion');
@@ -536,6 +551,21 @@ class PedidoController extends Controller
             'message' => 'Pedido actualizado correctamente',
             'data' => $pedido
         ]);
+    }
+
+    /**
+     * Crear una reposición del pedido: se vuelve a hacer porque llegó mal (no es una venta).
+     * El contrato de entrada está en CrearReposicionRequest y las reglas en ReposicionService.
+     */
+    public function crearReposicion(CrearReposicionRequest $request, int $id): JsonResponse
+    {
+        $reposicion = $this->reposicionService->crear($id, $request->datos(), $request->user());
+
+        return response()->json([
+            'status' => 'success',
+            'message' => "Reposición {$reposicion->codigo} creada",
+            'data' => (new ReposicionResource($reposicion))->resolve($request),
+        ], 201);
     }
 
     /**
@@ -949,8 +979,9 @@ class PedidoController extends Controller
             ], 403);
         }
 
-        $query = Pedido::select('id', 'cliente_id', 'user_id', 'codigo', 'prioridad', 'fecha_entrega', 'precio', 'comentario', 'tipo_pago', 'created_at', 'updated_at')
+        $query = Pedido::select('id', 'cliente_id', 'user_id', 'codigo', 'prioridad', 'fecha_entrega', 'precio', 'comentario', 'tipo_pago', 'tipo', 'pedido_origen_id', 'motivo_reposicion', 'created_at', 'updated_at')
             ->with([
+                'pedidoOrigen:id,codigo',
                 'cliente:id,nombre_empresa,nombre_cliente,telefono,email,dni,direccion,localidad,provincia,cp,observaciones',
                 'user:id,name',
                 'productos',

@@ -89,6 +89,11 @@ class PagoController extends Controller
             'comprobante_url' => 'nullable|url|max:255',
         ]);
 
+        // Una reposición no es una venta: no se cobra
+        if ($pedido->esReposicion()) {
+            return response()->json(['message' => 'El pedido es una reposición: no se le registran pagos.'], 422);
+        }
+
         // Regla 2: El monto del pago no puede superar el saldo pendiente del pedido
         // Redondeamos los flotantes para evitar discrepancias de precisión de punto flotante
         $montoPago = round((float) $validated['monto'], 2);

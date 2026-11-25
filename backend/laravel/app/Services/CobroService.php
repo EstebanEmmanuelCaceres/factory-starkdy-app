@@ -244,6 +244,14 @@ class CobroService
      */
     private function validarMonto(Pedido $pedido, float $monto, ?Pago $cobroEditado = null): void
     {
+        // Una reposición no es una venta: no se cobra
+        if ($pedido->esReposicion()) {
+            throw new CobroException(
+                'El pedido es una reposición: no se le registran cobros.',
+                ['pedido_id' => ['El pedido es una reposición.']]
+            );
+        }
+
         $saldoDisponible = (float) $pedido->saldo_pendiente;
         if ($cobroEditado && $cobroEditado->estado === Pago::ESTADO_PAGADO) {
             $saldoDisponible += (float) $cobroEditado->monto;

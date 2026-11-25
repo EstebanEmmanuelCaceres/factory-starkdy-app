@@ -73,6 +73,11 @@ export interface Pedido {
   // TODO: Destacar en la UI los pedidos con origen === 'tiendanube' (ej. badge "Tiendanube" o tag en la tabla y filtros)
   origen?: string
   tiendanube_order_id?: string | null
+  // 'reposicion' = pedido que se vuelve a hacer porque el original llegó mal (ver lib/entities/reposiciones)
+  tipo?: 'venta' | 'reposicion'
+  pedido_origen_id?: number | null
+  motivo_reposicion?: string | null
+  pedido_origen?: { id: number; codigo: string } | null
   created_at: string
   updated_at: string
   cliente?: Cliente
