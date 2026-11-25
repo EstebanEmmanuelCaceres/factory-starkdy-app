@@ -20,6 +20,27 @@ class TiendanubeClient
         return $this->http()->get("orders/{$id}")->throw()->json();
     }
 
+    /**
+     * Órdenes modificadas desde una fecha (alta, pago o cancelación), una página por llamada.
+     * Tiendanube responde 404 ("Last page is 0") cuando no hay resultados: se devuelve [].
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    public function ordenesActualizadasDesde(\DateTimeInterface $desde, int $pagina = 1, int $porPagina = 100): array
+    {
+        $respuesta = $this->http()->get('orders', [
+            'updated_at_min' => $desde->format(\DateTimeInterface::ATOM),
+            'page' => $pagina,
+            'per_page' => $porPagina,
+        ]);
+
+        if ($respuesta->status() === 404) {
+            return [];
+        }
+
+        return $respuesta->throw()->json() ?? [];
+    }
+
     /** Webhooks registrados en la tienda. */
     public function webhooks(): array
     {
@@ -52,6 +73,7 @@ class TiendanubeClient
             ])
             ->acceptJson()
             ->timeout(15)
-            ->retry(2, 500, throw: false);
+            // Reintenta solo caídas de red y errores 5xx; un 404 ("sin resultados") o 401 no mejoran reintentando
+            ->retry(2, 500, fn ($e) => !($e instanceof \Illuminate\Http\Client\RequestException) || $e->response->serverError(), throw: false);
     }
 }

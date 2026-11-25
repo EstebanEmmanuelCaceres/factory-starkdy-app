@@ -37,6 +37,8 @@ class TiendanubeOrderImporter
 
             if (!$pedido) {
                 $pedido = $this->crearPedido($orden);
+            } elseif ($pedido->trashed()) {
+                return $pedido;
             }
 
             if (($orden['payment_status'] ?? null) === 'paid') {
@@ -49,6 +51,34 @@ class TiendanubeOrderImporter
 
             return $pedido->fresh();
         });
+    }
+
+    /**
+     * Procesa una orden que llegó por polling (GET /orders). Solo se importan las pagadas;
+     * las canceladas cancelan el pedido si ya existía y el resto se ignora hasta que se paguen.
+     *
+     * @return 'creada'|'existente'|'cancelada'|'ignorada'
+     */
+    public function sincronizar(array $orden): string
+    {
+        if (($orden['status'] ?? null) === 'cancelled') {
+            $pedido = Pedido::where('tiendanube_order_id', (string) $orden['id'])->first();
+            if (!$pedido || $pedido->estado === 'cancelado') {
+                return 'ignorada';
+            }
+            $this->cancelar($orden['id']);
+
+            return 'cancelada';
+        }
+
+        if (($orden['payment_status'] ?? null) !== 'paid') {
+            return 'ignorada';
+        }
+
+        $existia = Pedido::withTrashed()->where('tiendanube_order_id', (string) $orden['id'])->exists();
+        $this->importar($orden);
+
+        return $existia ? 'existente' : 'creada';
     }
 
     /** Orden cancelada en Tiendanube → pedido cancelado (si ya existe). */
@@ -87,7 +117,7 @@ class TiendanubeOrderImporter
 
         $this->lineasService->sincronizar($pedido, $lineas);
 
-        // TODO: Generación automática de tareas de fabricación ($pedido->generarTareas()).
+        // Generación automática de tareas de fabricación ($pedido->generarTareas()).
         // Si hay productos del sistema mapeados, se generan las etapas correspondientes.
         // Si los productos se cargarán a mano más tarde, las tareas se generan al guardar el pedido editado.
         if (!empty($lineas)) {
