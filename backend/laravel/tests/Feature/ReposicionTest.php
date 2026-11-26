@@ -105,11 +105,27 @@ class ReposicionTest extends TestCase
     public function test_una_reposicion_de_una_reposicion_apunta_a_la_venta_original(): void
     {
         $primera = Pedido::find($this->reponer($this->venta, [['linea_id' => $this->lineaDe($this->venta, 'Taza'), 'cantidad' => 10]])->json('data.id'));
+        $primera->update(['estado' => 'enviado']); // solo se reponen pedidos enviados
 
         $this->reponer($primera, [['linea_id' => $this->lineaDe($primera, 'Taza'), 'cantidad' => 5]])
             ->assertCreated()
             ->assertJsonPath('data.codigo', 'DV-473612-2')
             ->assertJsonPath('data.pedido_origen.id', $this->venta->id);
+    }
+
+    public function test_solo_se_pueden_reponer_pedidos_enviados(): void
+    {
+        $linea = [['linea_id' => $this->lineaDe($this->venta, 'Taza'), 'cantidad' => 1]];
+
+        foreach (['pendiente', 'en_progreso', 'completado'] as $estado) {
+            $this->venta->update(['estado' => $estado]);
+
+            $this->reponer($this->venta, $linea)
+                ->assertStatus(422)
+                ->assertJsonValidationErrors('pedido');
+        }
+
+        $this->assertSame(0, Pedido::deReposicion()->count());
     }
 
     public function test_rechaza_lineas_ajenas_o_cantidades_mayores_a_las_del_pedido(): void

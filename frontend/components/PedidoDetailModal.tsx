@@ -22,6 +22,7 @@ import { PEDIDO_STATE_OPTIONS } from '@/lib/order-status'
 import { useModalContext } from '@/components/Modal/context/ModalContext'
 import ClientDetailModal, { CLIENT_DETAIL_MODAL_ID } from '@/components/ClientDetailModal'
 import ImageLightbox, { type LightboxImage } from '@/components/ImageLightbox'
+import BotonReponer from '@/components/Reposicion/BotonReponer'
 
 const PEDIDO_DETAIL_MODAL_ID = 'pedido-detail'
 
@@ -34,6 +35,8 @@ export interface PedidoDetailModalProps {
   onOpenGallery?: (pedido: Pedido) => void
   onOpenPayments?: (pedido: Pedido) => void
   onOpenEdit?: (pedido: Pedido) => void
+  // Si se pasa, aparece "Crear reposición" (solo pedidos enviados, admin y encargado/a)
+  onOpenReposicion?: (pedido: Pedido) => void
 }
 
 export default function PedidoDetailModal({
@@ -44,7 +47,8 @@ export default function PedidoDetailModal({
   taskAssignments: propTaskAssignments,
   onOpenGallery,
   onOpenPayments,
-  onOpenEdit
+  onOpenEdit,
+  onOpenReposicion
 }: PedidoDetailModalProps) {
   const [currentPedido, setCurrentPedido] = useState<Pedido | null>(pedido)
   const currentPedidoRef = useRef<Pedido | null>(pedido)
@@ -656,8 +660,11 @@ export default function PedidoDetailModal({
               </div>
             </div>
 
-            {/* Botones de acción: Editar Pedido, Galería */}
+            {/* Botones de acción: Reposición, Editar Pedido, Galería */}
             <div className="flex flex-wrap items-center gap-2.5 justify-self-end sm:col-start-2 sm:row-start-1 lg:col-start-3">
+              {onOpenReposicion && (
+                <BotonReponer pedido={currentPedido} onClick={onOpenReposicion} variante="detalle" />
+              )}
               {onOpenEdit && isAuthorizedRole && !isOperario && (
                 <button
                   type="button"

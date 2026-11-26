@@ -14,10 +14,14 @@ import {
   updatePedido,
   createPedidoComentario,
   fetchCompletadosPorCobrar,
+  fetchCompletadosSinDatos,
+  getPedido,
   type Pedido,
-  type PedidoFilters
+  type PedidoFilters,
+  type PedidoSinDatos
 } from '@/lib/pedidos'
 import PedidosSinImagenPanel from '@/components/PedidosSinImagenPanel'
+import PedidosSinDatosBox from '@/components/PedidosSinDatos/PedidosSinDatosBox'
 import PaymentModal from '@/components/PaymentModal'
 import VendedoresLineChart from '@/components/VendedoresLineChart'
 import UnidadesVendidasPanel from '@/components/UnidadesVendidasPanel'
@@ -43,6 +47,9 @@ export default function DashboardPage() {
   const [isSubmittingComment, setIsSubmittingComment] = useState(false)
   const [completedUnpaidPedidos, setCompletedUnpaidPedidos] = useState<Pedido[]>([])
   const [loadingUnpaid, setLoadingUnpaid] = useState(true)
+  // Completados a los que les faltan datos de envío del cliente (solo dashboard de vendedor)
+  const [sinDatosPedidos, setSinDatosPedidos] = useState<PedidoSinDatos[]>([])
+  const [loadingSinDatos, setLoadingSinDatos] = useState(true)
   // Estado para contraer/desplegar la caja de completados por cobrar (solo para admin)
   const [isUnpaidCollapsed, setIsUnpaidCollapsed] = useState(true)
 
@@ -128,6 +135,33 @@ export default function DashboardPage() {
     }
   }
 
+  const loadSinDatos = async () => {
+    const user = getStoredUser()
+    if (user?.role !== 'vendedor') {
+      setLoadingSinDatos(false)
+      return
+    }
+    setLoadingSinDatos(true)
+    try {
+      setSinDatosPedidos(await fetchCompletadosSinDatos())
+    } catch (err: unknown) {
+      console.error('Error al cargar pedidos completados sin datos de envío:', err)
+    } finally {
+      setLoadingSinDatos(false)
+    }
+  }
+
+  // Los modales (detalle, edición, cobros) pueden cambiar ambos listados
+  const recargarCompletados = () => {
+    loadCompletadosPorCobrar()
+    loadSinDatos()
+  }
+
+  // Abre el detalle completo de un pedido de la caja "sin datos", que solo trae lo mínimo
+  const abrirDetalleSinDatos = (pedido: PedidoSinDatos) => {
+    getPedido(pedido.id).then(setSelectedPedidoForCommentModal).catch(console.error)
+  }
+
   const loadData = async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true)
     else {
@@ -152,6 +186,7 @@ export default function DashboardPage() {
       ])
       setPedidos(pedidosData)
       setCompletedUnpaidPedidos(unpaidData)
+      loadSinDatos()
       if (isRefresh && user && user.role !== 'encargado' && !userIsDisenadora) loadMetricas()
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Error al cargar los datos'
@@ -314,6 +349,10 @@ export default function DashboardPage() {
       : (p.pago && p.pago.estado === 'pagado' ? Number(p.pago.monto) : 0)
     return Math.max(0, precio - paidAmount)
   }
+
+  // Pedidos por cobrar a los que además les faltan datos de envío del cliente (aviso en esa caja)
+  const idsSinDatos = new Set(sinDatosPedidos.map((p) => p.id))
+  const porCobrarSinDatos = completedUnpaidPedidos.filter((p) => idsSinDatos.has(p.id)).length
 
   // Total acumulado por cobrar de los pedidos completados
   const totalCompletedUnpaidBalance = completedUnpaidPedidos.reduce((sum, p) => sum + getPendingBalance(p), 0)
@@ -1454,6 +1493,19 @@ export default function DashboardPage() {
                     </div>
                   </div>
 
+                  {isVendedor && !loadingSinDatos && porCobrarSinDatos > 0 && (
+                    <div className="flex items-start gap-2 border-b border-amber-500/20 bg-amber-500/10 px-5 py-2.5 text-xs text-amber-200" role="alert">
+                      <span aria-hidden="true">⚠️</span>
+                      <span>
+                        <strong className="font-bold">
+                          {porCobrarSinDatos} {porCobrarSinDatos === 1 ? 'pedido' : 'pedidos'}
+                        </strong>{' '}
+                        de esta lista {porCobrarSinDatos === 1 ? 'no tiene' : 'no tienen'} los datos de envío del cliente completos. Cargalos en la caja{' '}
+                        <strong className="font-bold">Completados sin Datos de Envío</strong> para que se puedan despachar.
+                      </span>
+                    </div>
+                  )}
+
                   {isAdmin && isUnpaidCollapsed ? (
                     /* VISTA CONTRAÍDA PARA ADMIN: Resumen compacto de pedidos completados con saldo */
                     <div
@@ -1685,6 +1737,16 @@ export default function DashboardPage() {
                 )}
                 </div>
               )}
+
+              {/* Completados a los que les faltan datos de envío del cliente (solo vendedor) */}
+              {isVendedor && (
+                <PedidosSinDatosBox
+                  pedidos={sinDatosPedidos}
+                  loading={loadingSinDatos}
+                  onRefresh={loadSinDatos}
+                  onSelect={abrirDetalleSinDatos}
+                />
+              )}
             </div>
           )}
         </div>
@@ -1703,7 +1765,7 @@ export default function DashboardPage() {
           onUpdatePedido={(updated) => {
             setSelectedPedidoForCommentModal(updated)
             setPedidos((prev) => prev.map((item) => (item.id === updated.id ? updated : item)))
-            loadCompletadosPorCobrar()
+            recargarCompletados()
             loadMetricas()
           }}
           onOpenEdit={(pedidoToEdit) => {
@@ -1728,7 +1790,7 @@ export default function DashboardPage() {
           onPedidoUpdated={(updatedPedido) => {
             setSelectedPedidoForEdit(null)
             fetchPedidos(filters).then(setPedidos).catch(console.error)
-            loadCompletadosPorCobrar()
+            recargarCompletados()
             loadMetricas()
             if (selectedPedidoForCommentModal && selectedPedidoForCommentModal.id === updatedPedido.id) {
               setSelectedPedidoForCommentModal(updatedPedido)

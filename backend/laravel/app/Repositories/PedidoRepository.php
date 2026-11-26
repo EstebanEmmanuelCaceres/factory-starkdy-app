@@ -2,7 +2,9 @@
 
 namespace App\Repositories;
 
+use App\Models\Cliente;
 use App\Models\Pedido;
+use Illuminate\Database\Eloquent\Collection;
 
 /**
  * Repositorio de acceso a datos para la entidad Pedido (`pedidos`).
@@ -12,6 +14,27 @@ use App\Models\Pedido;
  */
 class PedidoRepository
 {
+    /**
+     * Pedidos completados cuyo cliente no tiene todos los datos de envío, del más nuevo al más viejo.
+     * Con $vendedorId solo los de ese vendedor. El cliente se carga en una sola query.
+     *
+     * @return Collection<int, Pedido>
+     */
+    public function completadosSinDatosEnvio(?int $vendedorId = null): Collection
+    {
+        return Pedido::query()
+            ->select('id', 'cliente_id', 'user_id', 'codigo', 'created_at')
+            ->with([
+                'cliente' => fn($q) => $q->select(['id', 'nombre_cliente', 'nombre_empresa', ...array_keys(Cliente::DATOS_ENVIO)]),
+                'user:id,name',
+            ])
+            ->whereHas('ultimoEstado', fn($q) => $q->whereIn('estado', ['completado', 'completado_pd']))
+            ->whereHas('cliente', fn($q) => $q->sinDatosEnvio())
+            ->when($vendedorId, fn($q) => $q->where('user_id', $vendedorId))
+            ->latest()
+            ->get();
+    }
+
     /**
      * Pedido con sus líneas y el nombre de cada producto (para armar una reposición).
      */

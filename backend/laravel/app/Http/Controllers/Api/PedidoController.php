@@ -20,6 +20,8 @@ use App\Services\LocalStorageService;
 use App\Services\ReposicionService;
 use App\Http\Requests\CrearReposicionRequest;
 use App\Http\Resources\ReposicionResource;
+use App\Http\Resources\PedidoSinDatosResource;
+use App\Repositories\PedidoRepository;
 use App\Models\User;
 use App\Http\Resources\ProgresoPedidoResource;
 use Illuminate\Support\Collection;
@@ -962,6 +964,21 @@ class PedidoController extends Controller
         return response()->json([
             'status' => 'success',
             'data' => $pedidos
+        ]);
+    }
+
+    /**
+     * Pedidos completados a los que les faltan datos de envío del cliente.
+     * El vendedor ve solo los suyos; el resto de los roles, todos.
+     */
+    public function completadosSinDatos(PedidoRepository $pedidos): JsonResponse
+    {
+        $user = Auth::user();
+        $vendedorId = $user?->role?->slug === 'vendedor' ? $user->id : null;
+
+        return response()->json([
+            'status' => 'success',
+            'data' => PedidoSinDatosResource::collection($pedidos->completadosSinDatosEnvio($vendedorId))->resolve(),
         ]);
     }
 

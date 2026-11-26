@@ -19,6 +19,11 @@ export const MOTIVOS_REPOSICION: { value: MotivoReposicion; label: string; icon:
 export const ROLES_REPOSICION = ['admin', 'encargado']
 export const puedeCrearReposicion = (role?: string | null) => !!role && ROLES_REPOSICION.includes(role)
 
+// Solo se reponen pedidos ya enviados (Pedido::ESTADOS_REPONIBLES en el backend)
+export const ESTADOS_REPONIBLES = ['enviado']
+export const puedeReponerPedido = (role: string | null | undefined, pedido: { estado: string; productos?: unknown[] }) =>
+  puedeCrearReposicion(role) && ESTADOS_REPONIBLES.includes(pedido.estado) && !!pedido.productos?.length
+
 // Body de POST /api/pedidos/{id}/reposicion: qué líneas del pedido se reponen y cuántas unidades
 export interface CrearReposicionInput {
   motivo: MotivoReposicion

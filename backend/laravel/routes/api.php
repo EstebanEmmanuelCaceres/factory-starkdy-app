@@ -116,6 +116,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('pedidos', [PedidoController::class, 'index']);
     Route::post('pedidos', [PedidoController::class, 'store']);
     Route::get('pedidos/completados-por-cobrar', [PedidoController::class, 'completadosPorCobrar']);
+    Route::get('pedidos/completados-sin-datos', [PedidoController::class, 'completadosSinDatos']);
     Route::get('pedidos/despacho', [PedidoController::class, 'listosParaDespacho']);
     // 'progreso' va antes de {id} para que no se tome como un id
     Route::get('pedidos/progreso', [PedidoController::class, 'progresos']);

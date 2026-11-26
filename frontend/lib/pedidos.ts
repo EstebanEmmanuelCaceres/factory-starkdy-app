@@ -317,6 +317,21 @@ export async function fetchCompletadosPorCobrar(): Promise<Pedido[]> {
   return data.data
 }
 
+// Pedido completado al que le faltan datos de envío del cliente (GET /pedidos/completados-sin-datos)
+export interface PedidoSinDatos {
+  id: number
+  codigo: string
+  created_at: string | null
+  cliente: { id: number; nombre_cliente: string; nombre_empresa: string | null } | null
+  vendedor: { id: number; name: string } | null
+  datos_faltantes: { clave: string; etiqueta: string }[]
+}
+
+export async function fetchCompletadosSinDatos(): Promise<PedidoSinDatos[]> {
+  const { data } = await api.get<{ status: string; data: PedidoSinDatos[] }>('/pedidos/completados-sin-datos')
+  return data.data
+}
+
 export async function fetchPedidosDespacho(): Promise<Pedido[]> {
   const { data } = await api.get<{ status: string; data: Pedido[] }>('/pedidos/despacho')
   return data.data

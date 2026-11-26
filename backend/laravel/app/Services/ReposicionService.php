@@ -39,6 +39,10 @@ class ReposicionService
         $pedido = $this->pedidos->buscarConLineas($pedidoId)
             ?? throw (new ModelNotFoundException())->setModel(Pedido::class, [$pedidoId]);
 
+        if (! in_array($pedido->estado, Pedido::ESTADOS_REPONIBLES, true)) {
+            throw ValidationException::withMessages(['pedido' => 'Solo se pueden reponer pedidos en estado Enviado.']);
+        }
+
         $lineas = $this->lineasAReponer($pedido, $datos['lineas']);
 
         // Siempre cuelga de la venta original, aunque se repita desde una reposición

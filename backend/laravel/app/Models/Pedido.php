@@ -25,6 +25,9 @@ class Pedido extends Model
 
     // Tipo de pedido: una reposición se vuelve a hacer porque la venta llegó mal (no se cobra)
     public const TIPO_VENTA = 'venta';
+    // Estados desde los que se puede crear una reposición (solo pedidos ya enviados)
+    public const ESTADOS_REPONIBLES = ['enviado'];
+
     public const TIPO_REPOSICION = 'reposicion';
 
     // Motivo => etiqueta. Las claves son las mismas que el CHECK pedidos_motivo_reposicion_chk

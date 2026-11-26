@@ -1973,6 +1973,7 @@ export default function PedidosPage() {
           onOpenGallery={(pedidoToGallery) => handleOpenImagesModal(pedidoToGallery)}
           onOpenPayments={(pedidoToPay) => handleOpenPaymentsModal(pedidoToPay)}
           onOpenEdit={(pedidoToEdit) => handleOpenEditModal(pedidoToEdit)}
+          onOpenReposicion={handleReponer}
         />
 
         {/* Modal de Gestión de Imágenes del Pedido */}
