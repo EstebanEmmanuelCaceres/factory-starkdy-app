@@ -8,8 +8,8 @@ Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());
 })->purpose('Display an inspiring quote');
 
-// Ventas de Tiendanube → pedidos (solo si hay credenciales cargadas en el .env)
+// Respaldo de ventas de Tiendanube → pedidos cada 30 min (webhooks activos en tiempo real)
 Schedule::command('tiendanube:sincronizar')
-    ->everyFiveMinutes()
+    ->everyThirtyMinutes()
     ->withoutOverlapping(10)
     ->when(fn () => config('services.tiendanube.store_id') && config('services.tiendanube.access_token'));

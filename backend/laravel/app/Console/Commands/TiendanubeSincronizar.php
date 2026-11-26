@@ -11,7 +11,7 @@ use Throwable;
 /**
  * Trae de Tiendanube las órdenes modificadas en las últimas horas y crea los pedidos que falten.
  * No guarda estado: la ventana se solapa a propósito y el importador es idempotente, así que repetir
- * una orden no duplica nada. Corre cada 5 minutos desde el scheduler (routes/console.php).
+ * una orden no duplica nada. Corre cada 30 minutos como respaldo desde el scheduler (routes/console.php).
  */
 class TiendanubeSincronizar extends Command
 {
