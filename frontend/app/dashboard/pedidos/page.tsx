@@ -50,7 +50,7 @@ import PedidoThumbnail from '@/components/PedidoThumbnail'
 import ClientQuickPasteBox from '@/components/ClientQuickPasteBox'
 import { type ParsedClienteData } from '@/lib/parseClienteText'
 
-const INACTIVE_ESTADOS = ['completado', 'completado_pd', 'finalizado', 'cancelado', 'enviado', 'enviado_faltante']
+const INACTIVE_ESTADOS = ['completado', 'finalizado', 'cancelado', 'enviado', 'enviado_faltante']
 
 // Portada del pedido: imagen principal, o la primera del pedido, o la de sus productos
 const getPedidoCoverUrl = (pedido: Pedido) =>
@@ -141,7 +141,7 @@ export default function PedidosPage() {
   const [formData, setFormData] = useState({
     cliente_id: '',
     codigo: '',
-    prioridad: 'normal' as 'baja' | 'normal' | 'alta' | 'critica',
+    prioridad: 'normal' as 'normal' | 'alta',
     fecha_entrega: '',
     estado: 'pendiente',
     selectedProductIds: [] as number[],
@@ -914,13 +914,10 @@ export default function PedidosPage() {
 
   const getPriorityBadgeClass = (priority: string) => {
     switch (priority) {
-      case 'critica':
-        return 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
       case 'alta':
         return 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
       case 'normal':
         return 'bg-blue-500/10 text-blue-400 border border-blue-500/20'
-      case 'baja':
       default:
         return 'bg-slate-500/10 text-slate-400 border border-slate-500/20'
     }
@@ -932,8 +929,6 @@ export default function PedidosPage() {
         return 'Listo para Producción'
       case 'completado':
         return 'Completado'
-      case 'completado_pd':
-        return 'Completado - Pend. Pago (PD)'
       case 'enviado':
         return 'Enviado'
       case 'enviado_faltante':
@@ -956,8 +951,6 @@ export default function PedidosPage() {
         return 'bg-cyan-500/10 text-cyan-400 border border-cyan-500/20'
       case 'completado':
         return 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-      case 'completado_pd':
-        return 'bg-purple-500/10 text-purple-400 border border-purple-500/20'
       case 'enviado':
         return 'bg-teal-500/10 text-teal-400 border border-teal-500/20'
       case 'enviado_faltante':
@@ -1034,7 +1027,7 @@ export default function PedidosPage() {
         valA = a.productos?.length || 0
         valB = b.productos?.length || 0
       } else if (sortField === 'prioridad') {
-        const priorityOrder = { baja: 1, normal: 2, alta: 3, critica: 4 }
+        const priorityOrder = { normal: 1, alta: 2 }
         valA = priorityOrder[a.prioridad] || 0
         valB = priorityOrder[b.prioridad] || 0
       } else if (sortField === 'estado') {

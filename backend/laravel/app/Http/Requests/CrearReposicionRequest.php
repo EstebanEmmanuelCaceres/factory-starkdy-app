@@ -33,7 +33,7 @@ class CrearReposicionRequest extends FormRequest
             'lineas.*.linea_id' => ['required', 'integer', 'distinct'],
             'lineas.*.cantidad' => ['required', 'integer', 'min:1'],
             'fecha_entrega' => ['nullable', 'date'],
-            'prioridad' => ['nullable', 'string', 'in:baja,normal,alta,critica'],
+            'prioridad' => ['nullable', 'string', Rule::in(Pedido::PRIORIDADES)],
         ];
     }
 

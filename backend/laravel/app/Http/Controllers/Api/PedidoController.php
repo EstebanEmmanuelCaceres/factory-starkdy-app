@@ -29,7 +29,7 @@ use Illuminate\Support\Collection;
 class PedidoController extends Controller
 {
     public const ESTADOS = [
-        'pendiente', 'listo_para_produccion', 'en_progreso', 'completado', 'completado_pd',
+        'pendiente', 'listo_para_produccion', 'en_progreso', 'completado',
         'enviado', 'enviado_faltante', 'cancelado',
     ];
 
@@ -141,7 +141,6 @@ class PedidoController extends Controller
                 $query->whereHas('ultimoEstado', function ($q) {
                     $q->whereNotIn('estado', [
                         'completado',
-                        'completado_pd',
                         'finalizado',
                         'cancelado',
                         'enviado',
@@ -158,7 +157,6 @@ class PedidoController extends Controller
             $query->whereHas('ultimoEstado', function ($q) {
                 $q->whereNotIn('estado', [
                     'completado',
-                    'completado_pd',
                     'finalizado',
                     'cancelado',
                     'enviado',
@@ -267,7 +265,7 @@ class PedidoController extends Controller
             'cliente.saldo' => 'nullable|numeric',
             'cliente.observaciones' => 'nullable|string',
             'codigo' => 'required|string|max:255|unique:pedidos,codigo',
-            'prioridad' => 'required|string|in:baja,normal,alta,critica',
+            'prioridad' => 'required|string|in:' . implode(',', Pedido::PRIORIDADES),
             'fecha_entrega' => 'required|date',
             'precio' => 'required|numeric|min:0',
             'comentario' => 'nullable|string',
@@ -487,7 +485,7 @@ class PedidoController extends Controller
             'cliente_id' => 'sometimes|required|exists:clientes,id',
             'codigo' => 'sometimes|required|string|max:255|unique:pedidos,codigo,' . $pedido->id,
             'estado' => 'sometimes|required|string',
-            'prioridad' => 'sometimes|required|string|in:baja,normal,alta,critica',
+            'prioridad' => 'sometimes|required|string|in:' . implode(',', Pedido::PRIORIDADES),
             'fecha_entrega' => 'sometimes|nullable|date',
             'precio' => 'sometimes|nullable|numeric|min:0',
             'comentario' => 'sometimes|nullable|string',
@@ -944,7 +942,7 @@ class PedidoController extends Controller
                 'comentarios.user:id,name'
             ])
             ->whereHas('ultimoEstado', function ($q) {
-                $q->whereIn('estado', ['completado', 'completado_pd']);
+                $q->where('estado', 'completado');
             });
 
         // Restricción por rol: si es vendedor, solo sus pedidos
@@ -1012,7 +1010,7 @@ class PedidoController extends Controller
                 'comentarios.imagenes:id,comentario_id,url',
             ])
             ->whereHas('ultimoEstado', function ($q) {
-                $q->whereIn('estado', ['completado', 'completado_pd']);
+                $q->where('estado', 'completado');
             });
 
         $isEncargado = in_array($currentUser->role?->slug, ['encargado', 'encargada'], true);

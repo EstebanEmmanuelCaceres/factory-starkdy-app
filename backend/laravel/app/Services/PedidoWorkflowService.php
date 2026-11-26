@@ -66,7 +66,7 @@ class PedidoWorkflowService
         }
 
         if ($incompleteTasks === 0) {
-            if (!in_array($pedido->estado, ['completado', 'completado_pd', 'enviado', 'enviado_faltante', 'cancelado'])) {
+            if (!in_array($pedido->estado, ['completado', 'enviado', 'enviado_faltante', 'cancelado'])) {
                 $pedido->estado = 'completado';
                 $pedido->save();
                 return true;

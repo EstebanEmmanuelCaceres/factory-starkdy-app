@@ -63,7 +63,7 @@ export interface Pedido {
   user_id: number
   codigo: string
   estado: string
-  prioridad: 'baja' | 'normal' | 'alta' | 'critica'
+  prioridad: 'normal' | 'alta'
   fecha_entrega: string | null
   precio: number | null
   comentario?: string | null
@@ -139,7 +139,7 @@ export interface CreatePedidoInput {
   cliente_id?: number | null
   cliente?: any
   codigo: string
-  prioridad: 'baja' | 'normal' | 'alta' | 'critica'
+  prioridad: 'normal' | 'alta'
   fecha_entrega?: string | null
   precio?: number | null
   comentario?: string | null
@@ -157,7 +157,7 @@ export interface UpdatePedidoInput {
   cliente_id?: number
   codigo?: string
   estado?: string
-  prioridad?: 'baja' | 'normal' | 'alta' | 'critica'
+  prioridad?: 'normal' | 'alta'
   fecha_entrega?: string | null
   precio?: number | null
   comentario?: string | null

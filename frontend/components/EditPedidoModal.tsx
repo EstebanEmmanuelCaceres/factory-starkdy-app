@@ -52,7 +52,7 @@ export default function EditPedidoModal({
   const [formData, setFormData] = useState({
     cliente_id: '',
     codigo: '',
-    prioridad: 'normal' as 'baja' | 'normal' | 'alta' | 'critica',
+    prioridad: 'normal' as 'normal' | 'alta',
     fecha_entrega: '',
     estado: 'pendiente',
     precio: '',
@@ -424,10 +424,8 @@ export default function EditPedidoModal({
                 onChange={(e) => setFormData({ ...formData, prioridad: e.target.value as any })}
                 className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition"
               >
-                <option value="baja">Baja</option>
                 <option value="normal">Normal</option>
                 <option value="alta">Alta</option>
-                <option value="critica">Crítica</option>
               </select>
             </div>
           </div>
@@ -465,7 +463,6 @@ export default function EditPedidoModal({
                 <option value="listo_para_produccion">Listo para producción</option>
                 <option value="en_progreso">En Progreso</option>
                 <option value="completado">Completado</option>
-                <option value="completado_pd">Completado - Pend. Pago (PD)</option>
                 <option value="enviado">Enviado</option>
                 <option value="enviado_faltante">Enviado con faltante</option>
                 <option value="cancelado">Cancelado</option>

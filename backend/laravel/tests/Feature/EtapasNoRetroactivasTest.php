@@ -50,7 +50,7 @@ class EtapasNoRetroactivasTest extends TestCase
 
     public static function estadosViejos(): array
     {
-        return [['completado'], ['completado_pd'], ['enviado'], ['enviado_faltante'], ['cancelado']];
+        return [['completado'], ['enviado'], ['enviado_faltante'], ['cancelado']];
     }
 
     public static function estadosActivos(): array
