@@ -871,6 +871,31 @@ class PedidoController extends Controller
     }
 
     /**
+     * Regenerar las etapas (tareas) de un producto del pedido con la configuración actual del producto.
+     * Solo admin (middleware en la ruta). Funciona en cualquier estado del pedido.
+     */
+    public function regenerarEtapasProducto($id, $productoId): JsonResponse
+    {
+        $pedido = Pedido::find($id);
+
+        if (!$pedido) {
+            return response()->json(['status' => 'error', 'message' => 'Pedido no encontrado'], 404);
+        }
+
+        if (!$pedido->productos()->where('productos.id', $productoId)->exists()) {
+            return response()->json(['status' => 'error', 'message' => 'El producto no pertenece a este pedido'], 404);
+        }
+
+        $cambio = $this->workflowService->regenerarEtapasDeProducto($pedido, (int) $productoId);
+
+        return response()->json([
+            'status' => 'success',
+            'message' => $cambio ? 'Etapas regeneradas con la última configuración del producto' : 'Las etapas ya estaban al día',
+            'data' => ['actualizado' => $cambio, 'estado' => $pedido->refresh()->estado],
+        ]);
+    }
+
+    /**
      * Completar en un solo pedido HTTP todas las etapas de un producto del pedido
      * (evita mandar una petición por etapa). Devuelve el progreso actualizado.
      */

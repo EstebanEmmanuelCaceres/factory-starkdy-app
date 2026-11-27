@@ -8,6 +8,7 @@ import {
   getPedido,
   updatePedido,
   completarEtapasProducto,
+  regenerarEtapasProducto,
   isPedidoPagoCompletado
 } from '@/lib/pedidos'
 import PedidoComentarios from '@/components/PedidoComentarios'
@@ -71,6 +72,7 @@ export default function PedidoDetailModal({
   const [error, setError] = useState('')
   const [completingTaskId, setCompletingTaskId] = useState<number | null>(null)
   const [completingProductId, setCompletingProductId] = useState<number | null>(null)
+  const [regeneratingProductId, setRegeneratingProductId] = useState<number | null>(null)
   const [coverIndex, setCoverIndex] = useState(0)
   const [isLightboxOpen, setIsLightboxOpen] = useState(false)
 
@@ -156,6 +158,7 @@ export default function PedidoDetailModal({
   const isVendedor = userRole === 'vendedor'
   const isEncargado = userRole === 'encargado' || userRole === 'encargada'
   const isAdminOrEncargado = ['admin', 'encargado', 'supervisor'].includes(userRole)
+  const isAdmin = userRole === 'admin'
   const isAuthorizedRole = !userRole || ['admin', 'encargado', 'vendedor'].includes(userRole)
   const canManagePayments = !userRole || ['admin', 'vendedor'].includes(userRole)
   const canViewFinancials = !isOperario && !isEncargado && userRole !== 'disenadora' && userRole !== 'disenador'
@@ -275,6 +278,33 @@ export default function PedidoDetailModal({
       setError(err instanceof Error ? err.message : 'Error al completar las etapas del producto')
     } finally {
       setCompletingProductId(null)
+    }
+  }
+
+  // Admin: vuelve a armar las etapas del producto en este pedido con la última configuración del producto
+  const handleRegenerateStages = async (productoId: number, productoNombre: string) => {
+    if (!currentPedido || regeneratingProductId !== null) return
+    if (!confirm(`¿Regenerar las etapas de "${productoNombre}" con la última configuración del producto?\n\nSe agregan las etapas nuevas y se quitan las que no empezaron. Las ya iniciadas o completadas se conservan.`)) return
+
+    try {
+      setError('')
+      setRegeneratingProductId(productoId)
+
+      const { message } = await regenerarEtapasProducto(currentPedido.id, productoId)
+      showNotification(`✓ ${message}`)
+
+      // Refrescar tareas (etapas y estados) y pedido (estado y progreso)
+      const [updatedAssignments, updatedPedido] = await Promise.all([
+        fetchResponsablesEtapas({ pedido_id: currentPedido.id }).catch(() => assignments),
+        getPedido(currentPedido.id).catch(() => currentPedido)
+      ])
+      setAssignments(updatedAssignments)
+      setCurrentPedido(updatedPedido)
+      if (onUpdatePedido) onUpdatePedido(updatedPedido)
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Error al regenerar las etapas del producto')
+    } finally {
+      setRegeneratingProductId(null)
     }
   }
 
@@ -932,19 +962,35 @@ export default function PedidoDetailModal({
                             )}
                           </div>
 
-                          {/* Completar todas las etapas del producto de una vez */}
-                          {isAdminOrEncargado && prodProgreso && prodProgreso.porcentaje !== null && prodProgreso.porcentaje < 100 && currentPedido.estado !== 'pendiente' && (
-                            <button
-                              type="button"
-                              disabled={completingProductId !== null || completingTaskId !== null}
-                              onClick={() => handleCompleteAllStages(prod.id, prod.nombre)}
-                              className="shrink-0 bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-500/40 disabled:opacity-50 disabled:cursor-not-allowed text-emerald-300 text-[11px] font-bold px-2.5 py-1 rounded-lg flex items-center gap-1 transition cursor-pointer"
-                              title="Marcar todas las etapas pendientes de este producto como completadas"
-                            >
-                              <span>✓✓</span>
-                              <span>{completingProductId === prod.id ? 'Completando...' : 'Completar todas'}</span>
-                            </button>
-                          )}
+                          <div className="flex shrink-0 flex-col items-end gap-1.5">
+                            {/* Completar todas las etapas del producto de una vez */}
+                            {isAdminOrEncargado && prodProgreso && prodProgreso.porcentaje !== null && prodProgreso.porcentaje < 100 && currentPedido.estado !== 'pendiente' && (
+                              <button
+                                type="button"
+                                disabled={completingProductId !== null || completingTaskId !== null}
+                                onClick={() => handleCompleteAllStages(prod.id, prod.nombre)}
+                                className="shrink-0 bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-500/40 disabled:opacity-50 disabled:cursor-not-allowed text-emerald-300 text-[11px] font-bold px-2.5 py-1 rounded-lg flex items-center gap-1 transition cursor-pointer"
+                                title="Marcar todas las etapas pendientes de este producto como completadas"
+                              >
+                                <span>✓✓</span>
+                                <span>{completingProductId === prod.id ? 'Completando...' : 'Completar todas'}</span>
+                              </button>
+                            )}
+
+                            {/* Solo admin: rehace las etapas del producto con la última configuración, en cualquier estado del pedido */}
+                            {isAdmin && (
+                              <button
+                                type="button"
+                                disabled={regeneratingProductId !== null || completingProductId !== null || completingTaskId !== null}
+                                onClick={() => handleRegenerateStages(prod.id, prod.nombre)}
+                                className="shrink-0 bg-slate-800/60 hover:bg-slate-700/70 border border-slate-700 disabled:opacity-50 disabled:cursor-not-allowed text-slate-300 text-[10px] font-semibold px-2 py-0.5 rounded-md flex items-center gap-1 transition cursor-pointer"
+                                title="Regenerar las etapas de este producto con la última configuración (solo admin)"
+                              >
+                                <span aria-hidden="true">↻</span>
+                                <span>{regeneratingProductId === prod.id ? 'Regenerando...' : 'Regenerar etapas'}</span>
+                              </button>
+                            )}
+                          </div>
                         </div>
 
                         {/* Etapas actuales a la vista (varias si hay etapas paralelas habilitadas).

@@ -332,4 +332,69 @@ class EtapasNoRetroactivasTest extends TestCase
         $this->assertSame(3, $viejo->tareas()->count());
         $this->assertSame(0, $viejo->tareas()->whereHas('etapaProducto', fn($q) => $q->where('producto_id', $this->producto->id))->count());
     }
+
+    #[DataProvider('estadosViejos')]
+    public function test_el_admin_puede_regenerar_las_etapas_de_un_pedido_viejo(string $estado): void
+    {
+        $viejo = $this->crearPedido('PED-1', [$this->producto], $estado);
+
+        $this->guardarEtapas([
+            'diseño' => [],
+            'produccion' => ['diseño'],
+            'control' => ['produccion'],
+            'finalizado' => ['control'],
+        ]);
+        $this->assertSame(3, $viejo->tareas()->count()); // no es retroactivo...
+
+        // ...hasta que el admin lo pide a mano, con la última configuración
+        $this->actingAs($this->user)
+            ->postJson("/api/pedidos/{$viejo->id}/productos/{$this->producto->id}/regenerar-etapas")
+            ->assertOk()
+            ->assertJsonPath('data.actualizado', true);
+
+        $this->assertSame(4, $viejo->tareas()->count());
+        $this->assertSame('bloqueada', $this->tareaDe($viejo, 'control')->estado);
+
+        // Repetirlo no cambia nada
+        $this->actingAs($this->user)
+            ->postJson("/api/pedidos/{$viejo->id}/productos/{$this->producto->id}/regenerar-etapas")
+            ->assertOk()
+            ->assertJsonPath('data.actualizado', false);
+        $this->assertSame(4, $viejo->tareas()->count());
+    }
+
+    public function test_regenerar_quita_las_etapas_sin_empezar_y_conserva_las_completadas(): void
+    {
+        $viejo = $this->crearPedido('PED-1', [$this->producto], 'pendiente');
+        $this->completar($viejo, 'diseño');
+
+        // Se quita "produccion" (sin empezar) y finalizado pasa a depender de diseño
+        $this->guardarEtapas(['diseño' => [], 'finalizado' => ['diseño']]);
+
+        $this->actingAs($this->user)
+            ->postJson("/api/pedidos/{$viejo->id}/productos/{$this->producto->id}/regenerar-etapas")
+            ->assertOk();
+
+        $this->assertSame(['diseño' => 'completado', 'finalizado' => 'pendiente'], $this->estadosDeTareas($viejo));
+    }
+
+    public function test_solo_el_admin_puede_regenerar_etapas_y_el_producto_debe_ser_del_pedido(): void
+    {
+        $viejo = $this->crearPedido('PED-1', [$this->producto]);
+        $vendedor = User::create([
+            'name' => 'Vendedor',
+            'email' => 'vendedor@example.com',
+            'password' => bcrypt('password'),
+            'role_id' => Role::create(['name' => 'Vendedor', 'slug' => 'vendedor'])->id,
+        ]);
+
+        $this->actingAs($vendedor)
+            ->postJson("/api/pedidos/{$viejo->id}/productos/{$this->producto->id}/regenerar-etapas")
+            ->assertForbidden();
+
+        $otro = Producto::create(['nombre' => 'Termo', 'precio' => 200]);
+        $this->actingAs($this->user)
+            ->postJson("/api/pedidos/{$viejo->id}/productos/{$otro->id}/regenerar-etapas")
+            ->assertNotFound();
+    }
 }

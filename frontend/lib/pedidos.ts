@@ -217,6 +217,20 @@ export async function completarEtapasProducto(pedidoId: number, productoId: numb
   return data.data
 }
 
+// Aplica al pedido las etapas que el producto tiene configuradas hoy (solo admin, en cualquier estado del pedido)
+export async function regenerarEtapasProducto(pedidoId: number, productoId: number): Promise<{
+  actualizado: boolean
+  estado: string
+  message: string
+}> {
+  const { data } = await api.post<{
+    status: string
+    message: string
+    data: { actualizado: boolean; estado: string }
+  }>(`/pedidos/${pedidoId}/productos/${productoId}/regenerar-etapas`)
+  return { ...data.data, message: data.message }
+}
+
 export async function updatePedido(id: number, input: UpdatePedidoInput): Promise<Pedido> {
   const { data } = await api.patch<{ status: string; data: Pedido }>(`/pedidos/${id}`, input)
   return data.data

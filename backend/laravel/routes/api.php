@@ -128,6 +128,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('pedidos/{id}/generar-tareas', [PedidoController::class, 'generarTareasManual']);
     Route::post('pedidos/{id}/reposicion', [PedidoController::class, 'crearReposicion']); // admin y encargado/a
     Route::post('pedidos/{id}/productos/{productoId}/completar-etapas', [PedidoController::class, 'completarEtapasProducto']);
+    Route::post('pedidos/{id}/productos/{productoId}/regenerar-etapas', [PedidoController::class, 'regenerarEtapasProducto'])->middleware('admin');
     Route::get('pedidos/{id}/comentarios', [PedidoController::class, 'getComentarios']);
     Route::post('pedidos/{id}/comentarios', [PedidoController::class, 'addComentario']);
     Route::patch('pedidos/{id}/comentarios/{comentarioId}', [PedidoController::class, 'updateComentario']);
