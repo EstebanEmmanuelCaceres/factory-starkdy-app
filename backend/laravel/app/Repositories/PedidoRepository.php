@@ -28,7 +28,7 @@ class PedidoRepository
                 'cliente' => fn($q) => $q->select(['id', 'nombre_cliente', 'nombre_empresa', ...array_keys(Cliente::DATOS_ENVIO)]),
                 'user:id,name',
             ])
-            ->whereHas('ultimoEstado', fn($q) => $q->whereIn('estado', ['completado', 'completado_pd']))
+            ->whereHas('ultimoEstado', fn($q) => $q->where('estado', 'completado'))
             ->whereHas('cliente', fn($q) => $q->sinDatosEnvio())
             ->when($vendedorId, fn($q) => $q->where('user_id', $vendedorId))
             ->latest()

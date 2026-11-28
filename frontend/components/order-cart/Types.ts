@@ -1,6 +1,6 @@
 import type { ValoresAtributos } from '@/lib/entities/atributos'
 
-export type Prioridad = 'baja' | 'normal' | 'alta' | 'critica'
+export type Prioridad = 'normal' | 'alta'
 
 export type MedioPago = 'transferencia' | 'efectivo' | 'mercadopago' | 'tarjeta' | 'cheque' | 'otros' | 'otro'
 

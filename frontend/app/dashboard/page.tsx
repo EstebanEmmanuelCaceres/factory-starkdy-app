@@ -261,7 +261,7 @@ export default function DashboardPage() {
 
   const isActivoOPendiente = (p: Pedido) => {
     const estado = p.estado || ''
-    return !['completado', 'completado_pd', 'finalizado', 'cancelado', 'enviado', 'enviado_faltante'].includes(estado)
+    return !['completado', 'finalizado', 'cancelado', 'enviado', 'enviado_faltante'].includes(estado)
   }
 
   const scopedPedidos = isVendedor && currentUser
@@ -438,13 +438,10 @@ export default function DashboardPage() {
 
   const getPriorityBadgeClass = (priority: string) => {
     switch (priority) {
-      case 'critica':
-        return 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
       case 'alta':
         return 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
       case 'normal':
         return 'bg-blue-500/10 text-blue-400 border border-blue-500/20'
-      case 'baja':
       default:
         return 'bg-slate-500/10 text-slate-400 border border-slate-500/20'
     }
@@ -454,8 +451,6 @@ export default function DashboardPage() {
     switch (status) {
       case 'completado':
         return 'Completado'
-      case 'completado_pd':
-        return 'Completado - Pend. Pago (PD)'
       case 'enviado':
         return 'Enviado'
       case 'enviado_faltante':
@@ -474,8 +469,6 @@ export default function DashboardPage() {
     switch (status) {
       case 'completado':
         return 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-      case 'completado_pd':
-        return 'bg-purple-500/10 text-purple-400 border border-purple-500/20'
       case 'enviado':
         return 'bg-teal-500/10 text-teal-400 border border-teal-500/20'
       case 'enviado_faltante':
@@ -984,7 +977,6 @@ export default function DashboardPage() {
                         <option value="pendiente">Pendiente</option>
                         <option value="en_progreso">En Progreso</option>
                         <option value="completado">Completado</option>
-                        <option value="completado_pd">Completado - Pend. Pago (PD)</option>
                         <option value="enviado">Enviado</option>
                         <option value="enviado_faltante">Enviado con Faltante</option>
                         <option value="cancelado">Cancelado</option>

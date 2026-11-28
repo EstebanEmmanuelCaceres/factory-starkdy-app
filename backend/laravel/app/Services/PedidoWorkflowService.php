@@ -40,6 +40,26 @@ class PedidoWorkflowService
     }
 
     /**
+     * Regeneración manual (solo admin): aplica a UN pedido las etapas que el producto tiene configuradas hoy,
+     * sin mirar el estado del pedido (a diferencia de aplicarEtapasDeProductoAPedidosActivos).
+     * Es la misma sincronización, y siempre recalcula bloqueos y estado: sirve también cuando solo cambió
+     * el orden o las dependencias, o cuando una regeneración automática falló a medias.
+     * Las tareas ya empezadas o completadas de etapas quitadas se conservan.
+     *
+     * @return bool si se creó o borró alguna tarea
+     */
+    public function regenerarEtapasDeProducto(Pedido $pedido, int $productoId): bool
+    {
+        return DB::transaction(function () use ($pedido, $productoId) {
+            $cambio = $pedido->sincronizarTareasDeProducto($productoId);
+            $this->actualizarBloqueosPedido($pedido->id);
+            $this->sincronizarEstadoPedido($pedido->id);
+
+            return $cambio;
+        });
+    }
+
+    /**
      * Sincroniza el estado general del pedido según el avance de sus etapas.
      * - Si todas las etapas están completadas -> pasa a "completado".
      * - Si al menos una etapa se completó y estaba en "pendiente" o "listo_para_produccion" -> pasa a "en_progreso".
@@ -66,7 +86,7 @@ class PedidoWorkflowService
         }
 
         if ($incompleteTasks === 0) {
-            if (!in_array($pedido->estado, ['completado', 'completado_pd', 'enviado', 'enviado_faltante', 'cancelado'])) {
+            if (!in_array($pedido->estado, ['completado', 'enviado', 'enviado_faltante', 'cancelado'])) {
                 $pedido->estado = 'completado';
                 $pedido->save();
                 return true;

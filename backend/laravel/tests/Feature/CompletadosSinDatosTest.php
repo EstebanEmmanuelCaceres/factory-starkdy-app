@@ -71,7 +71,7 @@ class CompletadosSinDatosTest extends TestCase
     {
         $vendedor = $this->usuario('vendedor');
         $cliente = Cliente::create(['nombre_cliente' => 'Ana', 'nombre_empresa' => 'Kiosco', 'telefono' => '1155']);
-        $this->pedido($vendedor, $cliente, 'PD-1', 'completado_pd');
+        $this->pedido($vendedor, $cliente, 'PD-1');
 
         $this->actingAs($vendedor)->getJson('/api/pedidos/completados-sin-datos')->assertJsonCount(1, 'data');
 

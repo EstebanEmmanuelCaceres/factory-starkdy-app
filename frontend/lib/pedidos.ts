@@ -63,7 +63,7 @@ export interface Pedido {
   user_id: number
   codigo: string
   estado: string
-  prioridad: 'baja' | 'normal' | 'alta' | 'critica'
+  prioridad: 'normal' | 'alta'
   fecha_entrega: string | null
   precio: number | null
   comentario?: string | null
@@ -139,7 +139,7 @@ export interface CreatePedidoInput {
   cliente_id?: number | null
   cliente?: any
   codigo: string
-  prioridad: 'baja' | 'normal' | 'alta' | 'critica'
+  prioridad: 'normal' | 'alta'
   fecha_entrega?: string | null
   precio?: number | null
   comentario?: string | null
@@ -157,7 +157,7 @@ export interface UpdatePedidoInput {
   cliente_id?: number
   codigo?: string
   estado?: string
-  prioridad?: 'baja' | 'normal' | 'alta' | 'critica'
+  prioridad?: 'normal' | 'alta'
   fecha_entrega?: string | null
   precio?: number | null
   comentario?: string | null
@@ -215,6 +215,20 @@ export async function completarEtapasProducto(pedidoId: number, productoId: numb
     data: { completadas: number; estado: string; progreso: ProgresoPedido }
   }>(`/pedidos/${pedidoId}/productos/${productoId}/completar-etapas`)
   return data.data
+}
+
+// Aplica al pedido las etapas que el producto tiene configuradas hoy (solo admin, en cualquier estado del pedido)
+export async function regenerarEtapasProducto(pedidoId: number, productoId: number): Promise<{
+  actualizado: boolean
+  estado: string
+  message: string
+}> {
+  const { data } = await api.post<{
+    status: string
+    message: string
+    data: { actualizado: boolean; estado: string }
+  }>(`/pedidos/${pedidoId}/productos/${productoId}/regenerar-etapas`)
+  return { ...data.data, message: data.message }
 }
 
 export async function updatePedido(id: number, input: UpdatePedidoInput): Promise<Pedido> {

@@ -25,6 +25,9 @@ class Pedido extends Model
 
     // Tipo de pedido: una reposición se vuelve a hacer porque la venta llegó mal (no se cobra)
     public const TIPO_VENTA = 'venta';
+    // Prioridades válidas (antes había también baja y crítica; la migración las pasó a normal y alta)
+    public const PRIORIDADES = ['normal', 'alta'];
+
     // Estados desde los que se puede crear una reposición (solo pedidos ya enviados)
     public const ESTADOS_REPONIBLES = ['enviado'];
 

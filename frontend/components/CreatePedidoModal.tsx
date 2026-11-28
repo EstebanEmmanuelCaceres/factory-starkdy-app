@@ -36,13 +36,10 @@ export interface CreatePedidoModalProps {
 
 const getPriorityBadgeClass = (priority: string) => {
   switch (priority) {
-    case 'critica':
-      return 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
     case 'alta':
       return 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
     case 'normal':
       return 'bg-blue-500/10 text-blue-400 border border-blue-500/20'
-    case 'baja':
     default:
       return 'bg-slate-500/10 text-slate-400 border border-slate-500/20'
   }
